@@ -68,7 +68,7 @@ export default function Settings({ onBack }: SettingsProps) {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Language Settings */}
-          <div className={`${theme.card} p-6`}>
+          <div className={`${themeClasses.card} p-6`}>
             <div className="flex items-center space-x-3 mb-6">
               <Globe className={`w-6 h-6 ${themeClasses.accent}`} />
               <h2 className={`text-2xl font-bold ${themeClasses.text}`}>Taal / Language</h2>
@@ -80,11 +80,11 @@ export default function Settings({ onBack }: SettingsProps) {
                   key={language.code}
                   onClick={() => setLanguage(language.code)}
                   className={`w-full p-4 rounded-lg border-2 transition-all duration-200 flex items-center justify-between ${
-                    language === language.code
-                      ? theme === 'light' 
+                    currentLanguage === language.code
+                      ? currentTheme === 'light' 
                         ? 'border-blue-500 bg-blue-50' 
                         : 'border-neon-gold bg-neon-gold/10'
-                      : theme === 'light'
+                      : currentTheme === 'light'
                         ? 'border-gray-200 hover:border-gray-300 bg-gray-50'
                         : 'border-gray-600 hover:border-gray-500 bg-dark-bg/30'
                   }`}
@@ -93,7 +93,7 @@ export default function Settings({ onBack }: SettingsProps) {
                     <span className="text-2xl">{language.flag}</span>
                     <span className={`font-semibold ${themeClasses.text}`}>{language.name}</span>
                   </div>
-                  {language === language.code && (
+                  {currentLanguage === language.code && (
                     <Check className={`w-5 h-5 ${themeClasses.accent}`} />
                   )}
                 </button>
@@ -102,18 +102,18 @@ export default function Settings({ onBack }: SettingsProps) {
           </div>
 
           {/* Theme Settings */}
-          <div className={`${theme.card} p-6`}>
+          <div className={`${themeClasses.card} p-6`}>
             <div className="flex items-center space-x-3 mb-6">
-              <Palette className={`w-6 h-6 ${theme.accent}`} />
-              <h2 className={`text-2xl font-bold ${theme.text}`}>Thema</h2>
+              <Palette className={`w-6 h-6 ${themeClasses.accent}`} />
+              <h2 className={`text-2xl font-bold ${themeClasses.text}`}>Thema</h2>
             </div>
             
             <div className="space-y-3">
               {/* Dark Theme */}
               <button
-                onClick={() => setSelectedTheme('dark')}
+                onClick={() => setTheme('dark')}
                 className={`w-full p-4 rounded-lg border-2 transition-all duration-200 flex items-center justify-between ${
-                  selectedTheme === 'dark'
+                  currentTheme === 'dark'
                     ? 'border-neon-gold bg-neon-gold/10'
                     : 'border-gray-600 hover:border-gray-500 bg-dark-bg/30'
                 }`}
@@ -123,20 +123,20 @@ export default function Settings({ onBack }: SettingsProps) {
                     <Moon className="w-5 h-5 text-purple-400" />
                   </div>
                   <div className="text-left">
-                    <p className={`font-semibold ${theme.text}`}>Donker Thema</p>
-                    <p className={`text-sm ${theme.textSecondary}`}>Neon kleuren en donkere achtergrond</p>
+                    <p className={`font-semibold ${themeClasses.text}`}>Donker Thema</p>
+                    <p className={`text-sm ${themeClasses.textSecondary}`}>Neon kleuren en donkere achtergrond</p>
                   </div>
                 </div>
-                {selectedTheme === 'dark' && (
-                  <Check className={`w-5 h-5 ${theme.accent}`} />
+                {currentTheme === 'dark' && (
+                  <Check className={`w-5 h-5 ${themeClasses.accent}`} />
                 )}
               </button>
 
               {/* Light Theme */}
               <button
-                onClick={() => setSelectedTheme('light')}
+                onClick={() => setTheme('light')}
                 className={`w-full p-4 rounded-lg border-2 transition-all duration-200 flex items-center justify-between ${
-                  selectedTheme === 'light'
+                  currentTheme === 'light'
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-600 hover:border-gray-500 bg-dark-bg/30'
                 }`}
@@ -146,12 +146,12 @@ export default function Settings({ onBack }: SettingsProps) {
                     <Sun className="w-5 h-5 text-yellow-600" />
                   </div>
                   <div className="text-left">
-                    <p className={`font-semibold ${theme.text}`}>Licht Thema</p>
-                    <p className={`text-sm ${theme.textSecondary}`}>Heldere kleuren en lichte achtergrond</p>
+                    <p className={`font-semibold ${themeClasses.text}`}>Licht Thema</p>
+                    <p className={`text-sm ${themeClasses.textSecondary}`}>Heldere kleuren en lichte achtergrond</p>
                   </div>
                 </div>
-                {selectedTheme === 'light' && (
-                  <Check className={`w-5 h-5 ${theme.accent}`} />
+                {currentTheme === 'light' && (
+                  <Check className={`w-5 h-5 ${themeClasses.accent}`} />
                 )}
               </button>
             </div>
@@ -159,44 +159,44 @@ export default function Settings({ onBack }: SettingsProps) {
         </div>
 
         {/* Preview Section */}
-        <div className={`mt-8 ${theme.card} p-6`}>
-          <h3 className={`text-xl font-bold ${theme.text} mb-4`}>Voorbeeld</h3>
+        <div className={`mt-8 ${themeClasses.card} p-6`}>
+          <h3 className={`text-xl font-bold ${themeClasses.text} mb-4`}>Voorbeeld</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className={`p-4 rounded-lg ${selectedTheme === 'light' ? 'bg-blue-50 border border-blue-200' : 'bg-neon-purple/20 border border-neon-purple'}`}>
+            <div className={`p-4 rounded-lg ${currentTheme === 'light' ? 'bg-blue-50 border border-blue-200' : 'bg-neon-purple/20 border border-neon-purple'}`}>
               <div className="flex items-center space-x-2 mb-2">
                 <span className="text-2xl">⚡</span>
-                <span className={`font-bold ${theme.text}`}>Virticoin</span>
+                <span className={`font-bold ${themeClasses.text}`}>Virticoin</span>
               </div>
-              <p className={`text-2xl font-bold ${selectedTheme === 'light' ? 'text-blue-600' : 'text-neon-gold'}`}>
+              <p className={`text-2xl font-bold ${currentTheme === 'light' ? 'text-blue-600' : 'text-neon-gold'}`}>
                 €1,250.50
               </p>
-              <p className={`text-sm ${selectedTheme === 'light' ? 'text-green-600' : 'text-green-400'}`}>
+              <p className={`text-sm ${currentTheme === 'light' ? 'text-green-600' : 'text-green-400'}`}>
                 +5.2%
               </p>
             </div>
             
-            <div className={`p-4 rounded-lg ${selectedTheme === 'light' ? 'bg-green-50 border border-green-200' : 'bg-neon-turquoise/20 border border-neon-turquoise'}`}>
+            <div className={`p-4 rounded-lg ${currentTheme === 'light' ? 'bg-green-50 border border-green-200' : 'bg-neon-turquoise/20 border border-neon-turquoise'}`}>
               <div className="flex items-center space-x-2 mb-2">
                 <span className="text-2xl">📊</span>
-                <span className={`font-bold ${theme.text}`}>LedgerX</span>
+                <span className={`font-bold ${themeClasses.text}`}>LedgerX</span>
               </div>
-              <p className={`text-2xl font-bold ${selectedTheme === 'light' ? 'text-green-600' : 'text-neon-gold'}`}>
+              <p className={`text-2xl font-bold ${currentTheme === 'light' ? 'text-green-600' : 'text-neon-gold'}`}>
                 €445.75
               </p>
-              <p className={`text-sm ${selectedTheme === 'light' ? 'text-green-600' : 'text-green-400'}`}>
+              <p className={`text-sm ${currentTheme === 'light' ? 'text-green-600' : 'text-green-400'}`}>
                 +8.7%
               </p>
             </div>
             
-            <div className={`p-4 rounded-lg ${selectedTheme === 'light' ? 'bg-orange-50 border border-orange-200' : 'bg-neon-gold/20 border border-neon-gold'}`}>
+            <div className={`p-4 rounded-lg ${currentTheme === 'light' ? 'bg-orange-50 border border-orange-200' : 'bg-neon-gold/20 border border-neon-gold'}`}>
               <div className="flex items-center space-x-2 mb-2">
                 <span className="text-2xl">₿</span>
-                <span className={`font-bold ${theme.text}`}>BitCoin</span>
+                <span className={`font-bold ${themeClasses.text}`}>BitCoin</span>
               </div>
-              <p className={`text-2xl font-bold ${selectedTheme === 'light' ? 'text-orange-600' : 'text-neon-gold'}`}>
+              <p className={`text-2xl font-bold ${currentTheme === 'light' ? 'text-orange-600' : 'text-neon-gold'}`}>
                 €3,450.00
               </p>
-              <p className={`text-sm ${selectedTheme === 'light' ? 'text-red-600' : 'text-red-400'}`}>
+              <p className={`text-sm ${currentTheme === 'light' ? 'text-red-600' : 'text-red-400'}`}>
                 -0.8%
               </p>
             </div>
@@ -204,8 +204,8 @@ export default function Settings({ onBack }: SettingsProps) {
         </div>
 
         {/* Save Notice */}
-        <div className={`mt-6 p-4 rounded-lg ${selectedTheme === 'light' ? 'bg-green-50 border border-green-200' : 'bg-green-900/20 border border-green-500'}`}>
-          <p className={`text-center ${selectedTheme === 'light' ? 'text-green-800' : 'text-green-400'}`}>
+        <div className={`mt-6 p-4 rounded-lg ${currentTheme === 'light' ? 'bg-green-50 border border-green-200' : 'bg-green-900/20 border border-green-500'}`}>
+          <p className={`text-center ${currentTheme === 'light' ? 'text-green-800' : 'text-green-400'}`}>
             ✅ Je instellingen worden automatisch opgeslagen
           </p>
         </div>
