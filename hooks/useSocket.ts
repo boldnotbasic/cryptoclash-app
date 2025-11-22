@@ -97,16 +97,15 @@ export const useSocket = (): UseSocketReturn => {
     console.log('🔌 Connecting to Socket.io server:', socketUrl)
     
     socketRef.current = io(socketUrl, {
-      transports: ['polling'], // Force polling for mobile compatibility
+      transports: ['websocket', 'polling'], // Try websocket first, fallback to polling
       timeout: 20000,
-      forceNew: false, // Don't force new connection
-      upgrade: false, // Disable websocket upgrade
-      rememberUpgrade: false,
+      forceNew: false,
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000
+      reconnectionDelayMax: 5000,
+      withCredentials: true
     })
 
     // Store in global variable to prevent multiple connections

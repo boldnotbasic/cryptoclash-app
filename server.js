@@ -193,9 +193,13 @@ app.prepare().then(() => {
   const io = new Server(httpServer, {
     cors: {
       origin: "*",
-      methods: ["GET", "POST"]
+      methods: ["GET", "POST"],
+      credentials: true
     },
-    transports: ['polling'] // Force polling for mobile compatibility
+    transports: ['websocket', 'polling'], // Allow both transports
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000
   })
 
   // Update crypto prices and broadcast to ALL clients
