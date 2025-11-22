@@ -4,6 +4,8 @@ import { Settings as SettingsIcon, Globe, Palette, Moon, Sun, Check, ArrowLeft }
 import { useApp } from '@/contexts/AppContext'
 import Header from './Header'
 
+type Theme = 'dark' | 'light'
+
 interface SettingsProps {
   onBack: () => void
   playerName: string
@@ -85,16 +87,12 @@ export default function Settings({ onBack, playerName, playerAvatar }: SettingsP
               <button
                 onClick={() => {
                   console.log('Setting theme to dark')
-                  setTheme('dark')
+                  setTheme('dark' as Theme)
                 }}
                 className={`w-full p-4 rounded-lg border-2 transition-all duration-200 flex items-center justify-between ${
                   currentTheme === 'dark'
-                    ? currentTheme === 'light' 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-neon-gold bg-neon-gold/10'
-                    : currentTheme === 'light'
-                      ? 'border-gray-200 hover:border-gray-300 bg-gray-50'
-                      : 'border-gray-600 hover:border-gray-500 bg-dark-bg/30'
+                    ? 'border-neon-gold bg-neon-gold/10'
+                    : 'border-gray-600 hover:border-gray-500 bg-dark-bg/30'
                 }`}
               >
                 <div className="flex items-center space-x-3">
@@ -107,7 +105,7 @@ export default function Settings({ onBack, playerName, playerAvatar }: SettingsP
                   </div>
                 </div>
                 {currentTheme === 'dark' && (
-                  <Check className={`w-5 h-5 ${currentTheme === 'light' ? 'text-blue-600' : 'text-neon-gold'}`} />
+                  <Check className="w-5 h-5 text-neon-gold" />
                 )}
               </button>
 
@@ -115,7 +113,7 @@ export default function Settings({ onBack, playerName, playerAvatar }: SettingsP
               <button
                 onClick={() => {
                   console.log('Setting theme to light')
-                  setTheme('light')
+                  setTheme('light' as Theme)
                 }}
                 className={`w-full p-4 rounded-lg border-2 transition-all duration-200 flex items-center justify-between ${
                   currentTheme === 'light'
