@@ -193,8 +193,7 @@ app.prepare().then(() => {
   const io = new Server(httpServer, {
     cors: {
       origin: "*",
-      methods: ["GET", "POST"],
-      credentials: true
+      methods: ["GET", "POST"]
     },
     transports: ['websocket', 'polling'], // Allow both transports
     allowEIO3: true,
