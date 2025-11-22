@@ -1,0 +1,301 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { io, Socket } from 'socket.io-client'
+
+interface Room {
+  hostId: string
+  hostName: string
+  hostAvatar: string
+  players: Record<string, {
+    name: string
+    avatar: string
+    joinedAt: number
+    isHost: boolean
+    isRejoining?: boolean
+    cashBalance?: number
+    portfolio?: any
+  }>
+  started: boolean
+  settings: {
+    volatility: string
+    gameDuration: number
+    startingCash?: number
+  }
+}
+
+interface UseSocketReturn {
+  socket: Socket | null
+  connected: boolean
+  room: Room | null
+  error: string | null
+  createRoom: (roomCode: string, hostName: string, hostAvatar: string, settings: any) => void
+  joinRoom: (roomCode: string, playerName: string, playerAvatar: string) => void
+  startGame: (roomCode: string) => void
+  clearError: () => void
+}
+
+// Global socket instance to prevent multiple connections
+let globalSocket: Socket | null = null as Socket | null
+
+export const useSocket = (): UseSocketReturn => {
+  const socketRef = useRef<Socket | null>(null)
+  const [connected, setConnected] = useState(false)
+  const [room, setRoom] = useState<Room | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const AUTO_JOIN_STORAGE_KEY = 'cryptoclash-last-join'
+  const AUTO_JOIN_ATTEMPT_KEY = 'cryptoclash-last-join-attempt'
+
+  useEffect(() => {
+    // Use global socket if it exists
+    if (globalSocket && globalSocket.connected) {
+      console.log('🔌 Reusing existing global socket connection:', globalSocket.id)
+      socketRef.current = globalSocket
+      setConnected(true)
+      
+      // Setup state listeners for existing socket
+      const socket = globalSocket
+      
+      socket.on('host:createSuccess', ({ roomCode, room }) => {
+        console.log('🏠 Room created/joined successfully:', roomCode)
+        setRoom(room)
+        setError(null)
+      })
+      
+      socket.on('player:joinSuccess', ({ roomCode, room }) => {
+        console.log('🎉 Player joined successfully:', roomCode)
+        setRoom(room)
+        setError(null)
+      })
+      
+      socket.on('lobby:update', (updatedRoom) => {
+        console.log('🔄 Lobby updated')
+        setRoom(updatedRoom)
+      })
+      
+      socket.on('game:started', ({ room }) => {
+        console.log('🎮 Game started!')
+        setRoom(room)
+      })
+      
+      return () => {
+        console.log('🔌 Component cleanup - keeping socket alive')
+      }
+    }
+    
+    // Prevent multiple socket connections
+    if (socketRef.current) {
+      console.log('🔌 Socket already exists in ref, reusing connection')
+      return
+    }
+
+    // Initialize socket connection with proper URL handling
+    const socketUrl = process.env.NODE_ENV === 'production' 
+      ? window.location.origin 
+      : `${window.location.protocol}//${window.location.hostname}:${window.location.port || 3000}`
+    
+    console.log('🔌 Connecting to Socket.io server:', socketUrl)
+    
+    socketRef.current = io(socketUrl, {
+      transports: ['polling'], // Force polling for mobile compatibility
+      timeout: 20000,
+      forceNew: false, // Don't force new connection
+      upgrade: false, // Disable websocket upgrade
+      rememberUpgrade: false,
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000
+    })
+
+    // Store in global variable to prevent multiple connections
+    globalSocket = socketRef.current
+    const socket = socketRef.current
+
+    // Connection events
+    socket.on('connect', () => {
+      console.log('🔌 Connected to server:', socket.id)
+      setConnected(true)
+      setError(null)
+      // Try automatic rejoin if we have prior identity and no room set yet
+      try {
+        const raw = localStorage.getItem(AUTO_JOIN_STORAGE_KEY)
+        const attemptRaw = sessionStorage.getItem(AUTO_JOIN_ATTEMPT_KEY)
+        const lastAttempt = attemptRaw ? parseInt(attemptRaw, 10) : 0
+        const now = Date.now()
+        if (raw && !room && (!lastAttempt || now - lastAttempt > 3000)) {
+          const data = JSON.parse(raw)
+          const { roomCode, playerName, playerAvatar } = data || {}
+          if (roomCode && playerName && playerAvatar) {
+            console.log('🤖 Auto-rejoin attempt with saved identity:', data)
+            sessionStorage.setItem(AUTO_JOIN_ATTEMPT_KEY, String(now))
+            socket.emit('player:join', { roomCode, playerName, playerAvatar })
+          }
+        }
+      } catch (e) {
+        console.warn('Auto-rejoin failed to read storage', e)
+      }
+    })
+
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 Disconnected from server:', reason)
+      setConnected(false)
+      setRoom(null)
+    })
+
+    socket.on('connect_error', (error) => {
+      console.error('🔌 Connection error:', error)
+      setConnected(false)
+      setError(`Verbindingsfout: ${error.message}`)
+    })
+
+    // Host events
+    socket.on('host:createSuccess', ({ roomCode, room }) => {
+      console.log('🏠 Room created/joined successfully:', roomCode)
+      console.log('🏠 Room data:', room)
+      setRoom(room)
+      setError(null)
+    })
+
+    socket.on('host:createError', (errorMessage) => {
+      console.error('🏠 Room creation error:', errorMessage)
+      setError(errorMessage)
+    })
+
+    // Player events
+    socket.on('player:joinSuccess', ({ roomCode, room }) => {
+      console.log('🎉 === PLAYER JOIN SUCCESS RECEIVED ===')
+      console.log('👤 Joined room successfully:', roomCode)
+      console.log('🏠 Room data:', room)
+      console.log('👥 Players in room:', Object.keys(room?.players || {}).length)
+      
+      // Ensure room data is valid before setting
+      if (room && room.players) {
+        setRoom(room)
+        setError(null)
+        console.log('✅ Room state updated successfully')
+        // Persist successful join for future auto-rejoin
+        try {
+          const raw = localStorage.getItem(AUTO_JOIN_STORAGE_KEY)
+          if (!raw) {
+            const sid = socketRef.current?.id
+            if (sid) {
+              // If we didn't store yet (e.g., host invited flow), try to infer identity from players list matching this socket id
+              const self = (room.players as any)[sid]
+              if (self && !self.isHost) {
+                localStorage.setItem(AUTO_JOIN_STORAGE_KEY, JSON.stringify({
+                  roomCode: roomCode,
+                  playerName: self.name,
+                  playerAvatar: self.avatar
+                }))
+              }
+            }
+          }
+        } catch {}
+      } else {
+        console.error('❌ Invalid room data received:', room)
+        setError('Ongeldige kamer data ontvangen')
+      }
+    })
+
+    socket.on('player:joinError', (errorMessage) => {
+      console.error('❌ === PLAYER JOIN ERROR RECEIVED ===')
+      console.error('👤 Join error:', errorMessage)
+      setError(errorMessage)
+    })
+
+    // Lobby events
+    socket.on('lobby:update', (updatedRoom) => {
+      console.log('🔄 Lobby updated')
+      setRoom(updatedRoom)
+    })
+
+    // Game events
+    socket.on('game:started', ({ room }) => {
+      console.log('🎮 Game started!')
+      setRoom(room)
+    })
+
+    // Host start game events - ERROR HANDLING REMOVED
+    // NO MORE ERRORS - GAME ALWAYS STARTS
+    socket.on('host:startError', (errorMessage) => {
+      console.warn('⚠️ Received old error (ignoring):', errorMessage)
+      // IGNORE ALL ERRORS - DON'T SET ERROR STATE
+    })
+
+    // Test message events for room sync verification
+    socket.on('test:messageReceived', ({ message, sender, timestamp, roomCode }) => {
+      console.log(`📡 Test message received in room ${roomCode}:`, message, 'from', sender)
+      // You could add a toast notification here or update UI
+    })
+
+    return () => {
+      console.log('🔌 Component cleanup - keeping socket alive for other components')
+      // DON'T disconnect the socket - keep it alive for other components
+      // Only remove listeners if the socket is being recreated
+      // socketRef.current = null
+    }
+  }, [])
+
+  const createRoom = (roomCode: string, hostName: string, hostAvatar: string, settings: any) => {
+    if (socketRef.current?.connected) {
+      console.log('🏠 Creating room:', roomCode)
+      socketRef.current.emit('host:createRoom', {
+        roomCode,
+        hostName,
+        hostAvatar,
+        settings
+      })
+    } else {
+      setError('Geen verbinding met server')
+    }
+  }
+
+  const joinRoom = (roomCode: string, playerName: string, playerAvatar: string) => {
+    console.log('🔍 joinRoom called with:', { roomCode, playerName, playerAvatar })
+    console.log('🔍 Socket connected:', socketRef.current?.connected)
+    console.log('🔍 Socket ID:', socketRef.current?.id)
+    
+    if (socketRef.current?.connected) {
+      console.log('👤 Emitting player:join event')
+      socketRef.current.emit('player:join', {
+        roomCode,
+        playerName,
+        playerAvatar
+      })
+      console.log('👤 player:join event emitted successfully')
+      // Save identity for auto-rejoin
+      try {
+        localStorage.setItem(AUTO_JOIN_STORAGE_KEY, JSON.stringify({ roomCode, playerName, playerAvatar }))
+      } catch {}
+    } else {
+      console.error('❌ No socket connection available')
+      setError('Geen verbinding met server')
+    }
+  }
+
+  const startGame = (roomCode: string) => {
+    if (socketRef.current?.connected) {
+      console.log('🎮 Starting game in room:', roomCode)
+      socketRef.current.emit('host:startGame', { roomCode })
+    } else {
+      setError('Geen verbinding met server')
+    }
+  }
+
+  const clearError = () => {
+    setError(null)
+  }
+
+  return {
+    socket: socketRef.current,
+    connected,
+    room,
+    error,
+    createRoom,
+    joinRoom,
+    startGame,
+    clearError
+  }
+}

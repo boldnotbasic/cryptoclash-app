@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Socket.io Debug</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background: #2d5a2d; border: 1px solid #4a8a4a; }
+        .disconnected { background: #5a2d2d; border: 1px solid #8a4a4a; }
+        .info { background: #2d2d5a; border: 1px solid #4a4a8a; }
+        button { padding: 10px 20px; margin: 5px; background: #4a4a8a; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #5a5a9a; }
+        #log { background: #2a2a2a; padding: 10px; border-radius: 5px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>🔌 Socket.io Connection Debug</h1>
+    
+    <div id="status" class="status disconnected">
+        ❌ Niet verbonden
+    </div>
+    
+    <div class="info">
+        <strong>URL:</strong> <span id="url"></span><br>
+        <strong>User Agent:</strong> <span id="userAgent"></span><br>
+        <strong>Location:</strong> <span id="location"></span>
+    </div>
+    
+    <button onclick="testConnection()">🔄 Test Verbinding</button>
+    <button onclick="createRoom123()">🏠 Maak Kamer 123</button>
+    <button onclick="testRoom123()">👤 Join Kamer 123</button>
+    <button onclick="fullTest()">🚀 Volledige Test</button>
+    <button onclick="listRooms()">📋 Toon Kamers</button>
+    <button onclick="clearLog()">🗑️ Clear Log</button>
+    
+    <h3>📋 Connection Log:</h3>
+    <div id="log"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const statusEl = document.getElementById('status');
+        const logEl = document.getElementById('log');
+        const urlEl = document.getElementById('url');
+        const userAgentEl = document.getElementById('userAgent');
+        const locationEl = document.getElementById('location');
+        
+        // Show debug info
+        const socketUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port || 3000}`;
+        urlEl.textContent = socketUrl;
+        userAgentEl.textContent = navigator.userAgent;
+        locationEl.textContent = window.location.href;
+        
+        let socket = null;
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.innerHTML += `[${timestamp}] ${message}<br>`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(connected, message) {
+            if (connected) {
+                statusEl.className = 'status connected';
+                statusEl.innerHTML = `✅ ${message}`;
+            } else {
+                statusEl.className = 'status disconnected';
+                statusEl.innerHTML = `❌ ${message}`;
+            }
+        }
+        
+        function testConnection() {
+            log('🔌 Starting connection test...');
+            
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            socket = io(socketUrl, {
+                transports: ['polling'], // Force polling for mobile
+                timeout: 20000,
+                forceNew: true,
+                upgrade: false,
+                rememberUpgrade: false
+            });
+            
+            socket.on('connect', () => {
+                log(`✅ Connected! Socket ID: ${socket.id}`);
+                updateStatus(true, `Verbonden (${socket.id})`);
+            });
+            
+            socket.on('disconnect', (reason) => {
+                log(`❌ Disconnected: ${reason}`);
+                updateStatus(false, `Niet verbonden (${reason})`);
+            });
+            
+            socket.on('connect_error', (error) => {
+                log(`🚨 Connection error: ${error.message}`);
+                updateStatus(false, `Verbindingsfout: ${error.message}`);
+            });
+            
+            socket.on('error', (error) => {
+                log(`🚨 Socket error: ${error}`);
+            });
+            
+            // Test events
+            socket.on('player:joinSuccess', (data) => {
+                log(`🎉 Join success: ${JSON.stringify(data)}`);
+                log(`🏠 Room details: ${JSON.stringify(data.room, null, 2)}`);
+            });
+            
+            socket.on('player:joinError', (error) => {
+                log(`❌ Join error: ${error}`);
+            });
+            
+            socket.on('lobby:update', (room) => {
+                log(`🔄 Lobby update: ${Object.keys(room.players).length} players`);
+            });
+
+            socket.on('debug:rooms', (rooms) => {
+                log(`📋 Available rooms: ${Object.keys(rooms).join(', ') || 'none'}`);
+            });
+
+            socket.on('debug:roomCreated', (roomCode) => {
+                log(`✅ Room ${roomCode} created successfully!`);
+            });
+
+            socket.on('debug:roomExists', (roomCode) => {
+                log(`ℹ️ Room ${roomCode} already exists`);
+            });
+        }
+
+        function createRoom123() {
+            if (!socket || !socket.connected) {
+                log('❌ Not connected! Test connection first.');
+                return;
+            }
+            
+            log('🏠 Creating room 123...');
+            socket.emit('debug:createRoom123');
+        }
+        
+        function testRoom123() {
+            if (!socket || !socket.connected) {
+                log('❌ Not connected! Test connection first.');
+                return;
+            }
+            
+            const joinData = {
+                roomCode: '123',
+                playerName: 'MobileTestPlayer',
+                playerAvatar: '📱'
+            };
+            
+            log(`👤 Testing room 123 join with data: ${JSON.stringify(joinData)}`);
+            log(`🔌 Socket ID: ${socket.id}`);
+            log(`🔌 Socket connected: ${socket.connected}`);
+            
+            // Add event listeners for this specific test
+            socket.once('player:joinSuccess', (data) => {
+                log(`🎉 JOIN SUCCESS: ${JSON.stringify(data)}`);
+            });
+            
+            socket.once('player:joinError', (error) => {
+                log(`❌ JOIN ERROR: ${error}`);
+            });
+            
+            log(`📤 Emitting player:join event...`);
+            socket.emit('player:join', joinData);
+            log(`📤 Event emitted successfully`);
+            
+            // Set a timeout to check if we get a response
+            setTimeout(() => {
+                log('⏰ 5 seconds passed - checking for response...');
+            }, 5000);
+        }
+
+        function fullTest() {
+            log('🚀 Starting full test sequence...');
+            clearLog();
+            
+            // Step 1: Test connection
+            testConnection();
+            
+            // Step 2: Create room after connection
+            setTimeout(() => {
+                if (socket && socket.connected) {
+                    createRoom123();
+                    
+                    // Step 3: Join room after creation
+                    setTimeout(() => {
+                        testRoom123();
+                    }, 1000);
+                } else {
+                    log('❌ Connection failed, cannot continue test');
+                }
+            }, 2000);
+        }
+
+        function listRooms() {
+            if (!socket || !socket.connected) {
+                log('❌ Not connected! Test connection first.');
+                return;
+            }
+            
+            log('📋 Requesting room list...');
+            socket.emit('debug:listRooms');
+        }
+        
+        function clearLog() {
+            logEl.innerHTML = '';
+        }
+        
+        // Auto-start connection test
+        log('🚀 Debug page loaded');
+        testConnection();
+    </script>
+</body>
+</html>

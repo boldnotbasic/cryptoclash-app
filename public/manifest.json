@@ -1,0 +1,21 @@
+{
+  "name": "CryptoClash",
+  "short_name": "CryptoClash",
+  "description": "Een innovatief bordspel gecombineerd met een webgame.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F0F23",
+  "theme_color": "#8B5CF6",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

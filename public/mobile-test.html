@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Mobile Join Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; }
+        .test-card { background: #2a2a2a; padding: 20px; margin: 10px 0; border-radius: 10px; border: 1px solid #444; }
+        .success { border-color: #4a8a4a; background: #2d5a2d; }
+        .error { border-color: #8a4a4a; background: #5a2d2d; }
+        .info { border-color: #4a4a8a; background: #2d2d5a; }
+        button { padding: 15px 25px; margin: 10px 5px; background: #4a4a8a; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #5a5a9a; }
+        button:disabled { background: #333; cursor: not-allowed; }
+        #log { background: #2a2a2a; padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 14px; margin: 20px 0; }
+        .step { margin: 15px 0; padding: 15px; border-radius: 8px; }
+        .step h3 { margin: 0 0 10px 0; }
+        input { padding: 12px; margin: 10px 0; background: #333; color: white; border: 1px solid #555; border-radius: 5px; font-size: 16px; width: 200px; }
+    </style>
+</head>
+<body>
+    <h1>📱 Mobile Room Join Test</h1>
+    
+    <div class="test-card info">
+        <h3>Test Stappen:</h3>
+        <p>1. Verbind met Socket.io server</p>
+        <p>2. Test room join met kamer 123</p>
+        <p>3. Controleer of navigatie werkt</p>
+    </div>
+
+    <div class="step test-card">
+        <h3>Stap 1: Server Verbinding</h3>
+        <button onclick="testConnection()">🔌 Test Verbinding</button>
+        <div id="connectionStatus">❌ Niet getest</div>
+    </div>
+
+    <div class="step test-card">
+        <h3>Stap 2: Room Join Test</h3>
+        <input type="text" id="playerName" placeholder="Speler naam" value="MobileTest">
+        <input type="text" id="roomCode" placeholder="Kamer code" value="123">
+        <br>
+        <button onclick="testRoomJoin()" id="joinBtn">👤 Test Room Join</button>
+        <div id="joinStatus">❌ Niet getest</div>
+    </div>
+
+    <div class="step test-card">
+        <h3>Stap 3: Direct App Test</h3>
+        <button onclick="goToApp()">🚀 Ga naar Echte App</button>
+        <p>Test de echte app flow na succesvolle Socket.io test</p>
+    </div>
+
+    <div class="test-card">
+        <h3>📋 Test Log:</h3>
+        <button onclick="clearLog()">🗑️ Clear Log</button>
+        <div id="log"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket = null;
+        let connected = false;
+        
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEl = document.getElementById('log');
+            logEl.innerHTML += `[${timestamp}] ${message}<br>`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(elementId, status, isSuccess) {
+            const el = document.getElementById(elementId);
+            el.innerHTML = status;
+            el.className = isSuccess ? 'success' : 'error';
+        }
+        
+        function testConnection() {
+            log('🔌 Starting connection test...');
+            
+            const socketUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port || 3000}`;
+            log(`🔗 Connecting to: ${socketUrl}`);
+            
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            socket = io(socketUrl, {
+                transports: ['polling'],
+                timeout: 10000,
+                forceNew: true,
+                upgrade: false,
+                rememberUpgrade: false
+            });
+            
+            socket.on('connect', () => {
+                connected = true;
+                log(`✅ Connected! Socket ID: ${socket.id}`);
+                updateStatus('connectionStatus', '✅ Verbonden', true);
+            });
+            
+            socket.on('disconnect', (reason) => {
+                connected = false;
+                log(`❌ Disconnected: ${reason}`);
+                updateStatus('connectionStatus', '❌ Verbinding verbroken', false);
+            });
+            
+            socket.on('connect_error', (error) => {
+                connected = false;
+                log(`🚨 Connection error: ${error.message}`);
+                updateStatus('connectionStatus', '❌ Verbindingsfout', false);
+            });
+        }
+        
+        function testRoomJoin() {
+            if (!connected) {
+                log('❌ Niet verbonden! Test eerst de verbinding.');
+                updateStatus('joinStatus', '❌ Geen verbinding', false);
+                return;
+            }
+            
+            const playerName = document.getElementById('playerName').value;
+            const roomCode = document.getElementById('roomCode').value;
+            
+            if (!playerName || !roomCode) {
+                log('❌ Vul naam en kamer code in');
+                return;
+            }
+            
+            log(`👤 Testing room join: ${playerName} -> ${roomCode}`);
+            updateStatus('joinStatus', '⏳ Aan het joinen...', false);
+            
+            // Set up event listeners
+            socket.once('player:joinSuccess', (data) => {
+                log(`🎉 JOIN SUCCESS!`);
+                log(`🏠 Room: ${data.roomCode}`);
+                log(`👥 Players: ${Object.keys(data.room.players).length}`);
+                updateStatus('joinStatus', '✅ Join succesvol!', true);
+                
+                // Simulate navigation
+                setTimeout(() => {
+                    log('🔄 Zou nu navigeren naar waiting room...');
+                }, 1000);
+            });
+            
+            socket.once('player:joinError', (error) => {
+                log(`❌ JOIN ERROR: ${error}`);
+                updateStatus('joinStatus', `❌ ${error}`, false);
+            });
+            
+            // Emit join event
+            socket.emit('player:join', {
+                roomCode: roomCode,
+                playerName: playerName,
+                playerAvatar: '📱'
+            });
+            
+            // Timeout check
+            setTimeout(() => {
+                if (document.getElementById('joinStatus').innerHTML.includes('⏳')) {
+                    log('⏰ Join timeout na 5 seconden');
+                    updateStatus('joinStatus', '❌ Timeout', false);
+                }
+            }, 5000);
+        }
+        
+        function goToApp() {
+            const baseUrl = window.location.origin;
+            window.location.href = baseUrl;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Auto-start
+        log('📱 Mobile test pagina geladen');
+        log('🔗 Klik "Test Verbinding" om te beginnen');
+    </script>
+</body>
+</html>

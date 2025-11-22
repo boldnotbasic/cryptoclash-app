@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket Connection Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { 
+            font-family: monospace; 
+            background: #1a1a1a; 
+            color: #00ff00; 
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 5px;
+            border: 2px solid #333;
+        }
+        .connected { background: #1a3a1a; border-color: #0f0; }
+        .disconnected { background: #3a1a1a; border-color: #f00; }
+        button { 
+            padding: 15px; 
+            margin: 10px 5px; 
+            background: #333; 
+            color: #0f0; 
+            border: 2px solid #0f0; 
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { background: #444; }
+        #log { 
+            background: #0a0a0a; 
+            padding: 15px; 
+            border-radius: 5px; 
+            height: 400px; 
+            overflow-y: auto;
+            margin: 20px 0;
+            border: 2px solid #333;
+        }
+        .log-entry { margin: 5px 0; }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .info { color: #0ff; }
+    </style>
+</head>
+<body>
+    <h1>🔌 Socket.io Connection Test</h1>
+    
+    <div id="status" class="status disconnected">
+        ⚠️ Not Connected
+    </div>
+    
+    <div id="details">
+        <div><strong>Socket ID:</strong> <span id="socketId">-</span></div>
+        <div><strong>Room:</strong> <span id="roomCode">-</span></div>
+        <div><strong>Players:</strong> <span id="playerCount">0</span></div>
+    </div>
+    
+    <div>
+        <button onclick="testHostCreate()">🏠 Test Host Create Room 123</button>
+        <button onclick="testPlayerJoin()">👤 Test Player Join Room 123</button>
+        <button onclick="testListRooms()">📋 List All Rooms</button>
+        <button onclick="clearLog()">🗑️ Clear Log</button>
+    </div>
+    
+    <div id="log"></div>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket = null;
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEl = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `[${timestamp}] ${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(message);
+        }
+        
+        function updateStatus(connected, socketId = null) {
+            const statusEl = document.getElementById('status');
+            const socketIdEl = document.getElementById('socketId');
+            
+            if (connected) {
+                statusEl.className = 'status connected';
+                statusEl.innerHTML = '✅ Connected';
+                socketIdEl.textContent = socketId || '-';
+            } else {
+                statusEl.className = 'status disconnected';
+                statusEl.innerHTML = '❌ Disconnected';
+                socketIdEl.textContent = '-';
+            }
+        }
+        
+        function initSocket() {
+            if (socket && socket.connected) {
+                log('✅ Socket already connected', 'success');
+                return;
+            }
+            
+            const socketUrl = `${window.location.protocol}//${window.location.hostname}:${window.location.port || 3000}`;
+            log(`🔌 Connecting to: ${socketUrl}`, 'info');
+            
+            socket = io(socketUrl, {
+                transports: ['polling'],
+                forceNew: false,
+                reconnection: true
+            });
+            
+            socket.on('connect', () => {
+                log(`✅ Connected! Socket ID: ${socket.id}`, 'success');
+                updateStatus(true, socket.id);
+            });
+            
+            socket.on('disconnect', (reason) => {
+                log(`❌ Disconnected: ${reason}`, 'error');
+                updateStatus(false);
+            });
+            
+            socket.on('connect_error', (error) => {
+                log(`🚨 Connection error: ${error.message}`, 'error');
+            });
+            
+            socket.on('host:createSuccess', ({ roomCode, room }) => {
+                log(`🏠 Room ${roomCode} created!`, 'success');
+                log(`👥 Players: ${Object.keys(room.players).length}`, 'info');
+                document.getElementById('roomCode').textContent = roomCode;
+                document.getElementById('playerCount').textContent = Object.keys(room.players).length;
+            });
+            
+            socket.on('player:joinSuccess', ({ roomCode, room }) => {
+                log(`👤 Joined room ${roomCode}!`, 'success');
+                log(`👥 Players: ${Object.keys(room.players).length}`, 'info');
+                document.getElementById('roomCode').textContent = roomCode;
+                document.getElementById('playerCount').textContent = Object.keys(room.players).length;
+            });
+            
+            socket.on('lobby:update', (room) => {
+                log(`🔄 Lobby updated - Players: ${Object.keys(room.players).length}`, 'info');
+                document.getElementById('playerCount').textContent = Object.keys(room.players).length;
+            });
+        }
+        
+        function testHostCreate() {
+            if (!socket || !socket.connected) {
+                initSocket();
+                setTimeout(() => testHostCreate(), 1000);
+                return;
+            }
+            
+            log('🏠 Creating room 123 as host...', 'info');
+            socket.emit('host:createRoom', {
+                roomCode: '123',
+                hostName: 'Test Host',
+                hostAvatar: '👑',
+                settings: { volatility: 'medium', gameDuration: 1 }
+            });
+        }
+        
+        function testPlayerJoin() {
+            if (!socket || !socket.connected) {
+                initSocket();
+                setTimeout(() => testPlayerJoin(), 1000);
+                return;
+            }
+            
+            log('👤 Joining room 123 as player...', 'info');
+            socket.emit('player:join', {
+                roomCode: '123',
+                playerName: 'Test Player',
+                playerAvatar: '🎮'
+            });
+        }
+        
+        function testListRooms() {
+            if (!socket || !socket.connected) {
+                log('❌ Not connected!', 'error');
+                return;
+            }
+            
+            log('📋 Requesting room list...', 'info');
+            socket.emit('debug:listRooms');
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Auto-connect on load
+        window.onload = () => {
+            log('📱 Connection test page loaded', 'info');
+            log('🔌 Ready to test Socket.io connection', 'success');
+        };
+    </script>
+</body>
+</html>
