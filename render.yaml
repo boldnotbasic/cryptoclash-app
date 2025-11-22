@@ -1,9 +1,12 @@
 services:
   - type: web
-    name: cryptoclash-server
+    name: cryptoclash-app
     env: node
-    buildCommand: npm install
-    startCommand: node server-production.js
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: NODE_ENV=production node server.js
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 10000

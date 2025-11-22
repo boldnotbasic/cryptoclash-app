@@ -45,6 +45,7 @@ export const useSocket = (): UseSocketReturn => {
   const [error, setError] = useState<string | null>(null)
   const AUTO_JOIN_STORAGE_KEY = 'cryptoclash-last-join'
   const AUTO_JOIN_ATTEMPT_KEY = 'cryptoclash-last-join-attempt'
+  const triedPollingOnlyRef = useRef(false)
 
   useEffect(() => {
     // Use global socket if it exists
@@ -96,6 +97,7 @@ export const useSocket = (): UseSocketReturn => {
     
     console.log('🔌 Connecting to Socket.io server:', socketUrl)
     
+    // Primary attempt: start with polling then upgrade to websocket
     socketRef.current = io(socketUrl, {
       path: '/socket.io',
       transports: ['polling', 'websocket'], // Start with polling for strict mobile networks, then upgrade
@@ -148,6 +150,28 @@ export const useSocket = (): UseSocketReturn => {
       console.error('🔌 Connection error:', error)
       setConnected(false)
       setError(`Verbindingsfout: ${error.message}`)
+      
+      // Fallback: retry once with polling-only (no upgrade) for restrictive networks
+      if (!triedPollingOnlyRef.current) {
+        triedPollingOnlyRef.current = true
+        console.log('🔁 Retrying connection with polling-only fallback...')
+        try {
+          socket.off() // remove listeners from previous instance
+        } catch {}
+        
+        socketRef.current = io(socketUrl, {
+          path: '/socket.io',
+          transports: ['polling'],
+          upgrade: false,
+          timeout: 35000,
+          forceNew: true,
+          autoConnect: true,
+          reconnection: true,
+          reconnectionAttempts: 10,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000
+        })
+      }
     })
 
     // Host events

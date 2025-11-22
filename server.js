@@ -189,18 +189,28 @@ app.prepare().then(() => {
     }
   })
 
-  // Initialize Socket.io
+  // Initialize Socket.io with Render-compatible settings
   const io = new Server(httpServer, {
     cors: {
       origin: "*",
       methods: ["GET", "POST"]
     },
-    transports: ['websocket', 'polling'], // Allow both transports
+    transports: ['polling', 'websocket'], // Start with polling for Render
     perMessageDeflate: false,
     allowEIO3: true,
     pingTimeout: 60000,
-    pingInterval: 25000
+    pingInterval: 25000,
+    cookie: false, // Disable cookies for better compatibility
+    path: '/socket.io',
+    serveClient: false,
+    // Trust Render's proxy
+    allowRequest: (req, callback) => {
+      console.log(`📡 Socket.IO request from: ${req.headers.origin || req.headers.host}`)
+      callback(null, true) // Allow all requests
+    }
   })
+
+  console.log('✅ Socket.IO initialized with Render-compatible settings')
 
   // Update crypto prices and broadcast to ALL clients
   function updateCryptoPrices() {
@@ -252,7 +262,13 @@ app.prepare().then(() => {
 
   io.on('connection', (socket) => {
     serverStats.connections++
-    console.log(`🔌 Client connected: ${socket.id} (Total: ${serverStats.connections})`)
+    console.log(`\n🎉 === NEW CONNECTION ===`)
+    console.log(`🔌 Socket ID: ${socket.id}`)
+    console.log(`🌐 Transport: ${socket.conn.transport.name}`)
+    console.log(`📍 Remote address: ${socket.handshake.address}`)
+    console.log(`🔗 Origin: ${socket.handshake.headers.origin || 'N/A'}`)
+    console.log(`📊 Total connections: ${serverStats.connections}`)
+    console.log(`===================\n`)
     
     // === INITIALIZATION: Send current market state to new client ===
     // 1. Send current crypto prices (authoritative source)
