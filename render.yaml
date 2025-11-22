@@ -3,7 +3,7 @@ services:
     name: cryptoclash-server
     env: node
     buildCommand: npm install
-    startCommand: node server.js
+    startCommand: node server-production.js
     envVars:
       - key: NODE_ENV
         value: production
