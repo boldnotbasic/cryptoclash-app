@@ -95,7 +95,9 @@ export const useSocket = (): UseSocketReturn => {
       ? window.location.origin 
       : `${window.location.protocol}//${window.location.hostname}:${window.location.port || 3000}`
     
-    console.log('🔌 Connecting to Socket.io server:', socketUrl)
+    console.log('🔌 Connecting to Socket.IO server:', socketUrl)
+    console.log('🌐 Environment:', process.env.NODE_ENV)
+    console.log('📱 User Agent:', navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop')
     
     // Primary attempt: start with polling then upgrade to websocket
     socketRef.current = io(socketUrl, {
@@ -147,30 +149,40 @@ export const useSocket = (): UseSocketReturn => {
     })
 
     socket.on('connect_error', (error) => {
-      console.error('🔌 Connection error:', error)
+      console.error('❌ Connection error:', error.message)
+      console.error('📊 Error details:', error)
       setConnected(false)
       setError(`Verbindingsfout: ${error.message}`)
       
       // Fallback: retry once with polling-only (no upgrade) for restrictive networks
-      if (!triedPollingOnlyRef.current) {
+      if (!triedPollingOnlyRef.current && error.message.includes('xhr poll error')) {
         triedPollingOnlyRef.current = true
-        console.log('🔁 Retrying connection with polling-only fallback...')
+        console.log('🔁 XHR poll error detected - Retrying with strict polling-only mode...')
+        console.log('⚠️ This fallback disables websocket upgrade for compatibility')
+        
         try {
-          socket.off() // remove listeners from previous instance
+          socket.disconnect()
+          socket.off()
         } catch {}
         
-        socketRef.current = io(socketUrl, {
+        // Force strict polling-only mode
+        const fallbackSocket = io(socketUrl, {
           path: '/socket.io',
           transports: ['polling'],
           upgrade: false,
-          timeout: 35000,
+          timeout: 40000,
           forceNew: true,
           autoConnect: true,
           reconnection: true,
-          reconnectionAttempts: 10,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 5000
+          reconnectionAttempts: 15,
+          reconnectionDelay: 2000,
+          reconnectionDelayMax: 10000
         })
+        
+        socketRef.current = fallbackSocket
+        globalSocket = fallbackSocket
+        
+        console.log('✅ Fallback socket created - attempting connection...')
       }
     })
 

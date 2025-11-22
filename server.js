@@ -180,6 +180,19 @@ function stopActivityInterval(roomCode) {
 app.prepare().then(() => {
   const httpServer = createServer(async (req, res) => {
     try {
+      // Health check endpoint for Render
+      if (req.url === '/api/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          status: 'OK',
+          timestamp: new Date().toISOString(),
+          connections: serverStats.connections,
+          rooms: Object.keys(rooms).length,
+          uptime: Math.floor((Date.now() - serverStats.startTime) / 1000)
+        }))
+        return
+      }
+
       const parsedUrl = parse(req.url, true)
       await handle(req, res, parsedUrl)
     } catch (err) {
@@ -1134,12 +1147,18 @@ app.prepare().then(() => {
 
   httpServer
     .once('error', (err) => {
-      console.error(err)
+      console.error('❌ Server startup error:', err)
       process.exit(1)
     })
-    .listen(port, hostname, () => {
-      console.log(`🚀 Server ready on http://${hostname}:${port}`)
-      console.log(`🌐 Access from other devices: http://[YOUR_LOCAL_IP]:${port}`)
-      console.log(`🎮 Live market activities will start 30s after game begins`)
+    .listen(port, '0.0.0.0', () => {
+      console.log(`\n${'='.repeat(60)}`)
+      console.log(`🚀 CryptoClash Server Successfully Started!`)
+      console.log(`${'='.repeat(60)}`)
+      console.log(`📍 Environment: ${dev ? 'DEVELOPMENT' : 'PRODUCTION'}`)
+      console.log(`🌐 Server URL: http://0.0.0.0:${port}`)
+      console.log(`🏥 Health Check: http://0.0.0.0:${port}/api/health`)
+      console.log(`🔌 Socket.IO: Enabled (polling → websocket)`)
+      console.log(`🎮 Ready to accept players!`)
+      console.log(`${'='.repeat(60)}\n`)
     })
 })
