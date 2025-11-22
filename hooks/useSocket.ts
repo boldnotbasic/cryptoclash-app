@@ -94,16 +94,34 @@ export const useSocket = (): UseSocketReturn => {
     const socketUrl = process.env.NODE_ENV === 'production' 
       ? window.location.origin 
       : `${window.location.protocol}//${window.location.hostname}:${window.location.port || 3000}`
+    // Force polling-only in production to maximize compatibility on mobile networks
+    // You can later set NEXT_PUBLIC_FORCE_POLLING=false to re-enable upgrade
+    const forcePollingOnly = process.env.NODE_ENV === 'production'
+      ? true
+      : (typeof process.env.NEXT_PUBLIC_FORCE_POLLING !== 'undefined'
+          ? process.env.NEXT_PUBLIC_FORCE_POLLING === 'true'
+          : false)
     
     console.log('🔌 Connecting to Socket.IO server:', socketUrl)
     console.log('🌐 Environment:', process.env.NODE_ENV)
     console.log('📱 User Agent:', navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop')
     
-    // Primary attempt: start with polling then upgrade to websocket
-    socketRef.current = io(socketUrl, {
+    // Primary attempt
+    socketRef.current = io(socketUrl, forcePollingOnly ? {
       path: '/socket.io',
-      transports: ['polling', 'websocket'], // Start with polling for strict mobile networks, then upgrade
-      rememberUpgrade: true, // Stick with websocket after first success
+      transports: ['polling'],
+      upgrade: false,
+      timeout: 40000,
+      forceNew: false,
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 15,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000
+    } : {
+      path: '/socket.io',
+      transports: ['polling', 'websocket'],
+      rememberUpgrade: true,
       timeout: 35000,
       forceNew: false,
       autoConnect: true,
