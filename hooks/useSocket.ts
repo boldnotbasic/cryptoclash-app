@@ -98,8 +98,9 @@ export const useSocket = (): UseSocketReturn => {
     
     socketRef.current = io(socketUrl, {
       path: '/socket.io',
-      transports: ['websocket', 'polling'], // Try websocket first, fallback to polling
-      timeout: 30000,
+      transports: ['polling', 'websocket'], // Start with polling for strict mobile networks, then upgrade
+      rememberUpgrade: true, // Stick with websocket after first success
+      timeout: 35000,
       forceNew: false,
       autoConnect: true,
       reconnection: true,

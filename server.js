@@ -196,6 +196,7 @@ app.prepare().then(() => {
       methods: ["GET", "POST"]
     },
     transports: ['websocket', 'polling'], // Allow both transports
+    perMessageDeflate: false,
     allowEIO3: true,
     pingTimeout: 60000,
     pingInterval: 25000
