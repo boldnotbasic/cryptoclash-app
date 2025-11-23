@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { QrCode, BarChart3, Wallet, Settings, TrendingUp, TrendingDown, Crown, Medal, Trophy, CreditCard, Zap, Users } from 'lucide-react'
+import { QrCode, BarChart3, Wallet, Settings, TrendingUp, TrendingDown, Crown, Medal, Trophy, CreditCard, Zap, Users, ListChecks } from 'lucide-react'
 import { getTileClasses } from '@/utils/styleUtils'
 import Header from './Header'
 
@@ -562,16 +562,16 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
         </div>
 
 
-        {/* Recent Scan Actions */}
+        {/* Recent Player Actions */}
         <div className="mt-8">
           <div className="crypto-card bg-gradient-to-r from-neon-purple/10 to-neon-blue/10 border border-neon-purple/30">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                <QrCode className="w-5 h-5 text-neon-purple" />
-                <span>Scans</span>
+                <ListChecks className="w-5 h-5 text-neon-purple" />
+                <span>Acties</span>
               </h3>
               <div className="bg-neon-purple/20 px-2 py-1 rounded-full border border-neon-purple/50">
-                <span className="text-neon-purple text-xs font-bold">{playerScanActions.length} scans</span>
+                <span className="text-neon-purple text-xs font-bold">{playerScanActions.length} acties</span>
               </div>
             </div>
             <div className="flex items-center justify-end mb-2">
