@@ -180,6 +180,12 @@ function stopActivityInterval(roomCode) {
 app.prepare().then(() => {
   const httpServer = createServer(async (req, res) => {
     try {
+      // Common security/permission headers for camera usage on iOS/Safari
+      try {
+        res.setHeader('Permissions-Policy', 'camera=(self)')
+        res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+      } catch {}
+
       // Health check endpoint for Render
       if (req.url === '/api/health') {
         res.writeHead(200, { 'Content-Type': 'application/json' })

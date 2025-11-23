@@ -20,6 +20,7 @@ export default function QRScanner({ onScan, onClose, playerName, playerAvatar }:
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const [videoReady, setVideoReady] = useState(false)
 
   useEffect(() => {
     requestCameraPermission()
@@ -27,6 +28,38 @@ export default function QRScanner({ onScan, onClose, playerName, playerAvatar }:
       stopCamera()
     }
   }, [])
+
+  const ensureVideoPlaying = async () => {
+    if (!videoRef.current) return
+    try {
+      // iOS requires explicit attributes
+      videoRef.current.setAttribute('playsinline', 'true')
+      videoRef.current.setAttribute('webkit-playsinline', 'true' as any)
+      videoRef.current.setAttribute('autoplay', 'true')
+      videoRef.current.setAttribute('muted', 'true')
+      videoRef.current.muted = true
+      await videoRef.current.play()
+      setVideoReady(true)
+    } catch (e) {
+      console.warn('Video play failed, will retry onloadedmetadata', e)
+      videoRef.current.onloadedmetadata = async () => {
+        try { await videoRef.current?.play(); setVideoReady(true) } catch {}
+      }
+    }
+  }
+
+  const pickRearCameraDeviceId = async (): Promise<string | undefined> => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const videoDevices = devices.filter(d => d.kind === 'videoinput')
+      // Try to find labels that hint back camera
+      const rear = videoDevices.find(d => /back|rear|environment/i.test(d.label))
+      return (rear || videoDevices[videoDevices.length - 1])?.deviceId
+    } catch (e) {
+      console.warn('enumerateDevices failed', e)
+      return undefined
+    }
+  }
 
   const requestCameraPermission = async () => {
     try {
@@ -38,15 +71,27 @@ export default function QRScanner({ onScan, onClose, playerName, playerAvatar }:
         return
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'environment' // Gebruik achtercamera op mobiel
-        } 
-      })
+      // Prefer explicit rear device when possible (iOS reliability)
+      let stream: MediaStream
+      const rearId = await pickRearCameraDeviceId()
+      if (rearId) {
+        console.log('Using explicit rear camera deviceId', rearId)
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { deviceId: { exact: rearId } }
+        })
+      } else {
+        console.log('Rear camera deviceId not found, falling back to facingMode')
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: { ideal: 'environment' } }
+        })
+      }
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         streamRef.current = stream
+        await ensureVideoPlaying()
       }
       
       setHasPermission(true)
@@ -171,6 +216,7 @@ export default function QRScanner({ onScan, onClose, playerName, playerAvatar }:
           ref={videoRef}
           className="w-full h-full object-cover"
           playsInline
+          autoPlay
           muted
         />
         
@@ -218,6 +264,15 @@ export default function QRScanner({ onScan, onClose, playerName, playerAvatar }:
               <Zap className="w-5 h-5" />
               <span>{isScanning ? 'Scannen...' : 'Test Scan'}</span>
             </button>
+            {!videoReady && (
+              <button
+                onClick={async () => { await ensureVideoPlaying() }}
+                className="neon-button flex items-center space-x-2 bg-neon-blue/80 hover:bg-neon-blue"
+              >
+                <Camera className="w-5 h-5" />
+                <span>Start camera</span>
+              </button>
+            )}
             <button
               onClick={onClose}
               className="flex items-center space-x-2 py-2 px-4 bg-gray-600 text-white rounded-lg hover:bg-gray-500 transition-colors"
