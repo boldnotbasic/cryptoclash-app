@@ -7,9 +7,9 @@ export const metadata: Metadata = {
   description: 'Innovatief bordspel gecombineerd met een webgame waarin spelers strijden om de grootste cryptovermogens.',
   manifest: '/manifest.json',
   icons: {
-    icon: '/favicon.ico',
-    shortcut: '/favicon.ico',
-    apple: '/favicon.ico'
+    icon: '/favicon_cryptoyclash.png',
+    shortcut: '/favicon_cryptoyclash.png',
+    apple: '/favicon_cryptoyclash.png'
   }
 }
 
