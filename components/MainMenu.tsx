@@ -51,7 +51,7 @@ interface MainMenuProps {
   playerName: string
   playerAvatar: string
   cryptos: CryptoCurrency[]
-  onNavigate: (screen: 'qr-scanner' | 'market' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript') => void
+  onNavigate: (screen: 'qr-scanner' | 'market' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu') => void
   onAddScanAction?: (action: ScanAction) => void
   lastScanEffect?: string
   cashBalance?: number
@@ -205,12 +205,12 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
       action: () => onNavigate('cash')
     },
     {
-      id: 'settings',
-      title: 'Instellingen',
-      icon: Settings,
+      id: 'actions',
+      title: 'Acties',
+      icon: ListChecks,
       color: 'from-green-500 to-neon-purple',
-      description: 'App instellingen',
-      action: () => onNavigate('settings')
+      description: 'Spel acties',
+      action: () => onNavigate('actions-menu')
     },
     {
       id: 'rankings',
@@ -760,6 +760,17 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
               #{players.find(p => p.name === playerName)?.rank || 1}
             </p>
           </div>
+        </div>
+
+        {/* Settings Button - Onderaan */}
+        <div className="mt-6">
+          <button
+            onClick={() => onNavigate('settings')}
+            className="w-full crypto-card bg-gray-700/30 hover:bg-gray-700/50 border border-gray-600/50 text-gray-300 font-semibold py-3 px-4 rounded-lg hover:scale-105 transition-all duration-200 flex items-center justify-center space-x-2"
+          >
+            <Settings className="w-4 h-4" />
+            <span>Instellingen</span>
+          </button>
         </div>
       </div>
     </div>

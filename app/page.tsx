@@ -18,10 +18,11 @@ import Settings from '@/components/SettingsNew'
 import Cash from '@/components/Cash'
 import SpelersRanking from '../components/SpelersRanking'
 import ScanTranscript from '../components/ScanTranscript'
+import ActionsMenu from '@/components/ActionsMenu'
 import { ScanEffect } from '@/components/ScanResult'
 import { useSocket } from '@/hooks/useSocket'
 
-type Screen = 'start-screen' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'game-over' | 'resume-game'
+type Screen = 'start-screen' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'game-over' | 'resume-game'
 
 interface CryptoCurrency {
   id: string
@@ -1808,6 +1809,23 @@ export default function Home() {
                 playerAvatar={playerAvatar}
                 playerScanActions={playerScanActions}
                 autoScanActions={autoScanActions}
+              />
+            )
+            
+          case 'actions-menu':
+            return (
+              <ActionsMenu 
+                playerName={playerName}
+                playerAvatar={playerAvatar}
+                onNavigate={(screen) => {
+                  if (screen === 'main-menu') {
+                    navigateToScreen('main-menu')
+                  } else {
+                    // For now, placeholder for buy/sell/market-activity/swap screens
+                    console.log(`Navigate to ${screen} - Coming soon!`)
+                    // You can add these screens later
+                  }
+                }}
               />
             )
             
