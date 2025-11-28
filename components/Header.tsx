@@ -17,7 +17,7 @@ export default function Header({ playerName, playerAvatar, onLogoClick }: Header
         <img
           src="/cryptoclash-logo-horizontal.png"
           alt="CryptoClash"
-          className="h-16 md:h-10"
+          className="h-12 md:h-10"
         />
       </div>
       

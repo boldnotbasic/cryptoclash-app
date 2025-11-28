@@ -29,7 +29,7 @@ const scanScenarios: ScanEffect[] = [
   },
   {
     type: 'boost',
-    cryptoSymbol: 'NUGGET',
+    cryptoSymbol: 'NGT',
     percentage: 8,
     message: 'Nugget rally +8%!',
     icon: '🐔',
@@ -197,7 +197,7 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
       case 'OMLT': return '/omlt.png'
       case 'ORLO': return '/orlo.png'
       case 'REX': return '/rex.png'
-      case 'NUGGET': return '/Nugget.png'
+      case 'NGT': return '/Nugget.png'
       default: return null
     }
   }

@@ -25,7 +25,7 @@ const playerCleanupTimers = new Map()
 // 🚨 CRITICAL: Global crypto prices - SINGLE SOURCE OF TRUTH
 const globalCryptoPrices = {
   DSHEEP: 42.30,
-  NUGGET: 1250.75, 
+  NGT: 1250.75, 
   LNTR: 89.20,
   OMLT: 156.40,
   REX: 0.85,
@@ -97,12 +97,34 @@ function startActivityInterval(roomCode, socketIo) {
   }
   
   console.log(`🚀 Creating activity interval for room ${roomCode}`)
-  const cryptoSymbols = ['DSHEEP', 'NUGGET', 'LNTR', 'OMLT', 'REX', 'ORLO']
+  const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+  const sanitizeEffect = (effect) => {
+    try {
+      if (typeof effect !== 'string') return effect
+      // Replace whole-word occurrences only
+      return effect
+        .replace(/\bRIZZ\b/g, 'NGT')
+        .replace(/\bWHALE\b/g, 'REX')
+    } catch {
+      return effect
+    }
+  }
   
+  // Helper to get volatility bound in percent
+  const getVolatilityBound = () => {
+    const vRaw = rooms[roomCode]?.settings?.volatility
+    const v = typeof vRaw === 'string' ? vRaw.toLowerCase() : 'medium'
+    if (v === 'low') return 1
+    if (v === 'high') return 3
+    return 2
+  }
+
   // Generate first activity immediately
   const generateActivity = () => {
     const randomCrypto = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
-    const percentage = parseFloat(((Math.random() * 20) - 10).toFixed(1)) // -10.0 to +10.0
+    const bound = getVolatilityBound()
+    const raw = parseFloat(((Math.random() * (2 * bound)) - bound).toFixed(1))
+    const percentage = Math.max(-bound, Math.min(bound, raw)) // final clamp
     const sign = percentage >= 0 ? '+' : ''
     const actions = ['Market Move', 'Price Alert', 'Trading Signal', 'Volume Spike']
     const randomActionType = actions[Math.floor(Math.random() * actions.length)]
@@ -112,7 +134,7 @@ function startActivityInterval(roomCode, socketIo) {
       timestamp: Date.now(),
       player: 'Bot',
       action: randomActionType,
-      effect: `${randomCrypto} ${sign}${percentage}%`,
+      effect: sanitizeEffect(`${randomCrypto} ${sign}${percentage}%`),
       cryptoSymbol: randomCrypto,
       percentageValue: percentage
     }
@@ -142,9 +164,18 @@ function startActivityInterval(roomCode, socketIo) {
       socketIo.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
       
       // Then broadcast the activity with updated scan data
+      // Sanitize any legacy entries before emitting
+      const sanitizedAuto = roomScanData[roomCode].autoScanActions.map(a => ({
+        ...a,
+        effect: sanitizeEffect(a.effect)
+      }))
+      const sanitizedPlayer = roomScanData[roomCode].playerScanActions.map(a => ({
+        ...a,
+        effect: sanitizeEffect(a.effect)
+      }))
       socketIo.to(roomCode).emit('scanData:update', {
-        autoScanActions: roomScanData[roomCode].autoScanActions,
-        playerScanActions: roomScanData[roomCode].playerScanActions
+        autoScanActions: sanitizedAuto,
+        playerScanActions: sanitizedPlayer
       })
       // Broadcast current market change map
       socketIo.to(roomCode).emit('market:stateUpdate', {
@@ -531,6 +562,34 @@ app.prepare().then(() => {
         io.to(roomCode).emit('game:started', { room })
         console.log(`✅ GAME STARTED IN ROOM ${roomCode}`)
         
+        // Normalize initial crypto prices for a fair start:
+        // - Minimum price: €50
+        // - Maximum spread (max - min): €300
+        try {
+          const symbols = Object.keys(globalCryptoPrices)
+          if (symbols.length > 0) {
+            // Evenly spread prices between 50 and 350 to guarantee max spread 300
+            const minPrice = 50
+            const maxPrice = 350
+            const step = symbols.length > 1 ? (maxPrice - minPrice) / (symbols.length - 1) : 0
+            // Keep relative ordering by current price (lowest gets minPrice)
+            const ordered = symbols.slice().sort((a, b) => (globalCryptoPrices[a] || 0) - (globalCryptoPrices[b] || 0))
+            ordered.forEach((sym, idx) => {
+              const p = minPrice + step * idx
+              globalCryptoPrices[sym] = Math.round(p * 100) / 100
+            })
+            console.log(`💠 Normalized initial prices for room ${roomCode}:`, globalCryptoPrices)
+            
+            // Reset market change map for a clean slate
+            roomMarketChange24h[roomCode] = {}
+            // Broadcast normalized prices and reset state
+            io.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
+            io.to(roomCode).emit('market:stateUpdate', { change24h: roomMarketChange24h[roomCode] })
+          }
+        } catch (e) {
+          console.warn('⚠️ Failed to normalize initial prices:', e)
+        }
+        
         // Start live market activities interval now (first event in 30 seconds)
         console.log(`⏰ Live market activities will start in 30 seconds...`)
         startActivityInterval(roomCode, io)
@@ -865,6 +924,33 @@ app.prepare().then(() => {
           }
         }
         
+        // 🚨 CRITICAL: Handle market-wide events
+        let whaleAlertSymbol = null
+        if (scanAction.effect) {
+          if (scanAction.effect.includes('Bull Run')) {
+            console.log('🚀 SERVER: Applying Bull Run - All coins +5%')
+            Object.keys(globalCryptoPrices).forEach(symbol => {
+              const oldPrice = globalCryptoPrices[symbol]
+              globalCryptoPrices[symbol] = Math.max(0.01, Math.round(oldPrice * 1.05 * 100) / 100)
+              console.log(`  ${symbol}: €${oldPrice.toFixed(2)} → €${globalCryptoPrices[symbol].toFixed(2)}`)
+            })
+          } else if (scanAction.effect.includes('Market Crash')) {
+            console.log('📉 SERVER: Applying Market Crash - All coins -10%')
+            Object.keys(globalCryptoPrices).forEach(symbol => {
+              const oldPrice = globalCryptoPrices[symbol]
+              globalCryptoPrices[symbol] = Math.max(0.01, Math.round(oldPrice * 0.9 * 100) / 100)
+              console.log(`  ${symbol}: €${oldPrice.toFixed(2)} → €${globalCryptoPrices[symbol].toFixed(2)}`)
+            })
+          } else if (scanAction.effect.includes('Whale Alert')) {
+            console.log('🐋 SERVER: Applying Whale Alert - Random coin +50%')
+            const symbols = Object.keys(globalCryptoPrices)
+            whaleAlertSymbol = symbols[Math.floor(Math.random() * symbols.length)]
+            const oldPrice = globalCryptoPrices[whaleAlertSymbol]
+            globalCryptoPrices[whaleAlertSymbol] = Math.max(0.01, Math.round(oldPrice * 1.5 * 100) / 100)
+            console.log(`  ${whaleAlertSymbol}: €${oldPrice.toFixed(2)} → €${globalCryptoPrices[whaleAlertSymbol].toFixed(2)} (+50%)`)
+          }
+        }
+        
         // Store player scan action in server data
         roomScanData[roomCode].playerScanActions.unshift(scanAction)
         // Keep only last 10 player scans
@@ -877,6 +963,24 @@ app.prepare().then(() => {
           const sym = scanAction.cryptoSymbol
           const prev = roomMarketChange24h[roomCode][sym] || 0
           roomMarketChange24h[roomCode][sym] = Math.round((prev + scanAction.percentageValue) * 10) / 10
+        }
+        
+        // Update change24h for market-wide events
+        if (scanAction.effect) {
+          if (scanAction.effect.includes('Bull Run')) {
+            Object.keys(globalCryptoPrices).forEach(symbol => {
+              const prev = roomMarketChange24h[roomCode][symbol] || 0
+              roomMarketChange24h[roomCode][symbol] = Math.round((prev + 5) * 10) / 10
+            })
+          } else if (scanAction.effect.includes('Market Crash')) {
+            Object.keys(globalCryptoPrices).forEach(symbol => {
+              const prev = roomMarketChange24h[roomCode][symbol] || 0
+              roomMarketChange24h[roomCode][symbol] = Math.round((prev - 10) * 10) / 10
+            })
+          } else if (scanAction.effect.includes('Whale Alert') && whaleAlertSymbol) {
+            const prev = roomMarketChange24h[roomCode][whaleAlertSymbol] || 0
+            roomMarketChange24h[roomCode][whaleAlertSymbol] = Math.round((prev + 50) * 10) / 10
+          }
         }
         
         // Broadcast updated crypto prices to ALL clients in room

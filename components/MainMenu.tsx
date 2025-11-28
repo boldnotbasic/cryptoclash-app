@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { QrCode, BarChart3, Wallet, Settings, TrendingUp, TrendingDown, Crown, Medal, Trophy, CreditCard, Zap, Users, ListChecks } from 'lucide-react'
 import { getTileClasses } from '@/utils/styleUtils'
 import Header from './Header'
+import ScanResult, { ScanEffect } from './ScanResult'
 
 interface CryptoCurrency {
   id: string
@@ -60,9 +61,13 @@ interface MainMenuProps {
   autoScanActions?: ScanAction[]
   onSendTestMessage?: (message: string) => void
   onVerifyRoom?: () => void
+  transactions?: any[]
+  year?: number
+  onPassStart?: () => void
+  onApplyScanEffect?: (effect: ScanEffect) => void
 }
 
-export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate, onAddScanAction, lastScanEffect, cashBalance = 0, players = [], playerScanActions = [], autoScanActions = [], onSendTestMessage, onVerifyRoom }: MainMenuProps) {
+export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate, onAddScanAction, lastScanEffect, cashBalance = 0, players = [], playerScanActions = [], autoScanActions = [], onSendTestMessage, onVerifyRoom, transactions = [], year = 2024, onPassStart, onApplyScanEffect }: MainMenuProps) {
   // Calculate portfolio value (with consistent rounding)
   const portfolioValue = Math.round(cryptos.reduce((sum, crypto) => sum + (crypto.price * crypto.amount), 0) * 100) / 100
   const totalValue = Math.round((portfolioValue + cashBalance) * 100) / 100
@@ -95,6 +100,19 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
   // Test message state
   const [testMessage, setTestMessage] = useState('')
   const [now, setNow] = useState(Date.now())
+  const [isYearModalOpen, setIsYearModalOpen] = useState(false)
+  const [showScanModal, setShowScanModal] = useState(false)
+
+  const sanitizeEffect = (effect: string) => {
+    try {
+      if (typeof effect !== 'string') return effect
+      return effect
+        .replace(/\bRIZZ\b/g, 'NGT')
+        .replace(/\bWHALE\b/g, 'REX')
+    } catch {
+      return effect
+    }
+  }
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
@@ -108,7 +126,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
       case 'OMLT': return '/omlt.png'
       case 'ORLO': return '/orlo.png'
       case 'REX': return '/rex.png'
-      case 'NUGGET': return '/Nugget.png'
+      case 'NGT': return '/Nugget.png'
       default: return null
     }
   }
@@ -135,8 +153,9 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
       // Generate random coin
       const randomCoin = possibleCoins[Math.floor(Math.random() * possibleCoins.length)]
       
-      // Generate random percentage between -10% and +10%
-      const randomPercentage = (Math.random() * 20 - 10).toFixed(1) // Range: -10.0 to +10.0
+      // Generate random percentage within default ±2% to align with volatility bounds
+      const bound = 2
+      const randomPercentage = (Math.random() * (2 * bound) - bound).toFixed(1)
       const sign = parseFloat(randomPercentage) >= 0 ? '+' : ''
       
       const testScanAction = {
@@ -197,7 +216,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
     },
     {
       id: 'cash',
-      title: 'Cash',
+      title: 'Cash Wallet',
       icon: CreditCard,
       color: 'from-neon-gold to-green-500',
       description: 'Jouw cash geld',
@@ -227,102 +246,219 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
       <div className="max-w-6xl mx-auto">
         <Header playerName={playerName} playerAvatar={playerAvatar} onLogoClick={() => {}} />
 
-        {/* Year Widget */}
-        <div className="crypto-card mb-6 text-center">
-          <div className="flex items-center justify-center space-x-2">
-            <span className="text-2xl">📅</span>
-            <div>
-              <p className="text-gray-400 text-sm">Speeljaar</p>
-              <p className="text-3xl font-bold text-neon-gold">2024</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Ranking Indicator */}
-        <div 
-          className={getTileClasses(
-            true,
-            "crypto-card mb-6",
-            "hover:scale-105 transition-transform duration-200 cursor-pointer"
-          )} 
-          onClick={() => onNavigate('rankings')}
-        >
-          <h3 className="text-lg font-bold text-white mb-4 text-center">🏆 Live Rankings</h3>
-          <div className="flex justify-center items-center space-x-3">
-            {players
-              .sort((a, b) => b.totalValue - a.totalValue)
-              .map((player, index) => (
-                <div key={player.id} className="flex flex-col items-center">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold transition-all duration-300 border-2 ${
-                    index === 0 ? 'bg-gradient-to-br from-yellow-400/20 to-yellow-600/20 text-yellow-400 border-yellow-400 shadow-lg shadow-yellow-400/30' :
-                    index === 1 ? 'bg-gradient-to-br from-gray-300/20 to-gray-500/20 text-gray-300 border-gray-300 shadow-lg shadow-gray-400/30' :
-                    index === 2 ? 'bg-gradient-to-br from-amber-600/20 to-amber-800/20 text-amber-600 border-amber-600 shadow-lg shadow-amber-600/30' :
-                    'bg-gradient-to-br from-gray-600/20 to-gray-800/20 text-gray-400 border-gray-400 shadow-lg shadow-gray-600/30'
-                  } ${player.name === playerName ? 'ring-4 ring-neon-gold ring-opacity-70' : ''}`}>
-                    <span className="text-sm">{player.avatar}</span>
-                  </div>
-                  <div className="mt-1 text-center">
-                    <p className={`text-xs font-bold ${
-                      index === 0 ? 'text-yellow-400' :
-                      index === 1 ? 'text-gray-300' :
-                      index === 2 ? 'text-amber-600' :
-                      'text-gray-400'
-                    }`}>#{index + 1}</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      €{(player.totalValue / 1000).toFixed(1)}K
-                    </p>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-
-        {/* Spelers Rating */}
-        <div className="crypto-card mb-8 text-center">
-          <h2 className="text-xl font-bold text-white mb-4">🏆 Jouw Positie</h2>
-          
-          {/* Ranking - Bovenaan */}
-          <div className="mb-6">
-            <p className="text-gray-400 text-sm mb-2">Ranking</p>
-            <div className="flex items-center justify-center space-x-2">
-              {getRankIcon(players.find(p => p.name === playerName)?.rank || 1)}
-              <span className="text-3xl font-bold text-neon-gold">
-                #{players.find(p => p.name === playerName)?.rank || 1}
-              </span>
-            </div>
-          </div>
-
-          {/* Totaal Vermogen - Prominenter */}
-          <div className="mb-6">
-            <p className="text-gray-400 text-sm mb-2">Totaal Vermogen</p>
-            <div className="bg-gradient-to-r from-neon-gold/20 to-neon-purple/20 border border-neon-gold/50 rounded-lg p-4">
-              <p className="text-3xl font-bold text-neon-gold">
-                €{totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-            </div>
-          </div>
-
-          {/* Portfolio en Cash - Naast elkaar */}
-          <div className="grid grid-cols-2 gap-6 mb-4">
-            <div className="text-center">
-              <p className="text-gray-400 text-sm mb-2">Portfolio Waarde</p>
-              <p className="text-xl font-bold text-neon-blue">
-                €{portfolioValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-            </div>
-            <div className="text-center">
-              <p className="text-gray-400 text-sm mb-2">Cash Saldo</p>
-              <p className="text-xl font-bold text-green-400">
-                €{cashBalance.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-            </div>
-          </div>
-
-        </div>
+        
 
         {/* Menu Buttons */}
         <div className="grid grid-cols-2 gap-4 mb-8">
-          {/* Rankings - Met top 3 spelers emojis */}
+          {/* Acties - Icon boven tekst */}
+          <button
+            onClick={() => onNavigate('actions-menu')}
+            className={getTileClasses(
+              true,
+              "crypto-card bg-gradient-to-br from-green-500 to-neon-purple text-center p-0 group h-[200px] flex flex-col shadow-lg hover:shadow-green-500/20"
+            )}
+          >
+            <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-2">
+              <div className="p-3 bg-white/20 rounded-xl group-hover:bg-white/30 transition-colors shadow-inner">
+                <ListChecks className="w-9 h-9 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-white tracking-tight">Acties</h3>
+            </div>
+          </button>
+
+          {/* Markt - Met alle 6 crypto iconen + percentages */}
+          <button
+            onClick={() => onNavigate('market')}
+            className={getTileClasses(
+              true,
+              "crypto-card bg-gradient-to-br from-neon-blue to-neon-turquoise relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg hover:shadow-cyan-500/20"
+            )}
+          >
+            {/* Top deel: Icon + Titel */}
+            <div className="pt-5 pb-3 flex items-center justify-center">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-white/20 rounded-xl flex-shrink-0 shadow-inner">
+                  <BarChart3 className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-white tracking-tight">Markt</h3>
+              </div>
+            </div>
+            {/* Spacer voor ruimte */}
+            <div className="flex-1"></div>
+            {/* Donker vlak met alle 6 crypto iconen + percentages */}
+            <div className="bg-gradient-to-t from-dark-bg/90 to-dark-bg/70 backdrop-blur-sm py-2.5 px-2 border-t border-white/5">
+              <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
+                {cryptos.map((crypto, index) => {
+                  const imagePath = getCryptoImagePath(crypto.symbol)
+                  const isBottomRow = index >= Math.max(0, cryptos.length - 3)
+                  return (
+                    <div key={crypto.id} className={`flex flex-col items-center ${isBottomRow ? 'pb-2.5' : ''}`}>
+                      <span className="text-lg mb-0.5 drop-shadow-md inline-flex items-center justify-center overflow-hidden">
+                        {imagePath ? (
+                          <Image
+                            src={imagePath}
+                            alt={crypto.name}
+                            width={24}
+                            height={24}
+                            className="object-contain"
+                          />
+                        ) : (
+                          <span>{crypto.icon}</span>
+                        )}
+                      </span>
+                      <span className="text-[10px] text-white font-semibold">
+                        €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      <span className={`font-bold text-[10px] ${crypto.change24h > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {crypto.change24h > 0 ? '+' : ''}{crypto.change24h.toFixed(1)}%
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </button>
+
+          {/* Crypto Wallet - Met donker vlak onderaan en holdings preview */}
+          <button
+            onClick={() => onNavigate('portfolio')}
+            className={getTileClasses(
+              true,
+              "crypto-card bg-gradient-to-br from-neon-turquoise to-neon-gold relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg hover:shadow-cyan-500/20"
+            )}
+          >
+            {/* Top deel: Icon naast titel */}
+            <div className="pt-4 pb-2 flex items-center justify-center">
+              <div className="flex items-center space-x-2">
+                <span className="p-1.5 rounded-md bg-white/20">
+                  <Wallet className="w-5 h-5 text-white" />
+                </span>
+                <h3 className="text-lg font-bold text-white tracking-tight">Crypto Wallet</h3>
+              </div>
+            </div>
+
+            {/* Spacer voor ruimte */}
+            <div className="flex-1"></div>
+
+            {/* Holdings preview: donkere band full-width direct boven footer */}
+            <div className="w-full bg-dark-bg/80 px-3 py-3">
+              <div className="grid grid-cols-3 gap-4 place-items-center">
+                {cryptos.filter(c => c.amount > 0).slice(0, 6).map((crypto) => {
+                  const imagePath = getCryptoImagePath(crypto.symbol)
+                  return (
+                    <div key={crypto.id} className="flex flex-col items-center">
+                      {imagePath ? (
+                        <img
+                          src={imagePath}
+                          alt={crypto.name}
+                          width={28}
+                          height={28}
+                          className="object-contain"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="text-lg">{crypto.icon}</span>
+                      )}
+                      <span className="text-[10px] text-white/90 mt-1 font-semibold">
+                        {crypto.amount.toFixed(0)}
+                      </span>
+                    </div>
+                  )
+                })}
+                {cryptos.filter(c => c.amount > 0).length === 0 && (
+                  <span className="text-xs text-white/70">Geen munten</span>
+                )}
+              </div>
+            </div>
+            {/* Donker vlak met waarde */}
+            <div className="bg-gradient-to-t from-dark-bg/90 to-dark-bg/70 backdrop-blur-sm py-2.5 px-4 text-center border-t border-white/5 flex items-center justify-center">
+              <p className="text-neon-gold font-bold text-lg tracking-wide drop-shadow-lg">
+                €{portfolioValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+          </button>
+
+          {/* Cash - Icoon naast titel en laatste transactie */}
+          <button
+            onClick={() => onNavigate('cash')}
+            className={getTileClasses(
+              true,
+              "crypto-card bg-gradient-to-br from-neon-gold to-green-500 relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg hover:shadow-yellow-500/20"
+            )}
+          >
+            {/* Top deel: Icon naast titel */}
+            <div className="pt-4 pb-2 flex items-center justify-center">
+              <div className="flex items-center space-x-2">
+                <span className="p-1.5 rounded-md bg-white/20">
+                  <CreditCard className="w-5 h-5 text-white" />
+                </span>
+                <h3 className="text-lg font-bold text-white tracking-tight">Cash Wallet</h3>
+              </div>
+            </div>
+
+            {/* Spacer voor ruimte */}
+            <div className="flex-1"></div>
+
+            {/* Laatste verkoop sectie */}
+            <div className="w-full bg-dark-bg/80 px-3 py-3">
+              {(() => {
+                  // Find the most recent sell transaction
+                  const sellTransactions = transactions?.filter((t: any) => t.type === 'sell') || []
+                  const latestSell = sellTransactions.sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0))[0]
+                  
+                  if (latestSell) {
+                    const mins = Math.max(0, Math.floor((Date.now() - (latestSell.timestamp || Date.now())) / 60000))
+                    const hours = Math.floor(mins / 60)
+                    const timeText = hours > 0 ? `${hours}u geleden` : `${mins}m geleden`
+                    
+                    return (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="text-xs text-white/90">
+                            <div className="font-semibold">Verkoop {latestSell.cryptoName}</div>
+                            <div className="text-white/70 text-[11px]">
+                              {latestSell.amount.toFixed(2)} {latestSell.cryptoSymbol} @ €{latestSell.price.toFixed(2)} • {timeText}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-green-400 text-sm font-bold">+€{latestSell.total.toFixed(2)}</div>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="flex items-center justify-center py-1">
+                      <span className="text-xs text-white/70">Nog geen verkopen</span>
+                    </div>
+                  )
+                })()}
+            </div>
+            {/* Donker vlak met waarde */}
+            <div className="bg-gradient-to-t from-dark-bg/90 to-dark-bg/70 backdrop-blur-sm py-2.5 px-4 text-center border-t border-white/5 flex items-center justify-center">
+              <p className="text-green-400 font-bold text-lg tracking-wide drop-shadow-lg">
+                €{cashBalance.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+          </button>
+
+          {/* Scannen - Icon boven tekst */}
+          <button
+            onClick={() => onNavigate('qr-scanner')}
+            className={getTileClasses(
+              true,
+              "crypto-card bg-gradient-to-br from-neon-purple to-neon-blue text-center p-0 group h-[200px] flex flex-col shadow-lg hover:shadow-purple-500/20 opacity-60"
+            )}
+          >
+            <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-2">
+              <div className="p-3 bg-white/20 rounded-xl transition-colors shadow-inner">
+                <QrCode className="w-9 h-9 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-white tracking-tight">Scannen</h3>
+              <p className="text-xs text-white/70">Weldra beschikbaar</p>
+            </div>
+          </button>
+
+          {/* Rankings - Met top 3 spelers emojis (verplaatst naar onder rechts) */}
           <button
             onClick={() => onNavigate('rankings')}
             className={getTileClasses(
@@ -350,9 +486,9 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                 .map((player, index) => (
                   <div key={player.id} className="flex flex-col items-center">
                     <div className="text-xl mb-0.5">
-                      {index === 0 && '🥇'}
-                      {index === 1 && '🥈'}
-                      {index === 2 && '🥉'}
+                      {index === 0 && '947'}
+                      {index === 1 && '948'}
+                      {index === 2 && '949'}
                     </div>
                     <div className="text-base">{player.avatar}</div>
                   </div>
@@ -360,141 +496,6 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
               {players.filter(player => !player.name.includes('Host') && !player.name.includes('host')).length === 0 && (
                 <span className="text-gray-400 text-xs">Geen spelers</span>
               )}
-            </div>
-          </button>
-
-          {/* Markt - Met alle 6 crypto iconen + percentages */}
-          <button
-            onClick={() => onNavigate('market')}
-            className={getTileClasses(
-              true,
-              "crypto-card bg-gradient-to-br from-neon-blue to-neon-turquoise relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg hover:shadow-cyan-500/20"
-            )}
-          >
-            {/* Top deel: Icon + Titel */}
-            <div className="pt-5 pb-3 flex items-center justify-center">
-              <div className="flex items-center space-x-2.5">
-                <div className="p-2 bg-white/20 rounded-xl flex-shrink-0 shadow-inner">
-                  <BarChart3 className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="text-lg font-bold text-white tracking-tight">Markt</h3>
-              </div>
-            </div>
-            {/* Spacer voor ruimte */}
-            <div className="flex-1"></div>
-            {/* Donker vlak met alle 6 crypto iconen + percentages */}
-            <div className="bg-gradient-to-t from-dark-bg/90 to-dark-bg/70 backdrop-blur-sm py-2.5 px-2 border-t border-white/5">
-              <div className="grid grid-cols-3 gap-x-2 gap-y-1.5">
-                {cryptos.map(crypto => {
-                  const imagePath = getCryptoImagePath(crypto.symbol)
-                  return (
-                    <div key={crypto.id} className="flex flex-col items-center">
-                      <span className="text-lg mb-0.5 drop-shadow-md inline-flex items-center justify-center overflow-hidden">
-                        {imagePath ? (
-                          <Image
-                            src={imagePath}
-                            alt={crypto.name}
-                            width={24}
-                            height={24}
-                            className="object-contain"
-                          />
-                        ) : (
-                          <span>{crypto.icon}</span>
-                        )}
-                      </span>
-                      <span className={`font-bold text-[10px] ${crypto.change24h > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {crypto.change24h > 0 ? '+' : ''}{crypto.change24h.toFixed(1)}%
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </button>
-
-          {/* Crypto Wallet - Met donker vlak onderaan */}
-          <button
-            onClick={() => onNavigate('portfolio')}
-            className={getTileClasses(
-              true,
-              "crypto-card bg-gradient-to-br from-neon-turquoise to-neon-gold relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg hover:shadow-cyan-500/20"
-            )}
-          >
-            {/* Top deel: Icon + Titel */}
-            <div className="pt-5 pb-3 flex items-center justify-center">
-              <div className="flex flex-col items-center space-y-2">
-                <div className="p-3 bg-white/20 rounded-xl shadow-inner">
-                  <Wallet className="w-9 h-9 text-white" />
-                </div>
-                <h3 className="text-lg font-bold text-white tracking-tight">Wallet</h3>
-              </div>
-            </div>
-            {/* Spacer voor ruimte */}
-            <div className="flex-1"></div>
-            {/* Donker vlak met waarde */}
-            <div className="bg-gradient-to-t from-dark-bg/90 to-dark-bg/70 backdrop-blur-sm py-2.5 px-4 text-center border-t border-white/5 flex items-center justify-center">
-              <p className="text-neon-gold font-bold text-lg tracking-wide drop-shadow-lg">
-                €{portfolioValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-            </div>
-          </button>
-
-          {/* Cash - Met donker vlak onderaan */}
-          <button
-            onClick={() => onNavigate('cash')}
-            className={getTileClasses(
-              true,
-              "crypto-card bg-gradient-to-br from-neon-gold to-green-500 relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg hover:shadow-yellow-500/20"
-            )}
-          >
-            {/* Top deel: Icon + Titel */}
-            <div className="pt-5 pb-3 flex items-center justify-center">
-              <div className="flex flex-col items-center space-y-2">
-                <div className="p-3 bg-white/20 rounded-xl shadow-inner">
-                  <CreditCard className="w-9 h-9 text-white" />
-                </div>
-                <h3 className="text-lg font-bold text-white tracking-tight">Cash</h3>
-              </div>
-            </div>
-            {/* Spacer voor ruimte */}
-            <div className="flex-1"></div>
-            {/* Donker vlak met waarde */}
-            <div className="bg-gradient-to-t from-dark-bg/90 to-dark-bg/70 backdrop-blur-sm py-2.5 px-4 text-center border-t border-white/5 flex items-center justify-center">
-              <p className="text-green-400 font-bold text-lg tracking-wide drop-shadow-lg">
-                €{cashBalance.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-            </div>
-          </button>
-
-          {/* Scannen - Icon boven tekst */}
-          <button
-            onClick={() => onNavigate('qr-scanner')}
-            className={getTileClasses(
-              true,
-              "crypto-card bg-gradient-to-br from-neon-purple to-neon-blue text-center p-0 group h-[200px] flex flex-col shadow-lg hover:shadow-purple-500/20"
-            )}
-          >
-            <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-2">
-              <div className="p-3 bg-white/20 rounded-xl group-hover:bg-white/30 transition-colors shadow-inner">
-                <QrCode className="w-9 h-9 text-white" />
-              </div>
-              <h3 className="text-lg font-bold text-white tracking-tight">Scannen</h3>
-            </div>
-          </button>
-
-          {/* Instellingen - Icon boven tekst */}
-          <button
-            onClick={() => onNavigate('settings')}
-            className={getTileClasses(
-              true,
-              "crypto-card bg-gradient-to-br from-green-500 to-neon-purple text-center p-0 group h-[200px] flex flex-col shadow-lg hover:shadow-green-500/20"
-            )}
-          >
-            <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-2">
-              <div className="p-3 bg-white/20 rounded-xl group-hover:bg-white/30 transition-colors shadow-inner">
-                <Settings className="w-9 h-9 text-white" />
-              </div>
-              <h3 className="text-lg font-bold text-white tracking-tight">Instellingen</h3>
             </div>
           </button>
         </div>
@@ -542,7 +543,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                       <span className={`text-sm font-bold ${
                         action.effect.includes('+') ? 'text-green-400' : 'text-red-400'
                       }`}>
-                        {action.effect}
+                        {sanitizeEffect(action.effect)}
                       </span>
                       <span className="text-xs text-gray-500">
                         {minutes > 0 ? `${minutes}m` : `${seconds}s`}
@@ -561,9 +562,13 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           </div>
         </div>
 
+        
+
+        
+
 
         {/* Recent Player Actions */}
-        <div className="mt-8">
+        <div className="mt-8 mb-8">
           <div className="crypto-card bg-gradient-to-r from-neon-purple/10 to-neon-blue/10 border border-neon-purple/30">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-bold text-white flex items-center space-x-2">
@@ -584,26 +589,6 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
               >
                 Toon volledig transcript →
               </button>
-              
-              <div className="flex flex-col space-y-2">
-                {onAddScanAction && (
-                  <button 
-                    onClick={handleTestScan}
-                    className="text-green-400 hover:text-green-300 text-sm font-semibold transition-colors text-left"
-                  >
-                    🧪 Test Scan
-                  </button>
-                )}
-                
-                <button 
-                  onClick={() => onNavigate('qr-scanner')}
-                  className="text-neon-blue hover:text-neon-purple text-sm font-semibold transition-colors flex items-center space-x-1 text-left"
-                >
-                  <span>📱</span>
-                  <span>QR Scanner (Camera)</span>
-                </button>
-              </div>
-              
             </div>
             <div className="space-y-3">
               {/* Always show 2 actions, only player scans */}
@@ -658,7 +643,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                       <p className={`text-sm font-bold ${
                         action.effect.includes('+') ? 'text-green-400' : 'text-red-400'
                       }`}>
-                        {action.effect}
+                        {sanitizeEffect(action.effect)}
                       </p>
                       <p className="text-xs text-gray-500">
                         {minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`} geleden
@@ -676,6 +661,160 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             )}
           </div>
         </div>
+
+        {/* Speeljaar, Live Rankings, Jouw Positie */}
+        {/* Year Widget */}
+        <button
+          type="button"
+          className="crypto-card mb-6 text-center cursor-pointer w-full pointer-events-auto relative z-10"
+          onClick={() => {
+            console.log('📅 Year widget clicked (click)')
+            setIsYearModalOpen(true)
+          }}
+          onTouchStart={() => {
+            console.log('📅 Year widget clicked (touch)')
+            setIsYearModalOpen(true)
+          }}
+          onPointerDown={() => {
+            console.log('📅 Year widget clicked (pointerdown)')
+            setIsYearModalOpen(true)
+          }}
+          onMouseDown={() => {
+            console.log('📅 Year widget clicked (mousedown)')
+            setIsYearModalOpen(true)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setIsYearModalOpen(true)
+            }
+          }}
+          aria-label="Speeljaar - voorbij START?"
+        >
+          <div className="flex items-center justify-center space-x-2">
+            <span className="text-2xl">📅</span>
+            <div>
+              <p className="text-gray-400 text-sm">Speeljaar</p>
+              <p className="text-3xl font-bold text-neon-gold">{year}</p>
+            </div>
+          </div>
+        </button>
+
+        {isYearModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="bg-dark-bg/95 border border-white/10 rounded-lg p-5 w-80">
+              <h3 className="text-white font-bold text-lg mb-2 text-center">Nieuw jaar starten?</h3>
+              <p className="text-gray-300 text-sm mb-4 text-center">
+                Ga over naar {year + 1} en ontvang €500 startgeld toegevoegd aan je Cash Wallet.
+              </p>
+              <div className="flex items-center justify-between space-x-3">
+                <button
+                  className="flex-1 py-2 rounded-md bg-gray-700 text-white hover:bg-gray-600 transition"
+                  onClick={() => setIsYearModalOpen(false)}
+                >
+                  Annuleren
+                </button>
+                <button
+                  className="flex-1 py-2 rounded-md bg-neon-gold text-black font-semibold hover:opacity-90 transition"
+                  onClick={() => {
+                    try {
+                      onPassStart && onPassStart()
+                    } finally {
+                      setIsYearModalOpen(false)
+                    }
+                  }}
+                >
+                  Bevestigen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Live Rankings */}
+        <div 
+          className={getTileClasses(
+            true,
+            "crypto-card mb-6",
+            "hover:scale-105 transition-transform duration-200 cursor-pointer"
+          )} 
+          onClick={() => onNavigate('rankings')}
+        >
+          <h3 className="text-lg font-bold text-white mb-4 text-center">🏆 Live Rankings</h3>
+          <div className="flex justify-center items-center space-x-3">
+            {players
+              .sort((a, b) => b.totalValue - a.totalValue)
+              .map((player, index) => (
+                <div key={player.id} className="flex flex-col items-center">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold transition-all duration-300 border-2 ${
+                    index === 0 ? 'bg-gradient-to-br from-yellow-400/20 to-yellow-600/20 text-yellow-400 border-yellow-400 shadow-lg shadow-yellow-400/30' :
+                    index === 1 ? 'bg-gradient-to-br from-gray-300/20 to-gray-500/20 text-gray-300 border-gray-300 shadow-lg shadow-gray-400/30' :
+                    index === 2 ? 'bg-gradient-to-br from-amber-600/20 to-amber-800/20 text-amber-600 border-amber-600 shadow-lg shadow-amber-600/30' :
+                    'bg-gradient-to-br from-gray-600/20 to-gray-800/20 text-gray-400 border-gray-400 shadow-lg shadow-gray-600/30'
+                  } ${player.name === playerName ? 'ring-4 ring-neon-gold ring-opacity-70' : ''}`}>
+                    <span className="text-sm">{player.avatar}</span>
+                  </div>
+                  <div className="mt-1 text-center">
+                    <p className={`text-xs font-bold ${
+                      index === 0 ? 'text-yellow-400' :
+                      index === 1 ? 'text-gray-300' :
+                      index === 2 ? 'text-amber-600' :
+                      'text-gray-400'
+                    }`}>#{index + 1}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      €{(player.totalValue / 1000).toFixed(1)}K
+                    </p>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        {/* Jouw Positie */}
+        <div className="crypto-card mb-8 text-center">
+          <h2 className="text-xl font-bold text-white mb-4">🏆 Jouw Positie</h2>
+          <div className="mb-6">
+            <p className="text-gray-400 text-sm mb-2">Ranking</p>
+            <div className="flex items-center justify-center space-x-2">
+              {getRankIcon(players.find(p => p.name === playerName)?.rank || 1)}
+              <span className="text-3xl font-bold text-neon-gold">
+                #{players.find(p => p.name === playerName)?.rank || 1}
+              </span>
+            </div>
+          </div>
+          <div className="mb-6">
+            <p className="text-gray-400 text-sm mb-2">Totaal Vermogen</p>
+            <div className="bg-gradient-to-r from-neon-gold/20 to-neon-purple/20 border border-neon-gold/50 rounded-lg p-4">
+              <p className="text-3xl font-bold text-neon-gold">
+                €{totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6 mb-4">
+            <div className="text-center">
+              <p className="text-gray-400 text-sm mb-2">Portfolio Waarde</p>
+              <p className="text-xl font-bold text-neon-blue">
+                €{portfolioValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-gray-400 text-sm mb-2">Cash Saldo</p>
+              <p className="text-xl font-bold text-green-400">
+                €{cashBalance.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Scan Modal from Actions > Beurs */}
+        {showScanModal && (
+          <ScanResult
+          onClose={() => setShowScanModal(false)}
+          onApplyEffect={(effect) => {
+            try { onApplyScanEffect && onApplyScanEffect(effect) } catch {}
+          }}
+        />
+        )}
 
         {/* Test Message Widget */}
         {onSendTestMessage && (

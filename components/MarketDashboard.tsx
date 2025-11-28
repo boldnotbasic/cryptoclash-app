@@ -76,7 +76,7 @@ export default function MarketDashboard({
       case 'OMLT': return '/omlt.png'
       case 'ORLO': return '/orlo.png'
       case 'REX': return '/rex.png'
-      case 'NUGGET': return '/Nugget.png'
+      case 'NGT': return '/Nugget.png'
       default: return null
     }
   }
@@ -94,40 +94,91 @@ export default function MarketDashboard({
       return
     }
 
-    // Same style as MainMenu test scan: random coin + random percentage
-    const possibleCoins = ['DSHEEP', 'NUGGET', 'LNTR', 'OMLT', 'REX', 'ORLO']
-    const randomCoin = possibleCoins[Math.floor(Math.random() * possibleCoins.length)]
-    const randomPercentageStr = (Math.random() * 20 - 10).toFixed(1) // -10.0 to +10.0
-    const randomPercentage = parseFloat(randomPercentageStr)
-    const sign = randomPercentage >= 0 ? '+' : ''
+    const generateTestScan = () => {
+      console.log('\n🧪 === GENERATING DASHBOARD TEST SCAN ===')
+      
+      // 15% chance for market events, 85% chance for regular coin scan
+      const eventRoll = Math.random()
+      
+      let testScanAction
+      
+      if (eventRoll < 0.05) {
+        console.log('📉 Generating Market Crash event!')
+        testScanAction = {
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          player: playerName || 'Market Screen',
+          action: 'Test Scan',
+          effect: 'Market Crash! Alle munten -10%!',
+          avatar: playerAvatar,
+          cryptoSymbol: undefined, // No specific crypto for market events
+          percentageValue: undefined // No specific percentage for market events
+        }
+      } else if (eventRoll < 0.10) {
+        console.log('🚀 Generating Bull Run event!')
+        testScanAction = {
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          player: playerName || 'Market Screen',
+          action: 'Test Scan',
+          effect: 'Bull Run! Alle munten +5%!',
+          avatar: playerAvatar,
+          cryptoSymbol: undefined,
+          percentageValue: undefined
+        }
+      } else if (eventRoll < 0.15) {
+        console.log('🐋 Generating Whale Alert event!')
+        testScanAction = {
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          player: playerName || 'Market Screen',
+          action: 'Test Scan',
+          effect: 'Whale Alert! Random munt +50%!',
+          avatar: playerAvatar,
+          cryptoSymbol: undefined,
+          percentageValue: undefined
+        }
+      } else {
+        const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+        const randomCoin = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
+        
+        const bound = 2
+        const randomPercentageStr = (Math.random() * (2 * bound) - bound).toFixed(1)
+        const randomPercentage = parseFloat(randomPercentageStr)
+        const sign = randomPercentage >= 0 ? '+' : ''
 
-    const testScanAction = {
-      id: Date.now().toString(),
-      timestamp: Date.now(),
-      player: playerName || 'Market Screen',
-      action: 'Test Scan',
-      effect: `${randomCoin} ${sign}${randomPercentageStr}%`,
-      avatar: playerAvatar,
-      cryptoSymbol: randomCoin,
-      percentageValue: randomPercentage
+        console.log(`🎯 Generating regular coin scan: ${randomCoin} ${sign}${randomPercentageStr}%`)
+        testScanAction = {
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          player: playerName || 'Market Screen',
+          action: 'Test Scan',
+          effect: `${randomCoin} ${sign}${randomPercentageStr}%`,
+          avatar: playerAvatar,
+          cryptoSymbol: randomCoin,
+          percentageValue: randomPercentage
+        }
+      }
+
+      console.log('📊 Generated dashboard test scan:', testScanAction)
+
+      // Optimistic local update so het direct zichtbaar is
+      // Server stuurt later de authoritative scanData:update
+      try {
+        // Emit to server so all clients (incl. dashboard) krijgen deze scan
+        socket.emit('player:scanAction', {
+          roomCode: roomId,
+          scanAction: testScanAction
+        })
+        console.log('📤 Dashboard test scan emitted to server')
+      } catch (e) {
+        console.warn('⚠️ Failed to emit dashboard test scan', e)
+      }
+
+      console.log('🧪 === DASHBOARD TEST SCAN COMPLETE ===\n')
     }
 
-    console.log('📊 Generated dashboard test scan:', testScanAction)
-
-    // Optimistic local update so het direct zichtbaar is
-    // Server stuurt later de authoritative scanData:update
-    try {
-      // Emit to server so all clients (incl. dashboard) krijgen deze scan
-      socket.emit('player:scanAction', {
-        roomCode: roomId,
-        scanAction: testScanAction
-      })
-      console.log('📤 Dashboard test scan emitted to server')
-    } catch (e) {
-      console.warn('⚠️ Failed to emit dashboard test scan', e)
-    }
-
-    console.log('🧪 === DASHBOARD TEST SCAN COMPLETE ===\n')
+    generateTestScan()
   }
 
   // Update time every second
@@ -149,6 +200,17 @@ export default function MarketDashboard({
       console.warn('Failed to auto request refresh on mount', e)
     }
   }, [socket, roomId, playerName])
+
+  const sanitizeEffect = (effect: string) => {
+    try {
+      if (typeof effect !== 'string') return effect
+      return effect
+        .replace(/\bRIZZ\b/g, 'NGT')
+        .replace(/\bWHALE\b/g, 'REX')
+    } catch {
+      return effect
+    }
+  }
 
   const getTimeAgo = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000)
@@ -334,12 +396,14 @@ export default function MarketDashboard({
                     <div className="flex items-center space-x-2">
                       <div className={`w-8 h-8 rounded-full bg-${crypto.color}/20 flex items-center justify-center text-sm overflow-hidden`}>
                         {imagePath ? (
-                          <Image
+                          // Use plain img to avoid Next/Image optimization issues in production
+                          <img
                             src={imagePath}
                             alt={crypto.name}
                             width={32}
                             height={32}
                             className="object-contain"
+                            loading="lazy"
                           />
                         ) : (
                           <span>{crypto.icon}</span>
@@ -420,7 +484,7 @@ export default function MarketDashboard({
                       <span className={`text-sm font-bold ${
                         action.effect.includes('+') ? 'text-green-400' : 'text-red-400'
                       }`}>
-                        {action.effect}
+                        {sanitizeEffect(action.effect)}
                       </span>
                       <span className="text-xs text-gray-500">
                         {minutes > 0 ? `${minutes}m` : `${seconds}s`}
@@ -608,7 +672,8 @@ export default function MarketDashboard({
             // Aggregate total impact per symbol (last 10 events)
             const impactMap = new Map<string, { pct: number; count: number }>()
             all.forEach(a => {
-              const p = parse(a.effect)
+              const eff = sanitizeEffect(a.effect)
+              const p = parse(eff)
               if (!p) return
               const cur = impactMap.get(p.symbol) || { pct: 0, count: 0 }
               impactMap.set(p.symbol, { pct: Math.round((cur.pct + p.pct) * 10) / 10, count: cur.count + 1 })
@@ -653,9 +718,32 @@ export default function MarketDashboard({
                   <p className="text-gray-400 text-sm mb-2">Recente gebeurtenissen</p>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {all.map(a => {
-                      const p = parse(a.effect)
-                      const isPositive = p ? p.pct >= 0 : a.effect.includes('+')
+                      const eff = sanitizeEffect(a.effect)
+                      const p = parse(eff)
+
+                      const isMarketEvent = eff.includes('Bull Run') || eff.includes('Market Crash') || eff.includes('Whale Alert')
+
                       const calc = (() => {
+                        // Marktbrede events: toon één samengestelde 'Markt' regel
+                        if (isMarketEvent) {
+                          const avgCurrent = cryptos.length
+                            ? cryptos.reduce((sum, c) => sum + (typeof c.change24h === 'number' ? c.change24h : 0), 0) / cryptos.length
+                            : 0
+                          let eventPct = 0
+                          if (eff.includes('Bull Run')) eventPct = 5
+                          else if (eff.includes('Market Crash')) eventPct = -10
+                          else if (eff.includes('Whale Alert')) eventPct = 50
+
+                          const baselineBeforeEvent = Math.round((avgCurrent - eventPct) * 10) / 10
+
+                          return {
+                            current: avgCurrent,
+                            baseline: baselineBeforeEvent,
+                            event: eventPct,
+                            symbol: 'Markt'
+                          }
+                        }
+
                         if (!p) return null
                         const coin = cryptos.find(c => c.symbol === p.symbol)
                         if (!coin) return null
@@ -671,6 +759,12 @@ export default function MarketDashboard({
                           symbol: p.symbol 
                         }
                       })()
+
+                      const isPositive = calc
+                        ? calc.current >= 0
+                        : p
+                          ? p.pct >= 0
+                          : eff.includes('+')
                       return (
                         <div key={a.id} className="flex items-center justify-between p-2 rounded bg-dark-bg/40">
                           <div className="flex items-center space-x-2">
@@ -687,7 +781,7 @@ export default function MarketDashboard({
                                 <span className={`${calc.current >= 0 ? 'text-green-400' : 'text-red-400'}`}>{calc.current >= 0 ? '+' : ''}{calc.current.toFixed(1)}%</span>
                               </span>
                             ) : (
-                              <span className={`text-sm font-semibold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>{a.effect}</span>
+                              <span className={`text-sm font-semibold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>{eff}</span>
                             )}
                           </div>
                           <span className="text-xs text-gray-500">{getTimeAgo(a.timestamp)}</span>

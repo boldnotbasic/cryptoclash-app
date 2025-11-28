@@ -1,15 +1,19 @@
 'use client'
 
-import { ShoppingCart, TrendingDown, Activity, ArrowLeftRight } from 'lucide-react'
+import { useState } from 'react'
+import { ShoppingCart, TrendingDown, ArrowLeftRight, Dice5 } from 'lucide-react'
 import Header from './Header'
+import ScanResult, { ScanEffect } from './ScanResult'
 
 interface ActionsMenuProps {
   playerName: string
   playerAvatar: string
   onNavigate: (screen: 'main-menu' | 'buy' | 'sell' | 'market-activity' | 'swap') => void
+  onApplyScanEffect?: (effect: ScanEffect) => void
 }
 
-export default function ActionsMenu({ playerName, playerAvatar, onNavigate }: ActionsMenuProps) {
+export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onApplyScanEffect }: ActionsMenuProps) {
+  const [showScan, setShowScan] = useState(false)
   const actionButtons = [
     {
       id: 'buy',
@@ -28,12 +32,12 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate }: Ac
       action: () => onNavigate('sell')
     },
     {
-      id: 'beurs',
-      title: 'Beurs',
-      icon: Activity,
+      id: 'kans',
+      title: 'Kans',
+      icon: Dice5,
       color: 'from-blue-500 to-cyan-600',
-      description: 'Marktactiviteit',
-      action: () => onNavigate('market-activity')
+      description: 'Kans effect',
+      action: () => setShowScan(true)
     },
     {
       id: 'swap',
@@ -89,6 +93,19 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate }: Ac
             )
           })}
         </div>
+
+        {/* ScanResult modal triggered by Kans */}
+        {showScan && (
+          <ScanResult 
+            onClose={() => setShowScan(false)}
+            onApplyEffect={(effect) => {
+              // Kans-effecten mogen enkel de markt beïnvloeden, niet de portfolio
+              // Tag met marketOnly zodat client-side portfolio logica dit overslaat
+              try { onApplyScanEffect && onApplyScanEffect({ ...(effect as any), marketOnly: true, source: 'kans' } as any) } catch {}
+              setShowScan(false)
+            }}
+          />
+        )}
 
         {/* Back Button */}
         <div className="mt-6">

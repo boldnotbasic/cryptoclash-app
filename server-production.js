@@ -45,7 +45,7 @@ const playerCleanupTimers = new Map()
 // 🚨 CRITICAL: Global crypto prices - SINGLE SOURCE OF TRUTH
 const globalCryptoPrices = {
   DSHEEP: 42.30,
-  NUGGET: 1250.75, 
+  NGT: 1250.75, 
   LNTR: 89.20,
   OMLT: 156.40,
   REX: 0.85,
@@ -113,11 +113,31 @@ function startActivityInterval(roomCode, socketIo) {
   }
   
   console.log(`🚀 Creating activity interval for room ${roomCode}`)
-  const cryptoSymbols = ['DSHEEP', 'NUGGET', 'LNTR', 'OMLT', 'REX', 'ORLO']
+  const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+  const sanitizeEffect = (effect) => {
+    try {
+      if (typeof effect !== 'string') return effect
+      return effect
+        .replace(/\bRIZZ\b/g, 'NGT')
+        .replace(/\bWHALE\b/g, 'REX')
+    } catch {
+      return effect
+    }
+  }
   
+  const getVolatilityBound = () => {
+    const vRaw = rooms[roomCode]?.settings?.volatility
+    const v = typeof vRaw === 'string' ? vRaw.toLowerCase() : 'medium'
+    if (v === 'low') return 1
+    if (v === 'high') return 3
+    return 2
+  }
+
   const generateActivity = () => {
     const randomCrypto = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
-    const percentage = parseFloat(((Math.random() * 20) - 10).toFixed(1))
+    const bound = getVolatilityBound()
+    const raw = parseFloat(((Math.random() * (2 * bound)) - bound).toFixed(1))
+    const percentage = Math.max(-bound, Math.min(bound, raw))
     const sign = percentage >= 0 ? '+' : ''
     const actions = ['Market Move', 'Price Alert', 'Trading Signal', 'Volume Spike']
     const randomActionType = actions[Math.floor(Math.random() * actions.length)]
@@ -127,7 +147,7 @@ function startActivityInterval(roomCode, socketIo) {
       timestamp: Date.now(),
       player: 'Bot',
       action: randomActionType,
-      effect: `${randomCrypto} ${sign}${percentage}%`,
+      effect: sanitizeEffect(`${randomCrypto} ${sign}${percentage}%`),
       cryptoSymbol: randomCrypto,
       percentageValue: percentage
     }
@@ -151,9 +171,17 @@ function startActivityInterval(roomCode, socketIo) {
       roomMarketChange24h[roomCode][randomCrypto] = Math.round((prevChange + percentage) * 10) / 10
       
       socketIo.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
+      const sanitizedAuto = roomScanData[roomCode].autoScanActions.map(a => ({
+        ...a,
+        effect: sanitizeEffect(a.effect)
+      }))
+      const sanitizedPlayer = roomScanData[roomCode].playerScanActions.map(a => ({
+        ...a,
+        effect: sanitizeEffect(a.effect)
+      }))
       socketIo.to(roomCode).emit('scanData:update', {
-        autoScanActions: roomScanData[roomCode].autoScanActions,
-        playerScanActions: roomScanData[roomCode].playerScanActions
+        autoScanActions: sanitizedAuto,
+        playerScanActions: sanitizedPlayer
       })
       socketIo.to(roomCode).emit('market:change24hUpdate', roomMarketChange24h[roomCode])
     }

@@ -24,6 +24,7 @@ interface GameDashboardProps {
   cryptos: CryptoCurrency[]
   onBack: () => void
   onSellCrypto?: (cryptoId: string, amount: number) => void
+  showSellControls?: boolean
 }
 
 export default function GameDashboard({ 
@@ -31,7 +32,8 @@ export default function GameDashboard({
   playerAvatar,
   cryptos, 
   onBack,
-  onSellCrypto
+  onSellCrypto,
+  showSellControls = false
 }: GameDashboardProps) {
   const [totalValue, setTotalValue] = useState(0)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
@@ -67,6 +69,7 @@ export default function GameDashboard({
       case 'OMLT': return '/omlt.png'
       case 'ORLO': return '/orlo.png'
       case 'REX': return '/rex.png'
+      case 'NGT': return '/Nugget.png'
       case 'NUGGET': return '/Nugget.png'
       default: return null
     }
@@ -119,7 +122,7 @@ export default function GameDashboard({
           <div className="flex items-center space-x-2">
             <Wallet className="w-8 h-8 text-neon-gold" />
             <div>
-              <h1 className="text-3xl font-bold text-white">Portfolio</h1>
+              <h1 className="text-3xl font-bold text-white">Crypto Wallet</h1>
               <p className="text-gray-400">Jouw crypto bezit</p>
             </div>
           </div>
@@ -197,8 +200,8 @@ export default function GameDashboard({
                   </div>
                 </div>
                 
-                {/* Sell Buttons */}
-                {crypto.amount > 0 && onSellCrypto && (
+                {/* Sell Buttons - only when explicitly enabled via showSellControls */}
+                {showSellControls && crypto.amount > 0 && onSellCrypto && (
                   <div className="grid grid-cols-3 gap-2 mt-4">
                     <button
                       onClick={() => handleSellClick(crypto.id, 25)}

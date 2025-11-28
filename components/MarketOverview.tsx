@@ -110,7 +110,7 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
       case 'OMLT': return '/omlt.png'
       case 'ORLO': return '/orlo.png'
       case 'REX': return '/rex.png'
-      case 'NUGGET': return '/Nugget.png'
+      case 'NGT': return '/Nugget.png'
       default: return null
     }
   }

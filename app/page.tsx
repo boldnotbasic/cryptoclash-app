@@ -19,10 +19,11 @@ import Cash from '@/components/Cash'
 import SpelersRanking from '../components/SpelersRanking'
 import ScanTranscript from '../components/ScanTranscript'
 import ActionsMenu from '@/components/ActionsMenu'
+import BuyCrypto from '@/components/BuyCrypto'
 import { ScanEffect } from '@/components/ScanResult'
 import { useSocket } from '@/hooks/useSocket'
 
-type Screen = 'start-screen' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'game-over' | 'resume-game'
+type Screen = 'start-screen' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'buy' | 'sell' | 'game-over' | 'resume-game'
 
 interface CryptoCurrency {
   id: string
@@ -55,10 +56,12 @@ export default function Home() {
   const [isHost, setIsHost] = useState<boolean>(false)
   const [lastScanEffect, setLastScanEffect] = useState<string>('')
   const [cashBalance, setCashBalance] = useState<number>(1000.00)
+  const [selectedVolatility, setSelectedVolatility] = useState<'low'|'medium'|'high'>('medium')
   const [isConnected, setIsConnected] = useState<boolean>(false)
   const [connectedPlayers, setConnectedPlayers] = useState<number>(0)
   const [dashboardToasts, setDashboardToasts] = useState<{ id: string, message: string, sender: string }[]>([])
   const [joinNotification, setJoinNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, isRejoining: boolean } | null>(null)
+  const [currentYear, setCurrentYear] = useState<number>(2024)
   
   // Get socket connection for game events
   const { socket, room } = useSocket()
@@ -198,7 +201,7 @@ export default function Home() {
     {
       id: '2',
       name: 'Nugget',
-      symbol: 'NUGGET',
+      symbol: 'NGT',
       price: 3250.90,
       change24h: -1.8,
       amount: 0,
@@ -225,7 +228,7 @@ export default function Home() {
       symbol: 'OMLT',
       price: 890.25,
       change24h: -3.2,
-      amount: 0,
+      amount: 1,
       color: 'neon-gold',
       icon: '🥚',
       volume: 2100000,
@@ -237,7 +240,7 @@ export default function Home() {
       symbol: 'REX',
       price: 1750.60,
       change24h: 15.7,
-      amount: 0,
+      amount: 1,
       color: 'neon-purple',
       icon: '💫',
       volume: 4200000,
@@ -987,13 +990,89 @@ export default function Home() {
           }))
           .sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
 
-      // Update state with normalized, sorted data (single source of truth)
       const normAuto = normalizeAndSort(autoScanActions)
       const normPlayer = normalizeAndSort(playerScanActions)
+
+      // DETECT AND APPLY MARKET EVENTS IMMEDIATELY (before state update)
+      const allScans = [...normAuto, ...normPlayer]
+      const latestScan = allScans[0] // Most recent scan
+      
+      if (latestScan && latestScan.effect) {
+        console.log('\n🔍 === CHECKING LATEST SCAN FOR MARKET EVENTS ===')
+        console.log('📊 Latest scan effect:', latestScan.effect)
+        
+        // Check if this is a market event that needs price application
+        if (latestScan.effect.includes('Market Crash') || 
+            latestScan.effect.includes('Bull Run') || 
+            latestScan.effect.includes('Whale Alert')) {
+          
+          console.log('🎯 MARKET EVENT DETECTED - Applying price changes!')
+          
+          // Create a ScanEffect object to pass to handleQRScan logic
+          const marketEffect = {
+            type: 'event' as const,
+            message: latestScan.effect,
+            icon: latestScan.effect.includes('Market Crash') ? '📉' : 
+                  latestScan.effect.includes('Bull Run') ? '🚀' : '🐋',
+            color: latestScan.effect.includes('Market Crash') ? 'red-500' : 
+                   latestScan.effect.includes('Bull Run') ? 'green-500' : 'blue-500'
+          }
+          
+          // Apply the market event logic (same as handleQRScan but without navigation)
+          if (marketEffect.message.includes('Bull Run')) {
+            console.log('🚀 APPLYING BULL RUN: All coins +5%')
+            setCryptos(prev => prev.map(crypto => {
+              const newPrice = Math.round(crypto.price * 1.05 * 100) / 100
+              console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (+5%)`)
+              return {
+                ...crypto,
+                price: newPrice,
+                change24h: crypto.change24h + 5,
+                volume: crypto.volume * (0.9 + Math.random() * 0.2),
+                marketCap: crypto.marketCap * 1.05
+              }
+            }))
+          } else if (marketEffect.message.includes('Market Crash')) {
+            console.log('📉 APPLYING MARKET CRASH: All coins -10%')
+            setCryptos(prev => prev.map(crypto => {
+              const newPrice = Math.round(crypto.price * 0.9 * 100) / 100
+              console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (-10%)`)
+              return {
+                ...crypto,
+                price: newPrice,
+                change24h: crypto.change24h - 10,
+                volume: crypto.volume * (0.8 + Math.random() * 0.4),
+                marketCap: crypto.marketCap * 0.9
+              }
+            }))
+          } else if (marketEffect.message.includes('Whale Alert')) {
+            const randomIndex = Math.floor(Math.random() * cryptos.length)
+            const targetCoin = cryptos[randomIndex]
+            console.log(`🐋 APPLYING WHALE ALERT: Random coin +50% → ${targetCoin?.symbol || 'unknown'}`)
+            setCryptos(prev => prev.map((crypto, index) => {
+              if (index === randomIndex) {
+                const newPrice = Math.round(crypto.price * 1.5 * 100) / 100
+                console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (+50%)`)
+                return {
+                  ...crypto,
+                  price: newPrice,
+                  change24h: 50,
+                  volume: crypto.volume * 2,
+                  marketCap: crypto.marketCap * 1.5
+                }
+              }
+              return crypto
+            }))
+          }
+          
+          console.log('✅ Market event applied to crypto prices!')
+        }
+        console.log('🔍 === MARKET EVENT CHECK COMPLETE ===\n')
+      }
+
+      // NOW update state with normalized data after event processing
       setAutoScanActions(normAuto)
       setPlayerScanActions(normPlayer)
-
-      // Do not mutate change24h here; authoritative values come from server via market:stateUpdate
 
       console.log('✅ Scan data normalized and sorted from server')
       console.log('📊 === SERVER SCAN DATA UPDATE END ===\n')
@@ -1040,12 +1119,20 @@ export default function Home() {
     const startDelay = setTimeout(() => {
       console.log(`🎮 Solo mode: Now generating local activities`)
       
+      const getBound = () => {
+        const v = selectedVolatility || 'medium'
+        if (v === 'low') return 1
+        if (v === 'high') return 3
+        return 2
+      }
+
       const generateActivity = () => {
         const cryptoSymbols = ['DSHEEP', 'NUGGET', 'LNTR', 'OMLT', 'REX', 'ORLO']
         const randomCrypto = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
         
-        // Generate random percentage between -10% and +10%
-        const percentage = (Math.random() * 20 - 10).toFixed(1) // -10.0 to +10.0
+        // Generate random percentage within selected volatility bound
+        const bound = getBound()
+        const percentage = (Math.random() * (2 * bound) - bound).toFixed(1)
         const isPositive = parseFloat(percentage) >= 0
         const sign = isPositive ? '+' : ''
         const percentageValue = parseFloat(percentage)
@@ -1145,7 +1232,13 @@ export default function Home() {
   const handleHostSetup = (roomId: string, volatility: string, gameDuration: number, startingCash: number) => {
     setRoomId(roomId)
     setCashBalance(startingCash)
-    // Store host setup data for later use (volatility: volatility)
+    // Persist volatility selection for solo-mode/local generation fallback
+    const v = (volatility || 'medium').toLowerCase()
+    if (v === 'low' || v === 'medium' || v === 'high') {
+      setSelectedVolatility(v as 'low'|'medium'|'high')
+    } else {
+      setSelectedVolatility('medium')
+    }
     navigateToScreen('waiting-room')
   }
 
@@ -1202,6 +1295,7 @@ export default function Home() {
       lastSaveTime: Date.now()
     }
     setGameState(newGameState)
+    setCurrentYear(startYear)
     // Players go to main menu (hosts already at market dashboard)
     navigateToScreen('main-menu')
   }
@@ -1209,6 +1303,13 @@ export default function Home() {
   const handleResumeGame = () => {
     navigateToScreen('main-menu')
   }
+
+  // Keep currentYear in sync when gameState changes elsewhere
+  useEffect(() => {
+    if (gameState && typeof gameState.startYear === 'number') {
+      setCurrentYear(prev => prev || gameState.startYear)
+    }
+  }, [gameState])
 
   const handleNewGame = () => {
     // Clear existing session
@@ -1298,15 +1399,86 @@ export default function Home() {
   }
 
   const handleQRScan = (effect: ScanEffect) => {
-    console.log('QR Effect applied:', effect)
+    console.log('\n🎯 === QR SCAN EFFECT APPLIED ===')
+    console.log('📊 Effect:', effect)
     
-    // Store the scan effect for MainMenu
+    // STEP 1: Apply EVENT effects FIRST (Bull Run, Market Crash, Whale Alert)
+    // These must happen BEFORE navigation to ensure state updates complete
+    if (effect.type === 'event') {
+      console.log('\n🎰 === APPLYING EVENT EFFECT ===')
+      console.log('🔍 Effect type:', effect.type)
+      console.log('🔍 Effect message:', JSON.stringify(effect.message))
+      console.log('🔍 Contains "Market Crash"?', effect.message.includes('Market Crash'))
+      console.log('🔍 Contains "Bull Run"?', effect.message.includes('Bull Run'))
+      console.log('🔍 Contains "Whale Alert"?', effect.message.includes('Whale Alert'))
+      
+      if (effect.message.includes('Bull Run')) {
+        console.log('🚀 BULL RUN: All coins +5%')
+        setCryptos(prev => prev.map(crypto => {
+          const newPrice = Math.round(crypto.price * 1.05 * 100) / 100
+          console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (+5%)`)
+          return {
+            ...crypto,
+            price: newPrice,
+            change24h: crypto.change24h + 5,
+            volume: crypto.volume * (0.9 + Math.random() * 0.2),
+            marketCap: crypto.marketCap * 1.05
+          }
+        }))
+        console.log('✅ Bull Run applied to all coins')
+      } else if (effect.message.includes('Market Crash') || effect.message.toLowerCase().includes('market crash')) {
+        console.log('📉 MARKET CRASH: All coins -10%')
+        console.log('🔍 Original prices before crash:', cryptos.map(c => `${c.symbol}: €${c.price}`))
+        
+        setCryptos(prev => {
+          const newCryptos = prev.map(crypto => {
+            const newPrice = Math.round(crypto.price * 0.9 * 100) / 100
+            console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (-10%)`)
+            return {
+              ...crypto,
+              price: newPrice,
+              change24h: crypto.change24h - 10,
+              volume: crypto.volume * (0.8 + Math.random() * 0.4),
+              marketCap: crypto.marketCap * 0.9
+            }
+          })
+          console.log('🔍 New prices after crash:', newCryptos.map(c => `${c.symbol}: €${c.price}`))
+          return newCryptos
+        })
+        console.log('✅ Market Crash applied to all coins')
+      } else if (effect.message.includes('Whale Alert')) {
+        const randomIndex = Math.floor(Math.random() * cryptos.length)
+        const targetCoin = cryptos[randomIndex]
+        console.log(`🐋 WHALE ALERT: Random coin +50% → ${targetCoin?.symbol || 'unknown'}`)
+        setCryptos(prev => prev.map((crypto, index) => {
+          if (index === randomIndex) {
+            const newPrice = Math.round(crypto.price * 1.5 * 100) / 100
+            console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (+50%)`)
+            return {
+              ...crypto,
+              price: newPrice,
+              change24h: 50,
+              volume: crypto.volume * 2,
+              marketCap: crypto.marketCap * 1.5
+            }
+          }
+          return crypto
+        }))
+        console.log('✅ Whale Alert applied to random coin')
+      } else {
+        console.log('⚠️ UNKNOWN EVENT - No matching pattern found!')
+        console.log('🔍 Effect message was:', JSON.stringify(effect.message))
+        console.log('🔍 Available patterns: "Bull Run", "Market Crash", "Whale Alert"')
+      }
+      console.log('🎰 === EVENT EFFECT COMPLETE ===\n')
+    }
+    
+    // STEP 2: Build effect text for display
     let effectText = ''
     if (effect.type === 'boost' || effect.type === 'crash') {
       if (effect.cryptoSymbol && effect.percentage) {
         const sign = effect.percentage > 0 ? '+' : ''
         effectText = `${effect.cryptoSymbol} ${sign}${effect.percentage}%`
-        // Do not mutate local prices/percentages here; rely on server broadcasts
       }
     } else if (effect.type === 'event') {
       effectText = effect.message
@@ -1314,7 +1486,7 @@ export default function Home() {
     
     setLastScanEffect(effectText)
     
-    // Add to player scan actions
+    // STEP 3: Add scan action and apply portfolio effects for single-coin scans
     if (effectText) {
       const newScanAction = {
         id: Date.now().toString(),
@@ -1326,30 +1498,24 @@ export default function Home() {
         cryptoSymbol: effect.cryptoSymbol,
         percentageValue: effect.percentage
       }
-      setPlayerScanActions(prev => [newScanAction, ...prev.slice(0, 9)]) // Keep last 10
+      setPlayerScanActions(prev => [newScanAction, ...prev.slice(0, 9)])
       
-      // Apply portfolio effects for QR scans (same logic as test scans)
-      if (effect.cryptoSymbol && effect.percentage !== undefined) {
-        console.log(`💰 Applying QR scan portfolio effects for ${effect.cryptoSymbol} ${effect.percentage}%`)
+      // Apply portfolio effects for single-coin boost/crash
+      // Skip when effect is marked as marketOnly (e.g., Kans events should not modify portfolio)
+      if (effect.type !== 'event' && effect.cryptoSymbol && effect.percentage !== undefined && !(effect as any)?.marketOnly) {
+        console.log(`💰 Applying portfolio effects for ${effect.cryptoSymbol} ${effect.percentage}%`)
         
-        // Update player's portfolio - buy/sell crypto based on scan effect
         setCryptos(prev => prev.map(crypto => {
           if (crypto.symbol === effect.cryptoSymbol && effect.percentage !== undefined) {
-            // Calculate how much crypto to buy/sell based on percentage
             const percentageAbs = Math.abs(effect.percentage)
             const isPositive = effect.percentage > 0
             
-            // For positive scans: buy more crypto (if we have cash)
-            // For negative scans: sell some crypto (if we have any)
             if (isPositive && cashBalance >= crypto.price) {
-              // Buy crypto with available cash (max 20% of cash balance)
               const maxSpend = cashBalance * 0.2
               const amountToBuy = Math.min(maxSpend / crypto.price, percentageAbs * 0.1)
               const cost = amountToBuy * crypto.price
               
-              console.log(`💰 QR scan - Positive: Buying ${amountToBuy.toFixed(2)} ${crypto.symbol} for €${cost.toFixed(2)}`)
-              
-              // Update cash balance
+              console.log(`💰 Buying ${amountToBuy.toFixed(2)} ${crypto.symbol} for €${cost.toFixed(2)}`)
               setCashBalance(prev => prev - cost)
               
               return {
@@ -1357,14 +1523,11 @@ export default function Home() {
                 amount: crypto.amount + amountToBuy
               }
             } else if (!isPositive && crypto.amount > 0) {
-              // Sell some crypto (max 30% of holdings)
               const maxSell = crypto.amount * 0.3
               const amountToSell = Math.min(maxSell, percentageAbs * 0.05)
               const revenue = amountToSell * crypto.price
               
-              console.log(`💰 QR scan - Negative: Selling ${amountToSell.toFixed(2)} ${crypto.symbol} for €${revenue.toFixed(2)}`)
-              
-              // Update cash balance
+              console.log(`💰 Selling ${amountToSell.toFixed(2)} ${crypto.symbol} for €${revenue.toFixed(2)}`)
               setCashBalance(prev => prev + revenue)
               
               return {
@@ -1377,71 +1540,21 @@ export default function Home() {
         }))
       }
       
-      // Broadcast scan action to all players (including Market Screen) via socket
+      // STEP 4: Broadcast to room
       if (socket && roomId && roomId !== 'solo-mode') {
-        console.log('\n📡 === BROADCASTING PLAYER SCAN ACTION ===')
-        console.log('🏠 Room ID:', roomId)
-        console.log('🔌 Socket connected:', socket.connected)
-        console.log('👤 Player:', newScanAction.player)
-        console.log('🎯 Action:', newScanAction.action)
-        console.log('💥 Effect:', newScanAction.effect)
-        console.log('😀 Avatar:', newScanAction.avatar)
-        console.log('🆔 Scan ID:', newScanAction.id)
-        console.log('📤 Emitting to server...')
-        
+        console.log('\n📡 Broadcasting scan action to room')
         socket.emit('player:scanAction', {
           roomCode: roomId,
           scanAction: newScanAction
         })
         lastEmittedScanId.current = newScanAction.id
-        
-        console.log('✅ Broadcast sent to server')
-        console.log('🔗 Last emitted ID set to:', newScanAction.id)
-        console.log('📡 === BROADCAST COMPLETE ===\n')
-      } else {
-        console.warn('⚠️ Cannot broadcast - Socket, Room ID missing, or in solo mode')
-        console.log('Socket:', !!socket, 'Room ID:', roomId, 'Solo mode:', roomId === 'solo-mode')
+        console.log('✅ Broadcast complete\n')
       }
     }
     
+    // STEP 5: Navigate to main menu AFTER all effects are applied
+    console.log('🎯 === QR SCAN COMPLETE - Navigating to main menu ===\n')
     navigateToScreen('main-menu')
-    
-    // Apply the scan effect
-    if (effect.type === 'boost' || effect.type === 'crash') {
-      // Already handled above
-    } else if (effect.type === 'event') {
-      if (effect.message.includes('Bull Run')) {
-        // All coins rise
-        setCryptos(prev => prev.map(crypto => ({
-          ...crypto,
-          price: crypto.price * 1.05,
-          change24h: crypto.change24h + 5,
-          volume: crypto.volume * (0.9 + Math.random() * 0.2),
-          marketCap: crypto.marketCap * 1.05
-        })))
-      } else if (effect.message.includes('Market Crash')) {
-        // All coins fall
-        setCryptos(prev => prev.map(crypto => ({
-          ...crypto,
-          price: crypto.price * 0.9,
-          change24h: crypto.change24h - 10,
-          volume: crypto.volume * (0.8 + Math.random() * 0.4),
-          marketCap: crypto.marketCap * 0.9
-        })))
-      } else if (effect.message.includes('Whale Alert')) {
-        // Random coin gets +50%
-        const randomIndex = Math.floor(Math.random() * cryptos.length)
-        setCryptos(prev => prev.map((crypto, index) => 
-          index === randomIndex ? {
-            ...crypto,
-            price: crypto.price * 1.5,
-            change24h: 50,
-            volume: crypto.volume * 2,
-            marketCap: crypto.marketCap * 1.5
-          } : crypto
-        ))
-      }
-    }
   }
 
   const handleMenuNavigation = (screen: 'qr-scanner' | 'market' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript') => {
@@ -1495,7 +1608,7 @@ export default function Home() {
       timestamp: Date.now(),
       player: 'Test Player',
       action: 'Direct Test',
-      effect: 'NUGGET +10.0%',
+      effect: 'NGT +10.0%',
       avatar: '🧪'
     }
     console.log('📊 Adding direct scan:', directScan)
@@ -1597,6 +1710,16 @@ export default function Home() {
       timestamp: Date.now()
     }
     setTransactions(prev => [newTransaction, ...prev])
+
+    const sellAction = {
+      id: `sell-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+      timestamp: Date.now(),
+      player: playerName || 'Speler',
+      action: `Verkoop ${crypto.name}`,
+      effect: `+€${saleValue.toFixed(2)} cash`,
+      avatar: playerAvatar
+    }
+    setPlayerScanActions(prev => [sellAction, ...prev.slice(0, 9)])
     
     // The crypto amounts and cash balance will be automatically synced to server
     // via the useEffect that watches for changes in cryptos and cashBalance
@@ -1692,15 +1815,37 @@ export default function Home() {
                 playerName={playerName}
                 playerAvatar={playerAvatar}
                 cryptos={cryptos}
+                year={currentYear}
+                onPassStart={() => {
+                  setCashBalance(prev => Math.round((prev + 500) * 100) / 100)
+                  setCurrentYear(prev => {
+                    const next = prev + 1
+                    // Add a player scan action so it shows in the activities list
+                    try {
+                      const scan = {
+                        id: `ny-${Date.now()}`,
+                        timestamp: Date.now(),
+                        player: playerName || 'Speler',
+                        action: 'Nieuwjaar bonus',
+                        effect: `START BONUS +€500 (${prev} → ${next})`,
+                        avatar: playerAvatar
+                      } as any
+                      setPlayerScanActions(p => [scan, ...p.slice(0, 9)])
+                    } catch {}
+                    return next
+                  })
+                }}
                 onNavigate={handleMenuNavigation}
                 lastScanEffect={lastScanEffect}
                 cashBalance={cashBalance}
                 players={players}
                 playerScanActions={playerScanActions}
                 autoScanActions={autoScanActions}
+                transactions={transactions}
                 onSendTestMessage={handleSendTestMessage}
                 onAddScanAction={handleAddScanAction}
                 onVerifyRoom={verifyRoomMembership}
+                onApplyScanEffect={handleQRScan}
               />
             )
             
@@ -1820,11 +1965,144 @@ export default function Home() {
                 onNavigate={(screen) => {
                   if (screen === 'main-menu') {
                     navigateToScreen('main-menu')
+                  } else if (screen === 'buy') {
+                    navigateToScreen('buy')
+                  } else if (screen === 'sell') {
+                    navigateToScreen('sell')
                   } else {
-                    // For now, placeholder for buy/sell/market-activity/swap screens
                     console.log(`Navigate to ${screen} - Coming soon!`)
-                    // You can add these screens later
                   }
+                }}
+                onApplyScanEffect={handleQRScan}
+              />
+            )
+            
+          case 'buy':
+            return (
+              <BuyCrypto
+                playerName={playerName}
+                playerAvatar={playerAvatar}
+                cryptos={cryptos}
+                cashBalance={cashBalance}
+                onBack={() => navigateToScreen('actions-menu')}
+                onConfirmBuy={(symbol, quantity) => {
+                  // Calculate cost using current price
+                  const selected = cryptos.find(c => c.symbol === symbol)
+                  if (!selected) return
+                  const cost = Math.round(selected.price * quantity * 100) / 100
+                  const newCash = Math.round((cashBalance - cost) * 100) / 100
+                  if (newCash < 0) return
+
+                  const newCryptos = cryptos.map(c => c.symbol === symbol ? { ...c, amount: c.amount + quantity } : c)
+                  setCryptos(newCryptos)
+                  setCashBalance(newCash)
+
+                  // Prepare portfolio map and totals for unified sync
+                  const newPortfolioMap = newCryptos.reduce((acc: any, c: any) => { acc[c.symbol] = c.amount; return acc }, {} as Record<string, number>)
+                  const newPortfolioValue = Math.round(newCryptos.reduce((sum, c) => sum + (c.price * c.amount), 0) * 100) / 100
+                  const newTotalValue = Math.round((newPortfolioValue + newCash) * 100) / 100
+
+                  const buyAction = {
+                    id: `buy-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+                    timestamp: Date.now(),
+                    player: playerName || 'Speler',
+                    action: `Koop ${selected.name}`,
+                    effect: `-€${cost.toFixed(2)} cash`,
+                    avatar: playerAvatar
+                  }
+                  setPlayerScanActions(prev => [buyAction, ...prev.slice(0, 9)])
+
+                  if (socket && roomId) {
+                    socket.emit('player:updateData', {
+                      roomCode: roomId,
+                      playerData: {
+                        name: playerName,
+                        avatar: playerAvatar,
+                        portfolio: newPortfolioMap,
+                        cashBalance: newCash,
+                        portfolioValue: newPortfolioValue,
+                        totalValue: newTotalValue,
+                        timestamp: Date.now()
+                      }
+                    })
+                  }
+
+                  navigateToScreen('main-menu')
+                }}
+              />
+            )
+          
+          case 'portfolio':
+            return (
+              <GameDashboard
+                playerName={playerName}
+                playerAvatar={playerAvatar}
+                cryptos={cryptos}
+                onBack={() => navigateToScreen('main-menu')}
+              />
+            )
+
+          case 'sell':
+            return (
+              <GameDashboard
+                playerName={playerName}
+                playerAvatar={playerAvatar}
+                cryptos={cryptos}
+                onBack={() => navigateToScreen('main-menu')}
+                showSellControls={true}
+                onSellCrypto={(cryptoId: string, amountToSell: number) => {
+                  const coin = cryptos.find(c => c.id === cryptoId)
+                  if (!coin) return
+                  const revenue = Math.round(coin.price * amountToSell * 100) / 100
+
+                  const newCryptos = cryptos.map(c => c.id === cryptoId ? { ...c, amount: Math.max(0, c.amount - amountToSell) } : c)
+                  const newCash = Math.round((cashBalance + revenue) * 100) / 100
+                  setCryptos(newCryptos)
+                  setCashBalance(newCash)
+
+                  // Record transaction for Cash wallet
+                  setTransactions(prev => [{
+                    id: `tx-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+                    type: 'sell',
+                    cryptoSymbol: coin.symbol,
+                    cryptoName: coin.name,
+                    amount: amountToSell,
+                    price: coin.price,
+                    total: revenue,
+                    timestamp: Date.now()
+                  }, ...prev])
+
+                  const sellAction = {
+                    id: `sell-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+                    timestamp: Date.now(),
+                    player: playerName || 'Speler',
+                    action: `Verkoop ${coin.name}`,
+                    effect: `+€${revenue.toFixed(2)} cash`,
+                    avatar: playerAvatar
+                  }
+                  setPlayerScanActions(prev => [sellAction, ...prev.slice(0, 9)])
+
+                  const newPortfolioMap = newCryptos.reduce((acc: any, c: any) => { acc[c.symbol] = c.amount; return acc }, {} as Record<string, number>)
+                  const newPortfolioValue = Math.round(newCryptos.reduce((sum, c) => sum + (c.price * c.amount), 0) * 100) / 100
+                  const newTotalValue = Math.round((newPortfolioValue + newCash) * 100) / 100
+
+                  if (socket && roomId) {
+                    socket.emit('player:updateData', {
+                      roomCode: roomId,
+                      playerData: {
+                        name: playerName,
+                        avatar: playerAvatar,
+                        portfolio: newPortfolioMap,
+                        cashBalance: newCash,
+                        portfolioValue: newPortfolioValue,
+                        totalValue: newTotalValue,
+                        timestamp: Date.now()
+                      }
+                    })
+                  }
+
+                  // After selling, hide sell buttons by navigating to plain portfolio view
+                  navigateToScreen('portfolio')
                 }}
               />
             )
