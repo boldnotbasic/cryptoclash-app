@@ -58,26 +58,34 @@ export default function RoomJoin({ onJoinRoom, onBack, onGoToMarketScreen, onByp
 
     setIsJoining(true)
     setError('')
-    
-    console.log('🔍 Calling joinRoom with:', roomId.trim(), playerName, playerAvatar)
+
+    const targetRoomId = roomId.trim()
+    console.log('🔍 Calling joinRoom with:', targetRoomId, playerName, playerAvatar)
     
     // Join room via Socket.io
-    joinRoom(roomId.trim(), playerName, playerAvatar)
+    joinRoom(targetRoomId, playerName, playerAvatar)
     
     // Add timeout fallback with direct navigation
     setTimeout(() => {
-      if (isJoining) {
+      setIsJoining(prev => {
+        // Als join inmiddels is gestopt (success of error), doe niets
+        if (!prev) {
+          return prev
+        }
+
         console.log('⏰ Join timeout - using fallback navigation')
-        setIsJoining(false)
         
         // If Socket.io fails, still navigate to waiting room for offline mode
-        if (roomId.trim() === '123') {
+        if (targetRoomId === '123') {
           console.log('🔄 Using fallback navigation for room 123')
-          onJoinRoom(roomId.trim())
+          onJoinRoom(targetRoomId)
         } else {
+          // Alleen hier een generieke timeout-error tonen
           setError('Verbinding timeout - probeer opnieuw of gebruik kamer 123')
         }
-      }
+
+        return false
+      })
     }, 5000) // Reduced to 5 seconds for faster fallback
   }
 
@@ -107,9 +115,9 @@ export default function RoomJoin({ onJoinRoom, onBack, onGoToMarketScreen, onByp
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <img
-              src="/cryptoclash-logo.png"
+              src="/Collage_logo.png"
               alt="CryptoClash"
-              className="h-20 md:h-24 drop-shadow-[0_8px_30px_rgba(139,92,246,0.6)]"
+              className="w-[50vw] md:w-[25vw] h-auto max-h-[60vh] drop-shadow-[0_8px_30px_rgba(139,92,246,0.6)]"
             />
           </div>
           <h1 className="sr-only">CryptoClash</h1>

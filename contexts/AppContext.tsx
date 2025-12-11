@@ -21,15 +21,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Load settings from localStorage on mount
   useEffect(() => {
     const savedLanguage = localStorage.getItem('cryptoclash-language') as Language
-    const savedTheme = localStorage.getItem('cryptoclash-theme') as Theme
+    const savedTheme = localStorage.getItem('cryptoclash-theme') as Theme | null
     
     if (savedLanguage) {
       console.log('Loading saved language:', savedLanguage)
       setLanguage(savedLanguage)
     }
-    if (savedTheme) {
-      console.log('Loading saved theme:', savedTheme)
-      setTheme(savedTheme)
+    // Only accept the dark theme from storage; ignore/override any saved light theme
+    if (savedTheme === 'dark') {
+      console.log('Loading saved theme: dark')
+      setTheme('dark')
+    } else if (savedTheme === 'light') {
+      console.log('Ignoring saved light theme, forcing dark theme')
+      localStorage.setItem('cryptoclash-theme', 'dark')
+      setTheme('dark')
     }
   }, [])
 

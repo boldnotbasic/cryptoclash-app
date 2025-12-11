@@ -11,35 +11,32 @@ export default function StartScreen({ onSelectRole }: StartScreenProps) {
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
         {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-6">
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
             <img
-              src="/cryptoclash-logo.png"
+              src="/Collage_logo.png"
               alt="CryptoClash"
-              className="h-40 md:h-66 drop-shadow-[0_8px_30px_rgba(139,92,246,0.6)]"
+              className="w-[50vw] md:w-[30vw] h-auto max-h-[80vh] drop-shadow-[0_8px_30px_rgba(139,92,246,0.6)]"
             />
           </div>
           <h1 className="sr-only">CryptoClash</h1>
-          <p className="text-base text-gray-400">Multiplayer Crypto Trading Game</p>
         </div>
 
         {/* Role Selection Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-2 gap-4">
           {/* Host Option */}
           <button
             onClick={() => onSelectRole('host')}
             className="crypto-card hover:scale-105 transition-all duration-300 hover:shadow-neon-blue group cursor-pointer border-2 border-transparent hover:border-neon-blue/50"
           >
-            <div className="text-center p-8">
-              <div className="flex justify-center mb-6">
-                <div className="p-4 bg-neon-blue/20 rounded-full group-hover:bg-neon-blue/30 transition-colors">
-                  <Crown className="w-12 h-12 text-neon-blue" />
+            <div className="px-4 py-5 text-center space-y-3">
+              {/* Icoon boven titel */}
+              <div className="flex flex-col items-center justify-center space-y-3">
+                <div className="p-3 bg-neon-blue/20 rounded-full group-hover:bg-neon-blue/30 transition-colors">
+                  <Crown className="w-8 h-8 text-neon-blue" />
                 </div>
+                <h2 className="text-2xl font-bold text-white">Hosting</h2>
               </div>
-              
-              <h2 className="text-3xl font-bold text-white mb-4">Hosting</h2>
-              <p className="text-gray-400 mb-6">Maak een nieuwe lobby aan en beheer het spel</p>
-
             </div>
           </button>
 
@@ -48,15 +45,14 @@ export default function StartScreen({ onSelectRole }: StartScreenProps) {
             onClick={() => onSelectRole('player')}
             className="crypto-card hover:scale-105 transition-all duration-300 hover:shadow-neon-purple group cursor-pointer border-2 border-transparent hover:border-neon-purple/50"
           >
-            <div className="text-center p-8">
-              <div className="flex justify-center mb-6">
-                <div className="p-4 bg-neon-purple/20 rounded-full group-hover:bg-neon-purple/30 transition-colors">
-                  <Users className="w-12 h-12 text-neon-purple" />
+            <div className="px-4 py-5 text-center space-y-3">
+              {/* Icoon boven titel */}
+              <div className="flex flex-col items-center justify-center space-y-3">
+                <div className="p-3 bg-neon-purple/20 rounded-full group-hover:bg-neon-purple/30 transition-colors">
+                  <Users className="w-8 h-8 text-neon-purple" />
                 </div>
+                <h2 className="text-2xl font-bold text-white">Spelen</h2>
               </div>
-              
-              <h2 className="text-3xl font-bold text-white mb-4">Spelen</h2>
-              <p className="text-gray-400 mb-6">Join een bestaande lobby en begin met traden</p>
             </div>
           </button>
         </div>

@@ -68,9 +68,7 @@ export default function SpelersRanking({ onBack, playerName, playerAvatar, playe
         <div className="crypto-card mb-8">
           <h3 className="text-2xl font-bold text-white mb-6 text-center">🏆 Live Rankings</h3>
           <div className="space-y-4">
-            {players
-              .sort((a, b) => b.totalValue - a.totalValue)
-              .map((player, index) => (
+            {players.map((player, index) => (
                 <div key={player.id} className={`flex items-center justify-between p-4 rounded-lg transition-all duration-300 ${
                   player.name === playerName ? 'bg-neon-gold/10 border border-neon-gold/30' : 'bg-dark-bg/30'
                 }`}>

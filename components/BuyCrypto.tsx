@@ -38,10 +38,17 @@ export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalan
   }
   const [selectedSymbol, setSelectedSymbol] = useState<string>('')
   const [quantity, setQuantity] = useState<number>(1)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const selected = useMemo(() => cryptos.find(c => c.symbol === selectedSymbol) || null, [cryptos, selectedSymbol])
   const totalCost = useMemo(() => selected ? Math.round(selected.price * quantity * 100) / 100 : 0, [selected, quantity])
-  const canAfford = selected ? cashBalance >= totalCost : false
+  const canAfford = useMemo(() => selected ? cashBalance >= totalCost : false, [selected, totalCost, cashBalance])
+
+  const handleValidateBuy = () => {
+    if (!selected || !canAfford) return
+    onConfirmBuy(selected.symbol, quantity)
+    setSuccessMessage(`Je hebt ${quantity} ${selected.name} gekocht!`)
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 p-4">
@@ -102,20 +109,54 @@ export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalan
         {/* Aantal */}
         <div className="crypto-card mb-4">
           <h2 className="text-lg font-semibold text-white mb-3">Aantal</h2>
-          <div>
-            <input
-              type="range"
-              min={1}
-              max={100}
-              step={1}
-              value={quantity}
-              onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-              className="w-full accent-neon-blue"
-            />
-            <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
+          <div className="space-y-3">
+            {/* Custom slider met gevulde balk en groter bolletje voor mobile */}
+            <div className="relative w-full h-7">
+              {/* Achtergrond-balk exact gecentreerd */}
+              <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                {/* Gevulde balk op basis van geselecteerde hoeveelheid (effen oranje) */}
+                <div
+                  className="h-full bg-neon-gold shadow-[0_0_12px_rgba(250,204,21,0.6)] transition-all duration-200"
+                  style={{ width: `${((quantity - 1) / 49) * 100}%` }}
+                />
+              </div>
+
+              {/* Bolletje / handle - iets groter en verticaal gecentreerd */}
+              <div
+                className="absolute top-1/2 -translate-y-1/2 w-8 h-8 rounded-full border-2 border-neon-gold bg-dark-bg shadow-[0_0_22px_rgba(250,204,21,0.95)] flex items-center justify-center"
+                style={{
+                  left: `${((quantity - 1) / 49) * 100}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <span className="w-4 h-4 rounded-full bg-neon-gold shadow-[0_0_14px_rgba(250,204,21,0.9)]" />
+              </div>
+
+              {/* Onzichtbare native range voor interactie */}
+              <input
+                type="range"
+                min={1}
+                max={50}
+                step={1}
+                value={quantity}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value) || 1
+                  setQuantity(Math.min(Math.max(v, 1), 50))
+                }}
+                className="absolute inset-0 w-full opacity-0 cursor-pointer"
+              />
+            </div>
+
+            {/* Labels onder slider met duidelijk geselecteerd aantal */}
+            <div className="flex items-center justify-between text-xs text-gray-400">
               <span>1</span>
-              <span className="text-white font-semibold px-2 py-0.5 rounded bg-white/10">{quantity}</span>
-              <span>100</span>
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] uppercase tracking-wide text-gray-500">Geselecteerd</span>
+                <span className="mt-0.5 w-9 h-9 rounded-full bg-transparent border border-neon-gold/80 text-neon-gold font-bold text-base flex items-center justify-center shadow-[0_0_16px_rgba(250,204,21,0.7)]">
+                  {quantity}
+                </span>
+              </div>
+              <span>50</span>
             </div>
           </div>
         </div>
@@ -148,7 +189,7 @@ export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalan
             <button onClick={onBack} className="flex-1 crypto-card bg-gray-600/20 hover:bg-gray-600/30 text-gray-200 py-2 rounded-lg">Terug</button>
             <button
               disabled={!selected || !canAfford}
-              onClick={() => selected && onConfirmBuy(selected.symbol, quantity)}
+              onClick={handleValidateBuy}
               className={`flex-1 py-2 rounded-lg font-semibold ${(!selected || !canAfford) ? 'bg-gray-500 text-gray-300 cursor-not-allowed' : 'bg-green-500 text-white hover:bg-green-600'}`}
             >
               Valideren
@@ -160,6 +201,25 @@ export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalan
           )}
         </div>
       </div>
+
+      {successMessage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="crypto-card bg-dark-bg/95 border border-neon-gold/40 max-w-xs w-full text-center p-6">
+            <h3 className="text-xl font-bold text-white mb-2">Aankoop bevestigd</h3>
+            <p className="text-gray-300 mb-4">{successMessage}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setSuccessMessage(null)
+                onBack()
+              }}
+              className="w-full py-2 rounded-lg bg-neon-gold text-black font-semibold hover:opacity-90 transition"
+            >
+              Ok
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

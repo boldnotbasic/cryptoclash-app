@@ -177,6 +177,7 @@ function startActivityInterval(roomCode, socketIo) {
         autoScanActions: sanitizedAuto,
         playerScanActions: sanitizedPlayer
       })
+
       // Broadcast current market change map
       socketIo.to(roomCode).emit('market:stateUpdate', {
         change24h: roomMarketChange24h[roomCode] || {}
@@ -369,6 +370,68 @@ app.prepare().then(() => {
       console.log(`🔍 === HOST CHECK COMPLETE ===\n`)
     })
 
+    // Update player order from WaitingRoom drag-and-drop
+    socket.on('room:updatePlayerOrder', ({ roomCode, playerOrder }) => {
+      try {
+        console.log('\n🎯 === room:updatePlayerOrder RECEIVED ===')
+        console.log('🏠 Room Code:', roomCode)
+        console.log('📋 Incoming order:', playerOrder)
+
+        const room = rooms[roomCode]
+        if (!room) {
+          console.log('❌ Room not found for updatePlayerOrder')
+          return
+        }
+        if (!Array.isArray(playerOrder)) {
+          console.log('❌ Invalid playerOrder payload')
+          return
+        }
+
+        const currentPlayerIds = Object.keys(room.players || {}).filter(id => !room.players[id].isHost)
+        if (currentPlayerIds.length === 0) {
+          console.log('⚠️ No non-host players for turn order')
+          return
+        }
+
+        // Sanitize order: keep only current players, preserve order
+        const sanitized = playerOrder.filter(id => currentPlayerIds.includes(id))
+        const missing = currentPlayerIds.filter(id => !sanitized.includes(id))
+        const finalOrder = [...sanitized, ...missing]
+
+        room.playerOrder = finalOrder
+
+        // Set currentTurnPlayerId based on game state
+        if (finalOrder.length > 0) {
+          if (!room.started) {
+            // Before game starts, first player in order gets the turn
+            room.currentTurnPlayerId = finalOrder[0]
+            console.log('🎯 Pre-game: Set turn to first in order:', room.currentTurnPlayerId)
+          } else if (!room.currentTurnPlayerId || !finalOrder.includes(room.currentTurnPlayerId)) {
+            // During game, only update if current player is invalid
+            room.currentTurnPlayerId = finalOrder[0]
+            console.log('🎯 In-game: Reset turn to first (invalid current player):', room.currentTurnPlayerId)
+          } else {
+            console.log('🎯 In-game: Keeping current turn player:', room.currentTurnPlayerId)
+          }
+        }
+
+        console.log('✅ New player order stored:', finalOrder)
+        console.log('🎯 Current turn player:', room.currentTurnPlayerId)
+        console.log('🎯 Game started:', room.started)
+        
+        // Debug: show all players and their socket IDs
+        console.log('🎯 All players in room:')
+        Object.entries(room.players).forEach(([socketId, player]) => {
+          console.log(`  - ${player.name} (${player.avatar}): ${socketId} ${player.isHost ? '👑 HOST' : ''}`)
+        })
+
+        // Broadcast updated lobby state
+        io.to(roomCode).emit('lobby:update', room)
+      } catch (e) {
+        console.warn('⚠️ Failed to handle room:updatePlayerOrder', e)
+      }
+    })
+
     // Host creates room - NUCLEAR OPTION: ALWAYS BECOME HOST
     socket.on('host:createRoom', ({ roomCode, hostName, hostAvatar, settings }) => {
       console.log(`\n💥 === NUCLEAR HOST TAKEOVER ===`)
@@ -376,11 +439,7 @@ app.prepare().then(() => {
       
       // Create room if doesn't exist
       if (!rooms[roomCode]) {
-        rooms[roomCode] = { players: {}, started: false }
-        serverStats.roomsCreated++
-        console.log(`🏠 New room created: ${roomCode} (Total rooms: ${Object.keys(rooms).length})`)
-        // Initialize authoritative market change map for this room
-        roomMarketChange24h[roomCode] = roomMarketChange24h[roomCode] || {}
+        rooms[roomCode] = { players: {}, started: false, settings: settings || {}, playerOrder: [], currentTurnPlayerId: null }
       }
       
       // Cancel any pending cleanup for this room
@@ -418,8 +477,16 @@ app.prepare().then(() => {
       }
       
       socket.join(roomCode)
+      
+      // Send success to host first
       socket.emit('host:createSuccess', { roomCode, room: rooms[roomCode] })
-      io.to(roomCode).emit('lobby:update', rooms[roomCode])
+      
+      // 🚨 CRITICAL FIX: Use setImmediate to ensure host processes createSuccess first
+      setImmediate(() => {
+        console.log(`📡 Broadcasting lobby update to room ${roomCode}`)
+        io.to(roomCode).emit('lobby:update', rooms[roomCode])
+        console.log(`✅ Lobby update sent to ${io.sockets.adapter.rooms.get(roomCode)?.size || 0} clients`)
+      })
       
       console.log(`✅ ${hostName} IS NOW THE ONLY HOST`)
       console.log(`💥 === NUCLEAR TAKEOVER COMPLETE ===\n`)
@@ -444,8 +511,20 @@ app.prepare().then(() => {
       // This prevents conflicts with host takeover logic
       
       if (!room) {
-        socket.emit('player:joinError', 'Lobby bestaat niet')
-        console.log(`❌ Room ${roomCode} does not exist`)
+        const message = 'Lobby bestaat nog niet. Vraag de host om eerst een lobby aan te maken.'
+        socket.emit('player:joinError', message)
+        console.log(`❌ Room ${roomCode} does not exist - sending error to player:`, message)
+        return
+      }
+      
+      // 🚨 CRITICAL FIX: Join Socket.IO room FIRST before any data updates
+      // This ensures the player receives all subsequent broadcasts
+      try {
+        socket.join(roomCode)
+        console.log(`✅ Socket ${socket.id} joined Socket.IO room ${roomCode}`)
+      } catch (error) {
+        console.error(`❌ Failed to join Socket.IO room:`, error)
+        socket.emit('player:joinError', 'Kon niet joinen in de lobby')
         return
       }
       
@@ -453,6 +532,19 @@ app.prepare().then(() => {
       console.log(`🔍 Room players: ${Object.keys(room.players).length}`)
       console.log(`🔍 Room host: ${room.hostName}`)
       
+      // Ensure turn metadata exists
+      room.playerOrder = room.playerOrder || []
+      if (typeof room.currentTurnPlayerId === 'undefined') {
+        room.currentTurnPlayerId = null
+      }
+
+      // Check if player already exists with CURRENT socket ID (already joined)
+      if (room.players[socket.id]) {
+        console.log(`✅ Player ${playerName} already in room with socket ${socket.id} - sending success`)
+        socket.emit('player:joinSuccess', { roomCode, room })
+        return
+      }
+
       // Check if player is rejoining an active game
       const existingPlayerInActiveGame = Object.entries(room.players).find(([id, p]) => p.name === playerName && p.avatar === playerAvatar)
       const isRejoinActiveGame = room.started && existingPlayerInActiveGame
@@ -487,7 +579,8 @@ app.prepare().then(() => {
           joinedAt: Date.now(), // Update join time
           isRejoining: true,
           disconnected: false,
-          disconnectedAt: undefined
+          disconnectedAt: undefined,
+          isHost: false // Ensure rejoining players are never marked as host
         }
         
         console.log(`✅ ${playerName} successfully rejoined with preserved data`)
@@ -507,6 +600,7 @@ app.prepare().then(() => {
           joinedAt: Date.now(),
           isHost: false,
           isRejoining: false,
+          disconnected: false,
           // Initialize with starting portfolio and cash
           portfolio: { 
             DSHEEP: 1.0,
@@ -520,7 +614,7 @@ app.prepare().then(() => {
         }
       }
       
-      socket.join(roomCode)
+      // Socket.IO room join already happened at the start of this handler
       
       console.log(`📤 Sending joinSuccess to ${socket.id}`)
       console.log(`📤 Join success data:`, { roomCode, playersCount: Object.keys(room.players).length })
@@ -532,8 +626,13 @@ app.prepare().then(() => {
       socket.emit('market:stateUpdate', { change24h: initialChange })
       console.log(`📊 Sent initial market state to ${playerName}:`, initialChange)
       
-      console.log(`📡 Broadcasting lobby update to room ${roomCode}`)
-      io.to(roomCode).emit('lobby:update', room)
+      // 🚨 CRITICAL FIX: Use setImmediate to ensure joinSuccess is processed first
+      // This gives the client time to update their local state before receiving lobby update
+      setImmediate(() => {
+        console.log(`📡 Broadcasting lobby update to room ${roomCode}`)
+        io.to(roomCode).emit('lobby:update', room)
+        console.log(`✅ Lobby update broadcasted to ${io.sockets.adapter.rooms.get(roomCode)?.size || 0} clients`)
+      })
       
       // Send special notification for dashboard popup
       const joinMessage = isRejoining ? 
@@ -549,7 +648,57 @@ app.prepare().then(() => {
       })
       
       console.log(`✅ Player ${playerName} ${isRejoining ? 'rejoined' : 'joined'} room ${roomCode}. Total players: ${Object.keys(room.players).length}`)
+      console.log(`🔍 Socket.IO room members:`, Array.from(io.sockets.adapter.rooms.get(roomCode) || []))
       console.log(`🔍 === PLAYER JOIN COMPLETE ===\n`)
+    })
+
+    // 🚨 NEW: Room state recovery for reconnecting clients
+    socket.on('room:requestState', ({ roomCode }) => {
+      console.log(`\n🔄 === ROOM STATE RECOVERY REQUEST ===`)
+      console.log(`🏠 Room Code: ${roomCode}`)
+      console.log(`🔌 Socket ID: ${socket.id}`)
+      
+      const room = rooms[roomCode]
+      if (!room) {
+        console.log(`❌ Room ${roomCode} not found for state recovery`)
+        socket.emit('room:stateRecoveryError', 'Lobby bestaat niet meer')
+        return
+      }
+      
+      // Check if this socket is actually in the room's player list
+      const playerInRoom = room.players[socket.id]
+      if (!playerInRoom) {
+        console.log(`❌ Socket ${socket.id} not found in room ${roomCode} player list`)
+        socket.emit('room:stateRecoveryError', 'Je bent niet meer in deze lobby')
+        return
+      }
+      
+      console.log(`✅ Recovering room state for ${playerInRoom.name}`)
+      
+      // Re-join Socket.IO room if not already in it
+      const socketsInRoom = io.sockets.adapter.rooms.get(roomCode)
+      if (!socketsInRoom || !socketsInRoom.has(socket.id)) {
+        socket.join(roomCode)
+        console.log(`🔄 Re-joined Socket.IO room ${roomCode}`)
+      }
+      
+      // Send full room state
+      socket.emit('room:stateRecovered', { roomCode, room })
+      
+      // Send market state
+      const marketChange = roomMarketChange24h[roomCode] || {}
+      socket.emit('market:stateUpdate', { change24h: marketChange })
+      
+      // Send scan data
+      if (roomScanData[roomCode]) {
+        socket.emit('scanData:update', {
+          autoScanActions: roomScanData[roomCode].autoScanActions,
+          playerScanActions: roomScanData[roomCode].playerScanActions
+        })
+      }
+      
+      console.log(`✅ Room state recovered successfully`)
+      console.log(`🔄 === ROOM STATE RECOVERY COMPLETE ===\n`)
     })
 
     // Start game - NO LOGIC, JUST START
@@ -559,6 +708,37 @@ app.prepare().then(() => {
       const room = rooms[roomCode]
       if (room) {
         room.started = true
+
+        // Initialize or sanitize playerOrder and currentTurnPlayerId based on non-host players
+        try {
+          const nonHostIds = Object.keys(room.players || {}).filter(id => !room.players[id].isHost)
+          if (nonHostIds.length > 0) {
+            if (!Array.isArray(room.playerOrder) || room.playerOrder.length === 0) {
+              room.playerOrder = nonHostIds
+            } else {
+              const validOrder = room.playerOrder.filter(id => nonHostIds.includes(id))
+              const missing = nonHostIds.filter(id => !validOrder.includes(id))
+              room.playerOrder = [...validOrder, ...missing]
+            }
+
+            // ALWAYS set currentTurnPlayerId to first player at game start
+            room.currentTurnPlayerId = room.playerOrder[0]
+
+            console.log('🎯 === GAME START TURN INITIALIZATION ===')
+            console.log('🎯 Player order for room', roomCode, ':', room.playerOrder)
+            console.log('🎯 First player (gets turn):', room.currentTurnPlayerId)
+            
+            // Debug: show all players and their socket IDs
+            console.log('🎯 All players in room:')
+            Object.entries(room.players).forEach(([socketId, player]) => {
+              console.log(`  - ${player.name} (${player.avatar}): ${socketId} ${player.isHost ? '👑 HOST' : ''}`)
+            })
+            console.log('🎯 === END TURN INITIALIZATION ===')
+          }
+        } catch (e) {
+          console.warn('⚠️ Failed to initialize turn order on game start', e)
+        }
+
         io.to(roomCode).emit('game:started', { room })
         console.log(`✅ GAME STARTED IN ROOM ${roomCode}`)
         
@@ -598,6 +778,117 @@ app.prepare().then(() => {
       }
       
       console.log(`🚀 === GAME START COMPLETE ===\n`)
+    })
+
+    // Turn system: advance to next player in order
+    socket.on('turn:end', ({ roomCode }) => {
+      try {
+        console.log('\n⏭️ === TURN END REQUEST ===')
+        console.log('🏠 Room Code:', roomCode)
+        const room = rooms[roomCode]
+        if (!room) {
+          console.log('❌ Room not found for turn:end')
+          return
+        }
+
+        const nonHostIds = Object.keys(room.players || {}).filter(id => !room.players[id].isHost)
+        if (nonHostIds.length === 0) {
+          console.log('⚠️ No non-host players, skipping turn logic')
+          return
+        }
+
+        let order = Array.isArray(room.playerOrder) ? room.playerOrder : []
+        order = order.filter(id => nonHostIds.includes(id))
+        const missing = nonHostIds.filter(id => !order.includes(id))
+        order = [...order, ...missing]
+        if (order.length === 0) {
+          console.log('⚠️ Empty order after sanitization, skipping')
+          return
+        }
+
+        const currentId = room.currentTurnPlayerId && order.includes(room.currentTurnPlayerId)
+          ? room.currentTurnPlayerId
+          : order[0]
+        const currentIndex = order.indexOf(currentId)
+        const nextIndex = (currentIndex + 1) % order.length
+        const nextId = order[nextIndex]
+
+        room.playerOrder = order
+        room.currentTurnPlayerId = nextId
+
+        // Get next player info for notification
+        const nextPlayer = room.players[nextId]
+        const nextPlayerName = nextPlayer ? nextPlayer.name : 'Onbekende speler'
+
+        console.log('⏭️ Turn advanced:', {
+          previous: currentId,
+          next: nextId,
+          nextPlayerName,
+          order
+        })
+
+        // Broadcast room update
+        io.to(roomCode).emit('lobby:update', room)
+        
+        // Send turn notification to all players
+        io.to(roomCode).emit('turn:changed', {
+          newTurnPlayerId: nextId,
+          newTurnPlayerName: nextPlayerName,
+          previousTurnPlayerId: currentId
+        })
+      } catch (e) {
+        console.warn('⚠️ Failed to handle turn:end', e)
+      }
+    })
+
+    // Host ends the game completely for all players
+    socket.on('game:end', ({ roomCode, requestedBy }) => {
+      try {
+        console.log('\n🛑 === GAME END REQUEST RECEIVED ===')
+        console.log('🏠 Room Code:', roomCode)
+        console.log('🙋 Requested by:', requestedBy, `(${socket.id})`)
+
+        const room = rooms[roomCode]
+        if (!room) {
+          console.log('❌ Room not found for game:end')
+          return
+        }
+
+        // Only allow privileged initiators to end het spel:
+        // - de huidige host-socket
+        // - een requester met 'Host' in de naam
+        // - of de speciale Market Dashboard client
+        const isHostSocket = room.hostId && room.hostId === socket.id
+        const isHostNamedRequester = typeof requestedBy === 'string' && requestedBy.includes('Host')
+        const isMarketDashboard = requestedBy === 'Market Dashboard'
+
+        if (!isHostSocket && !isHostNamedRequester && !isMarketDashboard) {
+          console.log('⛔ Non-host/non-dashboard attempted to end game, ignoring')
+          return
+        }
+
+        const message = `Het spel in lobby ${roomCode} is beëindigd door de host. Alle gegevens zijn gewist.`
+        console.log('📡 Broadcasting game:ended to room', roomCode)
+        io.to(roomCode).emit('game:ended', { message, roomCode })
+
+        // Stop any running intervals/cleanups and remove room state
+        stopActivityInterval(roomCode)
+        cancelRoomCleanup(roomCode)
+        delete rooms[roomCode]
+
+        // Clear scan history and market change state so a new game starts completely clean
+        if (roomScanData[roomCode]) {
+          delete roomScanData[roomCode]
+        }
+        if (roomMarketChange24h[roomCode]) {
+          delete roomMarketChange24h[roomCode]
+        }
+
+        console.log('🧹 Room state cleared for', roomCode)
+        console.log('🛑 === GAME END REQUEST PROCESSED ===\n')
+      } catch (e) {
+        console.warn('⚠️ Failed to handle game:end', e)
+      }
     })
 
     // Handle disconnection
@@ -942,9 +1233,16 @@ app.prepare().then(() => {
               console.log(`  ${symbol}: €${oldPrice.toFixed(2)} → €${globalCryptoPrices[symbol].toFixed(2)}`)
             })
           } else if (scanAction.effect.includes('Whale Alert')) {
-            console.log('🐋 SERVER: Applying Whale Alert - Random coin +50%')
-            const symbols = Object.keys(globalCryptoPrices)
-            whaleAlertSymbol = symbols[Math.floor(Math.random() * symbols.length)]
+            let targetSymbol = scanAction.cryptoSymbol
+            if (targetSymbol && globalCryptoPrices[targetSymbol]) {
+              console.log(`🐋 SERVER: Applying Whale Alert - ${targetSymbol} +50%`)
+            } else {
+              console.log('🐋 SERVER: Applying Whale Alert - No valid symbol in scan, picking random coin +50%')
+              const symbols = Object.keys(globalCryptoPrices)
+              targetSymbol = symbols[Math.floor(Math.random() * symbols.length)]
+            }
+
+            whaleAlertSymbol = targetSymbol
             const oldPrice = globalCryptoPrices[whaleAlertSymbol]
             globalCryptoPrices[whaleAlertSymbol] = Math.max(0.01, Math.round(oldPrice * 1.5 * 100) / 100)
             console.log(`  ${whaleAlertSymbol}: €${oldPrice.toFixed(2)} → €${globalCryptoPrices[whaleAlertSymbol].toFixed(2)} (+50%)`)
@@ -1170,32 +1468,21 @@ app.prepare().then(() => {
         return
       }
 
-      // 🚨 CRITICAL: Server-side portfolio calculation using GLOBAL prices
-      let serverPortfolioValue = 0
-      if (playerData.portfolio && typeof playerData.portfolio === 'object') {
-        serverPortfolioValue = Object.entries(playerData.portfolio).reduce((total, [symbol, amount]) => {
-          const price = globalCryptoPrices[symbol] || 0
-          return total + (price * Number(amount))
-        }, 0)
-        serverPortfolioValue = Math.round(serverPortfolioValue * 100) / 100
-      }
-
-      // 🧮 CONSISTENCY CHECK using server calculations
-      const serverTotalValue = Math.round((serverPortfolioValue + playerData.cashBalance) * 100) / 100
-      const clientPortfolioValue = Math.round(playerData.portfolioValue * 100) / 100
-      const clientTotalValue = Math.round(playerData.totalValue * 100) / 100
-
-      console.log(`🔍 CONSISTENCY CHECK:`)
-      console.log(`📊 Server Portfolio: €${serverPortfolioValue} | Client Portfolio: €${clientPortfolioValue}`)
+      // ✅ TRUST CLIENT CALCULATIONS - Client has most up-to-date prices and portfolio state
+      // Only validate that totalValue = portfolioValue + cashBalance (basic sanity check)
+      const clientTotal = Math.round(playerData.totalValue * 100) / 100
+      const expectedTotal = Math.round((playerData.portfolioValue + playerData.cashBalance) * 100) / 100
+      
+      console.log(`🔍 VALIDATION CHECK:`)
+      console.log(`💎 Client Portfolio: €${playerData.portfolioValue}`)
       console.log(`💰 Cash: €${playerData.cashBalance}`)
-      console.log(`💯 Server Total: €${serverTotalValue} | Client Total: €${clientTotalValue}`)
-
-      // Use SERVER calculations as the authoritative source
-      if (Math.abs(serverPortfolioValue - clientPortfolioValue) > 0.01 || 
-          Math.abs(serverTotalValue - clientTotalValue) > 0.01) {
-        console.log(`🚨 MISMATCH DETECTED - Using SERVER values as authoritative!`)
-        playerData.portfolioValue = serverPortfolioValue
-        playerData.totalValue = serverTotalValue
+      console.log(`💯 Client Total: €${clientTotal}`)
+      console.log(`🧮 Expected (Portfolio + Cash): €${expectedTotal}`)
+      
+      // If client's total doesn't match their own portfolio+cash, fix it
+      if (Math.abs(clientTotal - expectedTotal) > 0.01) {
+        console.log(`⚠️ Client total mismatch - correcting to portfolio + cash`)
+        playerData.totalValue = expectedTotal
       }
 
       // 📊 UPDATE SERVER STATE (Single Source of Truth)
@@ -1207,53 +1494,128 @@ app.prepare().then(() => {
         socketId: socket.id
       }
       
-      console.log(`✅ Server state updated for ${playerData.name}`)
+      const isHostPlayer = rooms[roomCode].players[socket.id]?.isHost
+      console.log(`✅ Server state updated for ${playerData.name} ${isHostPlayer ? '(HOST)' : ''}`)
       console.log(`💰 Cash: €${playerData.cashBalance}`)
       console.log(`💎 Portfolio: €${playerData.portfolioValue}`)
       console.log(`💯 Total: €${playerData.totalValue}`)
 
-      // 📡 BROADCAST TO ALL PLAYERS IN ROOM
-      io.to(roomCode).emit('dashboard:livePlayerUpdate', {
+      // 📡 BROADCAST TO ALL PLAYERS IN ROOM (EXCLUDING HOST AS PLAYER)
+      if (isHostPlayer) {
+        console.log(`⏭️ Host update detected – skipping dashboard:livePlayerUpdate broadcast (host is geen speler)`)
+        return
+      }
+
+      const broadcastData = {
         playerId: socket.id,
         playerName: playerData.name,
+        playerAvatar: playerData.avatar,
         totalValue: playerData.totalValue,
         portfolioValue: playerData.portfolioValue,
         cashBalance: playerData.cashBalance,
         timestamp: timestamp
+      }
+      
+      console.log(`📡 Broadcasting dashboard:livePlayerUpdate to room ${roomCode}:`)
+      console.log(`   Player ID: ${socket.id}`)
+      console.log(`   Player Name: ${playerData.name}`)
+      console.log(`   Player Avatar: ${playerData.avatar}`)
+      console.log(`   Total Value: €${playerData.totalValue.toFixed(2)}`)
+      console.log(`   Portfolio Value: €${playerData.portfolioValue.toFixed(2)}`)
+      console.log(`   Cash Balance: €${playerData.cashBalance.toFixed(2)}`)
+      console.log(`   Clients in room: ${io.sockets.adapter.rooms.get(roomCode)?.size || 0}`)
+      
+      io.to(roomCode).emit('dashboard:livePlayerUpdate', broadcastData)
+
+      console.log(`✅ Broadcast complete`)
+      console.log(`🎯 === UNIFIED UPDATE COMPLETE ===\n`)
+    })
+
+    // 🔄 PLAYER SWAP - Exchange 1 crypto coin between two players
+    socket.on('player:swap', ({ roomCode, fromPlayerId, toPlayerId, fromCryptoId, toCryptoId }) => {
+      console.log(`\n🔄 === PLAYER SWAP REQUEST ===`)
+      console.log(`🏠 Room: ${roomCode}`)
+      console.log(`👤 From Player: ${fromPlayerId}`)
+      console.log(`👤 To Player: ${toPlayerId}`)
+      console.log(`💎 Swap: 1x ${fromCryptoId} ↔️ 1x ${toCryptoId}`)
+      
+      if (!rooms[roomCode]) {
+        console.log(`❌ Room ${roomCode} not found`)
+        return
+      }
+
+      const fromPlayer = rooms[roomCode].players[fromPlayerId]
+      const toPlayer = rooms[roomCode].players[toPlayerId]
+
+      if (!fromPlayer || !toPlayer) {
+        console.log(`❌ One or both players not found in room`)
+        return
+      }
+
+      // Initialize portfolios if needed
+      if (!fromPlayer.portfolio) fromPlayer.portfolio = {}
+      if (!toPlayer.portfolio) toPlayer.portfolio = {}
+
+      // Validate both players have the coins to swap
+      const fromPlayerHasCoin = (fromPlayer.portfolio[fromCryptoId] || 0) >= 1
+      const toPlayerHasCoin = (toPlayer.portfolio[toCryptoId] || 0) >= 1
+
+      if (!fromPlayerHasCoin) {
+        console.log(`❌ ${fromPlayer.name} doesn't have 1x ${fromCryptoId}`)
+        return
+      }
+
+      if (!toPlayerHasCoin) {
+        console.log(`❌ ${toPlayer.name} doesn't have 1x ${toCryptoId}`)
+        return
+      }
+
+      // Execute the swap: server is single source of truth
+      // From player: -1 fromCrypto, +1 toCrypto
+      fromPlayer.portfolio[fromCryptoId] = (fromPlayer.portfolio[fromCryptoId] || 0) - 1
+      fromPlayer.portfolio[toCryptoId] = (fromPlayer.portfolio[toCryptoId] || 0) + 1
+
+      // To player: -1 toCrypto, +1 fromCrypto
+      toPlayer.portfolio[toCryptoId] = (toPlayer.portfolio[toCryptoId] || 0) - 1
+      toPlayer.portfolio[fromCryptoId] = (toPlayer.portfolio[fromCryptoId] || 0) + 1
+
+      console.log(`✅ Swap executed:`)
+      console.log(`   ${fromPlayer.name}: -1 ${fromCryptoId}, +1 ${toCryptoId}`)
+      console.log(`   ${toPlayer.name}: -1 ${toCryptoId}, +1 ${fromCryptoId}`)
+
+      // Notify BEIDE spelers - ieder krijgt zijn eigen perspectief
+      io.to(fromPlayerId).emit('player:swapReceived', {
+        fromPlayerName: toPlayer.name,
+        fromPlayerAvatar: toPlayer.avatar,
+        receivedCryptoId: toCryptoId,
+        receivedAmount: 1,
+        lostCryptoId: fromCryptoId,
+        lostAmount: 1
       })
 
-      // 🚨 CRITICAL: Force all clients to recalculate with server prices
-      io.to(roomCode).emit('crypto:forceRecalculation', {
-        prices: globalCryptoPrices,
-        timestamp: timestamp,
-        triggeredBy: playerData.name
+      io.to(toPlayerId).emit('player:swapReceived', {
+        fromPlayerName: fromPlayer.name,
+        fromPlayerAvatar: fromPlayer.avatar,
+        receivedCryptoId: fromCryptoId,
+        receivedAmount: 1,
+        lostCryptoId: toCryptoId,
+        lostAmount: 1
       })
       
-      console.log(`📡 Broadcasted live update to room ${roomCode}`)
-      console.log(`🔄 Forced price recalculation for all clients`)
-      console.log(`🎯 === UNIFIED UPDATE COMPLETE ===\n`)
+      console.log(`📤 Swap notificaties gestuurd naar beide spelers`)
+
+      // Broadcast room update so rankings update
+      io.to(roomCode).emit('lobby:update', rooms[roomCode])
+
+      console.log(`✅ Swap completed successfully`)
+      console.log(`🔄 === SWAP COMPLETE ===\n`)
     })
   })
 
-  // Pre-create room 123 for testing BEFORE starting server
-  rooms['123'] = {
-    hostId: 'startup-host',
-    hostName: 'Startup Host',
-    hostAvatar: '🚀',
-    players: {},
-    started: false,
-    settings: { volatility: 'medium', gameDuration: 1 }
-  }
-  
-  // Reset room status every 60 seconds to allow new players
-  setInterval(() => {
-    if (rooms['123']) {
-      rooms['123'].started = false
-      rooms['123'].players = {}
-      console.log(`🔄 Reset room 123 status for new players`)
-    }
-  }, 60000)
-  console.log(`🏠 Pre-created test room: 123`)
+  // 🚨 REMOVED: Pre-created room 123 logic
+  // Rooms should ONLY exist when a host explicitly creates them
+  // This prevents "ghost rooms" that players can join but hosts can't see
+  console.log(`✅ Server ready - rooms will be created by hosts only`)
 
   httpServer
     .once('error', (err) => {

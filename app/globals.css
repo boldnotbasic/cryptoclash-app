@@ -120,3 +120,48 @@
     border: 2px solid #fff;
   }
 }
+
+@keyframes gold-glow-breathe {
+  0%, 100% {
+    box-shadow: 0 0 16px rgba(251, 191, 36, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(251, 191, 36, 0.95);
+  }
+}
+
+@keyframes purple-glow-breathe {
+  0%, 100% {
+    box-shadow: 0 0 16px rgba(192, 132, 252, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(192, 132, 252, 0.95);
+  }
+}
+
+@keyframes gold-purple-glow-breathe {
+  0%, 100% {
+    box-shadow:
+      0 0 16px rgba(251, 191, 36, 0.45),
+      0 0 16px rgba(192, 132, 252, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 32px rgba(251, 191, 36, 0.95),
+      0 0 32px rgba(192, 132, 252, 0.95);
+  }
+}
+
+@layer utilities {
+  .animate-gold-glow-breathe {
+    animation: gold-glow-breathe 2.6s ease-in-out infinite;
+  }
+
+  .animate-purple-glow-breathe {
+    animation: purple-glow-breathe 2.6s ease-in-out infinite;
+  }
+
+  .animate-gold-purple-glow-breathe {
+    animation: gold-purple-glow-breathe 2.6s ease-in-out infinite;
+  }
+}

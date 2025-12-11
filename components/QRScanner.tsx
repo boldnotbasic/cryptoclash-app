@@ -21,6 +21,23 @@ export default function QRScanner({ onScan, onClose, playerName, playerAvatar }:
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [videoReady, setVideoReady] = useState(false)
+  const audioUnlockedRef = useRef(false)
+
+  // iOS / mobile: één keer audio "unlocken" bij eerste echte user-tap
+  const unlockAudio = async () => {
+    if (audioUnlockedRef.current) return
+    try {
+      const audio = new Audio('/chime_success.wav')
+      audio.volume = 0
+      await audio.play()
+      audio.pause()
+      audio.currentTime = 0
+      audioUnlockedRef.current = true
+      console.log('🔊 Audio unlocked for iOS')
+    } catch (err) {
+      console.warn('Audio unlock failed', err)
+    }
+  }
 
   useEffect(() => {
     requestCameraPermission()
@@ -109,10 +126,13 @@ export default function QRScanner({ onScan, onClose, playerName, playerAvatar }:
     }
   }
 
-  const simulateQRScan = () => {
+  const simulateQRScan = async () => {
     console.log('simulateQRScan called')
     setIsScanning(true)
-    
+
+    // Probeer audio te unlocken op eerste tap (voor iOS Safari)
+    await unlockAudio()
+
     // Simuleer scan delay
     setTimeout(() => {
       console.log('Scan delay finished, showing result')

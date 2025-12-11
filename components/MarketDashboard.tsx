@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks } from 'lucide-react'
+import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks, Power } from 'lucide-react'
 import Header from './Header'
 
 interface CryptoCurrency {
@@ -50,6 +50,7 @@ interface MarketDashboardProps {
   roomId?: string
   dashboardToasts?: { id: string; message: string; sender: string }[]
   socket?: any
+  onEndGame?: () => void
 }
 
 export default function MarketDashboard({ 
@@ -64,10 +65,12 @@ export default function MarketDashboard({
   connectedPlayers = 0,
   roomId = '',
   dashboardToasts = [],
-  socket = null
+  socket = null,
+  onEndGame
 }: MarketDashboardProps) {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [showEndGameModal, setShowEndGameModal] = useState(false)
 
   const getCryptoImagePath = (symbol: string) => {
     switch (symbol) {
@@ -249,6 +252,25 @@ export default function MarketDashboard({
   const gainers = cryptos.filter(c => c.change24h > 0).length
   const losers = cryptos.filter(c => c.change24h < 0).length
 
+  // Special tiles: beste stijger & meest waard
+  const topGainer = cryptos.reduce<CryptoCurrency | null>((best, c) => {
+    if (!best) return c
+    if (typeof c.change24h !== 'number') return best
+    if (typeof best.change24h !== 'number') return c
+    return c.change24h > best.change24h ? c : best
+  }, null)
+
+  const topValueCoin = cryptos.reduce<CryptoCurrency | null>((best, c) => {
+    if (!best) return c
+    return c.price > best.price ? c : best
+  }, null)
+
+  // Graph helper: grootste absolute procentuele beweging
+  const maxAbsChange = cryptos.reduce((max, c) => {
+    const v = typeof c.change24h === 'number' ? Math.abs(c.change24h) : 0
+    return v > max ? v : max
+  }, 0) || 1
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 p-3">
@@ -334,8 +356,8 @@ export default function MarketDashboard({
             <div className="crypto-card">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                  <Users className="w-5 h-5 text-neon-gold" />
-                  <span>Rangschikking</span>
+                  <span>🏆</span>
+                  <span>Live Rankings</span>
                 </h3>
                 <div className="flex items-center space-x-1">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -346,7 +368,8 @@ export default function MarketDashboard({
               <div className="space-y-2">
                 {players
                   .slice()
-                  .sort((a, b) => b.totalValue - a.totalValue)
+                  // Dashboard toont enkel de totalValue die van de server komt
+                  .sort((a, b) => (b.totalValue || 0) - (a.totalValue || 0))
                   .slice(0, 3)
                   .map((player, index) => (
                     <div key={player.id} className="flex items-center justify-between p-2 bg-dark-bg/30 rounded-lg">
@@ -368,7 +391,7 @@ export default function MarketDashboard({
                       </div>
                       <div className="text-right">
                         <p className="text-neon-gold font-bold text-sm">
-                          €{player.totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          €{(player.totalValue || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                       </div>
                     </div>
@@ -379,63 +402,227 @@ export default function MarketDashboard({
 
         </div>
 
-        {/* Markt overzicht - Compacter grid voor mobile */}
+        {/* Markt overzicht + highlight-tiles in één widget */}
         <div className="crypto-card mb-3">
           <h2 className="text-base sm:text-lg font-bold text-white mb-2 flex items-center space-x-2">
             <TrendingUp className="w-4 h-4 text-neon-turquoise" />
             <span>Markt</span>
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-2"></div>
           </h2>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {cryptos.map((crypto) => {
-              const imagePath = getCryptoImagePath(crypto.symbol)
-              return (
-                <div key={crypto.id} className="bg-dark-bg/30 rounded-lg p-2 hover:bg-dark-bg/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-8 h-8 rounded-full bg-${crypto.color}/20 flex items-center justify-center text-sm overflow-hidden`}>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            {/* Links: coin-tiles in 2x3 grid, iets smaller */}
+            <div className="lg:col-span-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {cryptos.map((crypto) => {
+                  const imagePath = getCryptoImagePath(crypto.symbol)
+                  const isTopGainerTile = topGainer && crypto.id === topGainer.id
+                  const isTopValueTile = topValueCoin && crypto.id === topValueCoin.id
+                  const isBothHighlight = isTopGainerTile && isTopValueTile
+                  const isNugget = crypto.symbol === 'NGT'
+                  const isLentra = crypto.symbol === 'LNTR'
+                  const isRex = crypto.symbol === 'REX'
+                  const isOrlo = crypto.symbol === 'ORLO'
+
+                  return (
+                    <div
+                      key={crypto.id}
+                      className={`crypto-card rounded-xl p-3 flex flex-col items-center h-38 md:h-42 transition-all ${
+                        isBothHighlight
+                          ? 'border-2 border-neon-gold/80 animate-gold-purple-glow-breathe'
+                          : isTopGainerTile
+                            ? 'border-2 border-neon-gold/80 animate-gold-glow-breathe'
+                            : isTopValueTile
+                              ? 'border-2 border-neon-purple/80 animate-purple-glow-breathe'
+                              : 'border border-white/10 hover:border-neon-blue/50 hover:shadow-neon-blue/20'
+                      }`}
+                    >
+                      {/* Coin image boven, nog groter en extra uit de kaart laten steken */}
+                      <div className="w-28 h-28 md:w-32 md:h-32 rounded-xl bg-transparent flex items-center justify-center overflow-visible -mt-7 mb-1">
                         {imagePath ? (
-                          // Use plain img to avoid Next/Image optimization issues in production
                           <img
                             src={imagePath}
                             alt={crypto.name}
-                            width={32}
-                            height={32}
-                            className="object-contain"
+                            width={140}
+                            height={140}
+                            className={`object-contain drop-shadow-[0_0_32px_rgba(0,0,0,1)] ${
+                              isLentra ? 'scale-175' : 'scale-105'
+                            }`}
                             loading="lazy"
                           />
                         ) : (
-                          <span>{crypto.icon}</span>
+                          <span className="text-4xl">{crypto.icon}</span>
                         )}
                       </div>
-                      <div>
-                        <h3 className="font-bold text-white text-xs">{crypto.name}</h3>
-                        <p className="text-gray-400 text-xs">{crypto.symbol}</p>
+
+                      {/* Donkere achtergrond alleen achter info-blok onderaan, nog compacter */}
+                      <div className="w-full mt-auto">
+                        <div className="rounded-lg bg-dark-bg/80 px-2 py-0.5">
+                          <div className="flex items-center justify-between">
+                            <div className="text-white font-semibold truncate mr-2 text-xs sm:text-sm">
+                              {crypto.name}
+                            </div>
+                            <div className="text-neon-turquoise font-bold whitespace-nowrap text-[11px] sm:text-xs">
+                              €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between mt-0">
+                            <div className="text-gray-400 text-[10px] sm:text-xs">{crypto.symbol}</div>
+                            {typeof crypto.change24h === 'number' && (
+                              <div
+                                className={`text-[10px] px-1.5 py-0.5 rounded-sm border flex items-center space-x-1 ${
+                                  crypto.change24h >= 0
+                                    ? 'text-green-400 border-green-400/30'
+                                    : 'text-red-400 border-red-400/30'
+                                }`}
+                              >
+                                {crypto.change24h >= 0 ? (
+                                  <TrendingUp className="w-2.5 h-2.5" />
+                                ) : (
+                                  <TrendingDown className="w-2.5 h-2.5" />
+                                )}
+                                <span>
+                                  {crypto.change24h >= 0 ? '+' : ''}
+                                  {crypto.change24h.toFixed(1)}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-white">
-                      €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                    <div className={`flex items-center justify-end space-x-1 ${
-                      crypto.change24h >= 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {crypto.change24h >= 0 ? (
-                        <TrendingUp className="w-3 h-3" />
-                      ) : (
-                        <TrendingDown className="w-3 h-3" />
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Rechts: gecombineerde highlight-widget met paarse glow en 2 secties */}
+            <div className="flex flex-col h-full">
+              {(topGainer || topValueCoin) && (
+                <div className="crypto-card border border-neon-purple/40 shadow-[0_0_18px_rgba(192,132,252,0.45)] bg-gradient-to-br from-dark-bg/95 via-dark-bg/92 to-purple-900/20 p-3 flex flex-col h-full">
+                  {/* Sectie: Beste stijger */}
+                  {topGainer && (
+                    <div className="flex flex-col pb-1.5 mb-1">
+                      <p className="text-[11px] uppercase tracking-wide text-neon-gold font-semibold mb-0">Beste stijger</p>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <div>
+                          <p className="text-white font-bold text-xs sm:text-sm">{topGainer.name}</p>
+                          <p className="text-gray-400 text-[10px]">{topGainer.symbol}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-neon-gold font-bold text-xs sm:text-sm">
+                            €{topGainer.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                          {typeof topGainer.change24h === 'number' && (
+                            <p className="text-[11px] text-green-400 flex items-center justify-end space-x-1">
+                              <TrendingUp className="w-3 h-3" />
+                              <span>+{topGainer.change24h.toFixed(1)}%</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {cryptos.length > 0 && (
+                        <div className="mt-0 pt-0 mb-0.5">
+                          <div className="flex items-end space-x-1 h-20">
+                            {cryptos.map(c => {
+                              const v = typeof c.change24h === 'number' ? c.change24h : 0
+                              const height = Math.max(4, Math.round((Math.abs(v) / maxAbsChange) * 24))
+                              const isPositive = v >= 0
+                              const coinImage = getCryptoImagePath(c.symbol)
+                              return (
+                                <div
+                                  key={c.id}
+                                  className="flex-1 flex flex-col items-center justify-end"
+                                  title={`${c.symbol} ${v >= 0 ? '+' : ''}${v.toFixed(1)}%`}
+                                >
+                                  {coinImage && (
+                                    <div className="mb-1 w-6 h-6 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
+                                      <img
+                                        src={coinImage}
+                                        alt={c.name}
+                                        className="w-6 h-6 object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.7)]"
+                                        loading="lazy"
+                                      />
+                                    </div>
+                                  )}
+                                  <div
+                                    className={`w-full rounded-sm ${
+                                      isPositive ? 'bg-green-400/80' : 'bg-red-400/80'
+                                    }`}
+                                    style={{ height: `${height}px` }}
+                                  />
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
                       )}
-                      <span className="font-semibold text-xs">
-                        {crypto.change24h >= 0 ? '+' : ''}{crypto.change24h.toFixed(1)}%
-                      </span>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Sectie: Meest waard */}
+                  {topValueCoin && (
+                    <div className="flex flex-col mt-1">
+                      <p className="text-[11px] uppercase tracking-wide text-neon-purple font-semibold mb-1">Meest waard</p>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div>
+                          <p className="text-white font-bold text-xs sm:text-sm">{topValueCoin.name}</p>
+                          <p className="text-gray-400 text-[10px]">{topValueCoin.symbol}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-neon-purple font-bold text-xs sm:text-sm">
+                            €{topValueCoin.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                          {typeof topValueCoin.change24h === 'number' && (
+                            <p className={`text-[11px] flex items-center justify-end space-x-1 ${
+                              topValueCoin.change24h >= 0 ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {topValueCoin.change24h >= 0 ? (
+                                <TrendingUp className="w-3 h-3" />
+                              ) : (
+                                <TrendingDown className="w-3 h-3" />
+                              )}
+                              <span>
+                                {topValueCoin.change24h >= 0 ? '+' : ''}
+                                {topValueCoin.change24h.toFixed(1)}%
+                              </span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {cryptos.length > 0 && (
+                        <div className="mt-0.5 pt-0">
+                          <div className="space-y-1 pr-1">
+                            {cryptos.map(c => {
+                              const v = typeof c.change24h === 'number' ? c.change24h : 0
+                              const width = Math.max(6, Math.round((Math.abs(v) / maxAbsChange) * 100))
+                              const isPositive = v >= 0
+                              return (
+                                <div key={c.id} className="flex items-center space-x-1">
+                                  <span className="text-[10px] text-gray-400 w-8">{c.symbol}</span>
+                                  <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full ${
+                                        isPositive ? 'bg-green-400/80' : 'bg-red-400/80'
+                                      }`}
+                                      style={{ width: `${width}%` }}
+                                    />
+                                  </div>
+                                  <span className={`text-[10px] ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                                    {v >= 0 ? '+' : ''}{v.toFixed(1)}%
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                </div>
-              )
-            })}
+              )}
+            </div>
           </div>
         </div>
 
@@ -627,6 +814,38 @@ export default function MarketDashboard({
         )}
       </div>
       
+      {showEndGameModal && playerName === 'Market Dashboard' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="crypto-card max-w-sm w-full p-6 text-center">
+            <h3 className="text-lg font-bold text-white mb-2">Spel definitief afsluiten?</h3>
+            <p className="text-gray-300 text-sm mb-5">
+              Hiermee wordt het huidige spel volledig beëindigd en wordt alle spelgeschiedenis gewist. Weet je het zeker?
+            </p>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                className="flex-1 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 transition-colors text-sm font-semibold"
+                onClick={() => setShowEndGameModal(false)}
+              >
+                Annuleren
+              </button>
+              <button
+                type="button"
+                className="flex-1 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors text-sm font-semibold"
+                onClick={() => {
+                  setShowEndGameModal(false)
+                  if (onEndGame) {
+                    onEndGame()
+                  }
+                }}
+              >
+                Ja, afsluiten
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Dashboard Toasts for Test Messages - stacked vertically */}
       {dashboardToasts && dashboardToasts.length > 0 && (
         <div className="fixed top-4 right-4 z-50 space-y-3 max-w-md">
@@ -798,6 +1017,20 @@ export default function MarketDashboard({
           })()}
         </div>
       </div>
+
+      {/* Spel afsluiten - alleen zichtbaar op host Market Dashboard, onder Markt Impact Analyse */}
+      {playerName === 'Market Dashboard' && (
+        <div className="max-w-6xl mx-auto mt-4 mb-4">
+          <button
+            type="button"
+            onClick={() => setShowEndGameModal(true)}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 via-red-700 to-red-800 hover:from-red-700 hover:via-red-800 hover:to-red-900 text-white font-semibold text-sm shadow-lg shadow-red-900/40 border border-red-400/60 transition-transform duration-200 hover:scale-[1.01] flex items-center justify-center gap-2"
+          >
+            <Power className="w-4 h-4" />
+            <span>Spel afsluiten</span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

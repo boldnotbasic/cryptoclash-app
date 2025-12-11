@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Play, Copy, Check, RefreshCw, Crown, UserPlus, Share, QrCode } from 'lucide-react'
+import { Users, Play, Copy, Check, RefreshCw, Crown, UserPlus, Share, QrCode, GripVertical } from 'lucide-react'
 import { useSocket } from '@/hooks/useSocket'
 
 interface Player {
@@ -21,7 +21,7 @@ interface WaitingRoomProps {
 }
 
 export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = false, playerName, playerAvatar }: WaitingRoomProps) {
-  const { socket, connected, room, error, startGame, clearError } = useSocket()
+  const { socket, connected, room, error, startGame, clearError, joinRoom } = useSocket()
   const [copied, setCopied] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
@@ -38,6 +38,9 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
   }, [])
   
   // Convert room players to array format, with fallback for offline mode
+  const [playerOrder, setPlayerOrder] = useState<string[]>([])
+  const [draggedPlayer, setDraggedPlayer] = useState<string | null>(null)
+  
   const players: Player[] = room ? Object.entries(room.players).map(([socketId, player]) => ({
     id: socketId,
     name: player.name,
@@ -52,6 +55,96 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
       joinedAt: Date.now()
     }
   ]
+  
+  // Initialize / sync player order when room players or order change
+  useEffect(() => {
+    if (!room || !room.players || Object.keys(room.players).length === 0) return
+
+    const currentPlayerIds = Object.keys(room.players).filter(id => !room.players[id].isHost)
+
+    // 🔁 For NIET-host clients: altijd server-volgorde volgen
+    if (!isHost) {
+      if (room.playerOrder && Array.isArray(room.playerOrder)) {
+        const validServerOrder = room.playerOrder.filter(id => currentPlayerIds.includes(id))
+        const newPlayers = currentPlayerIds.filter(id => !room.playerOrder!.includes(id))
+        const finalOrder = [...validServerOrder, ...newPlayers]
+        setPlayerOrder(finalOrder)
+      } else {
+        setPlayerOrder(currentPlayerIds)
+      }
+      return
+    }
+
+    // 👑 Host: lokale drag-volgorde is leidend, maar blijf spelers join/leave bijwerken
+    if (playerOrder.length === 0) {
+      if (room.playerOrder && Array.isArray(room.playerOrder)) {
+        const validServerOrder = room.playerOrder.filter(id => currentPlayerIds.includes(id))
+        const newPlayers = currentPlayerIds.filter(id => !room.playerOrder!.includes(id))
+        const finalOrder = [...validServerOrder, ...newPlayers]
+        setPlayerOrder(finalOrder)
+      } else {
+        setPlayerOrder(currentPlayerIds)
+      }
+    } else {
+      const newPlayers = currentPlayerIds.filter(id => !playerOrder.includes(id))
+      if (newPlayers.length > 0) {
+        setPlayerOrder(prev => [...prev, ...newPlayers])
+      }
+
+      const validPlayers = playerOrder.filter(id => currentPlayerIds.includes(id))
+      if (validPlayers.length !== playerOrder.length) {
+        setPlayerOrder(validPlayers)
+      }
+    }
+  }, [room, isHost])
+  
+  // Get ordered players (non-hosts only)
+  const orderedPlayers = playerOrder
+    .map(id => players.find(p => p.id === id))
+    .filter(Boolean) as Player[]
+  
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, playerId: string) => {
+    if (!isHost) return
+    setDraggedPlayer(playerId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isHost) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+  
+  const handleDrop = (e: React.DragEvent, targetPlayerId: string) => {
+    if (!isHost || !draggedPlayer) return
+    e.preventDefault()
+    
+    const newOrder = [...playerOrder]
+    const draggedIndex = newOrder.indexOf(draggedPlayer)
+    const targetIndex = newOrder.indexOf(targetPlayerId)
+    
+    if (draggedIndex !== -1 && targetIndex !== -1) {
+      // Remove dragged item and insert at target position
+      newOrder.splice(draggedIndex, 1)
+      newOrder.splice(targetIndex, 0, draggedPlayer)
+      setPlayerOrder(newOrder)
+      
+      // Send updated order to server
+      if (socket && roomId) {
+        socket.emit('room:updatePlayerOrder', {
+          roomCode: roomId,
+          playerOrder: newOrder
+        })
+      }
+    }
+    
+    setDraggedPlayer(null)
+  }
+  
+  const handleDragEnd = () => {
+    setDraggedPlayer(null)
+  }
 
   // Debug: Log when players change
   useEffect(() => {
@@ -68,6 +161,25 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
     const baseUrl = window.location.origin + window.location.pathname
     setShareUrl(`${baseUrl}?rooms=${roomId}`)
   }, [roomId])
+
+  // Soft auto-rejoin in case socket is connected but room data is missing
+  useEffect(() => {
+    if (!connected) return
+    if (room) return
+    if (!roomId || !playerName || !playerAvatar) return
+
+    console.log('🔁 WaitingRoom: connected but no room data, attempting soft rejoin', {
+      roomId,
+      playerName,
+      playerAvatar
+    })
+
+    try {
+      joinRoom(roomId, playerName, playerAvatar)
+    } catch (e) {
+      console.warn('⚠️ WaitingRoom soft rejoin failed', e)
+    }
+  }, [connected, room, roomId, playerName, playerAvatar, joinRoom])
 
   // Handle successful room creation and game start
   useEffect(() => {
@@ -133,12 +245,29 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
 
   // CRITICAL: Listen for lobby updates to see other players!
   useEffect(() => {
-    console.log('🔍 Current room state:', room)
+    console.log('\n🔍 === WAITING ROOM STATE CHECK ===')
+    console.log('🔍 Room ID:', roomId)
+    console.log('🔍 Is Host:', isHost)
+    console.log('🔍 Socket connected:', connected)
+    console.log('🔍 Room data exists:', !!room)
     console.log('🔍 Players in room:', room ? Object.keys(room.players).length : 0)
     if (room) {
-      console.log('👥 Player list:', Object.values(room.players).map((p: any) => p.name))
+      console.log('👥 Player list:')
+      Object.entries(room.players).forEach(([id, p]: [string, any]) => {
+        console.log(`  - ${p.avatar} ${p.name} (${id.substring(0, 8)}...)${p.isHost ? ' 👑 HOST' : ''}`)
+      })
+      console.log('🏠 Room details:', {
+        hostId: room.hostId,
+        hostName: room.hostName,
+        started: room.started
+      })
+    } else {
+      console.log('❌ No room data available!')
+      console.log('🔍 Socket ID:', socket?.id)
+      console.log('🔍 Error:', error)
     }
-  }, [room])
+    console.log('🔍 === END STATE CHECK ===\n')
+  }, [room, connected, roomId, isHost, socket, error])
 
   const copyRoomId = async () => {
     try {
@@ -402,30 +531,61 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
                 </div>
               )}
               {/* Players Cards */}
-              {Object.entries(room.players).filter(([_, player]) => !player.isHost).length > 0 ? (
+              {orderedPlayers.length > 0 ? (
                 <div className="p-4 bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/30 rounded-lg">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-green-300 font-semibold flex items-center">🎮 Spelers ({Object.entries(room.players).filter(([_, player]) => !player.isHost).length})</h4>
+                    <h4 className="text-green-300 font-semibold flex items-center">
+                      🎮 Spelers ({orderedPlayers.length})
+                      {isHost && (
+                        <span className="ml-2 text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded">
+                          Sleep om volgorde te wijzigen
+                        </span>
+                      )}
+                    </h4>
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                   </div>
                   <div className="space-y-3">
-                    {Object.entries(room.players)
-                      .filter(([_, player]) => !player.isHost)
-                      .map(([socketId, player]) => (
-                        <div key={socketId} className="flex items-center justify-between p-2 bg-green-500/5 rounded">
-                          <div className="flex items-center space-x-3">
-                            <div className="text-2xl">{player.avatar}</div>
-                            <div>
-                              <div className="font-semibold text-white">{player.name}</div>
-                              <div className="text-xs text-green-300">{getTimeSinceJoined(player.joinedAt)}</div>
+                    {orderedPlayers.map((player, index) => (
+                      <div
+                        key={player.id}
+                        draggable={isHost}
+                        onDragStart={(e) => handleDragStart(e, player.id)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, player.id)}
+                        onDragEnd={handleDragEnd}
+                        className={`flex items-center justify-between p-3 bg-green-500/5 rounded-lg border transition-all duration-200 ${
+                          isHost ? 'cursor-move hover:bg-green-500/10 border-green-500/20' : 'border-transparent'
+                        } ${
+                          draggedPlayer === player.id ? 'opacity-50 scale-95' : ''
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          {isHost && (
+                            <div className="text-gray-400 hover:text-green-300 transition-colors">
+                              <GripVertical className="w-4 h-4" />
                             </div>
+                          )}
+                          <div className="flex items-center justify-center w-8 h-8 bg-green-500/20 rounded-full text-sm font-bold text-green-300">
+                            {index + 1}
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                            <span className="text-xs text-green-400 font-semibold">Live</span>
+                          <div className="text-2xl">{player.avatar}</div>
+                          <div>
+                            <div className="font-semibold text-white">{player.name}</div>
+                            <div className="text-xs text-green-300">{getTimeSinceJoined(player.joinedAt)}</div>
                           </div>
                         </div>
-                      ))}
+                        <div className="flex items-center space-x-2">
+                          {index === 0 && (
+                            <div className="flex items-center space-x-1 px-2 py-1 bg-neon-gold/20 border border-neon-gold/50 rounded-full">
+                              <span className="text-xs text-neon-gold font-bold">Eerste beurt</span>
+                              <span className="text-neon-gold">⚡</span>
+                            </div>
+                          )}
+                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                          <span className="text-xs text-green-400 font-semibold">Live</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : (
@@ -433,14 +593,31 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
                   <div className="text-4xl mb-4">👥</div>
                   <p className="text-gray-400 text-lg">Wachten op spelers...</p>
                   <p className="text-gray-500 text-sm mt-2">Deel de lobby ID zodat spelers kunnen joinen</p>
+                  {isHost && (
+                    <p className="text-blue-300 text-xs mt-3 bg-blue-500/10 p-2 rounded">
+                      💡 Als host kun je de speler volgorde wijzigen door ze te verslepen
+                    </p>
+                  )}
                 </div>
               )}
             </div>
           ) : (
             <div className="text-center py-8">
-              <div className="text-4xl mb-4">⚠️</div>
-              <p className="text-gray-400 text-lg">Geen room data</p>
-              <p className="text-gray-500 text-sm mt-2">Verbinding wordt geladen...</p>
+              <div className="text-4xl mb-4">👥</div>
+              <p className="text-gray-300 text-lg">Wachten op spelers...</p>
+              <p className="text-gray-500 text-sm mt-2">
+                {!connected ? 'Geen verbinding met server...' : 
+                 error ? `Fout: ${error}` :
+                 'Deel de kamercode om vrienden uit te nodigen!'}
+              </p>
+              {connected && !error && (
+                <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                  <p className="text-yellow-400 text-sm font-semibold">🔍 Debug Info</p>
+                  <p className="text-yellow-300 text-xs mt-1">Socket ID: {socket?.id || 'Geen socket'}</p>
+                  <p className="text-yellow-300 text-xs">Room ID: {roomId}</p>
+                  <p className="text-yellow-300 text-xs">Is Host: {isHost ? 'Ja' : 'Nee'}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -558,13 +735,24 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="bg-gradient-to-br from-dark-bg via-purple-900/20 to-blue-900/20 p-8 rounded-2xl border border-neon-blue/30 shadow-2xl">
             <div className="text-center">
-              <div className="w-16 h-16 border-4 border-neon-blue border-t-transparent rounded-full animate-spin mx-auto mb-4 shadow-neon-blue/30" />
+              <div className="flex justify-center mb-4">
+                <img
+                  src="/Collage_logo.png"
+                  alt="CryptoClash"
+                  className="w-[40vw] md:w-[18vw] h-auto max-h-[30vh] drop-shadow-[0_8px_30px_rgba(139,92,246,0.6)]"
+                />
+              </div>
               <h3 className="text-xl font-bold bg-gradient-to-r from-neon-blue via-neon-purple to-neon-gold bg-clip-text text-transparent mb-2">
                 {isHost ? 'Spel wordt gestart...' : 'Spel is gestart!'}
               </h3>
               <p className="text-gray-300 text-sm">
                 {isHost ? 'Even geduld, we bereiden alles voor' : 'Je wordt doorgestuurd naar je speler interface'}
               </p>
+              <div className="mt-4 flex items-center justify-center space-x-2 text-xs text-gray-400">
+                <span className="w-2 h-2 bg-neon-blue rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-neon-purple rounded-full animate-bounce [animation-delay:0.15s]" />
+                <span className="w-2 h-2 bg-neon-gold rounded-full animate-bounce [animation-delay:0.3s]" />
+              </div>
             </div>
           </div>
         </div>

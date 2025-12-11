@@ -22,6 +22,8 @@ interface Room {
     gameDuration: number
     startingCash?: number
   }
+  playerOrder?: string[]
+  currentTurnPlayerId?: string | null
 }
 
 interface UseSocketReturn {

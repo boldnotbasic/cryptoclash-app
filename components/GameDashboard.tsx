@@ -25,6 +25,7 @@ interface GameDashboardProps {
   onBack: () => void
   onSellCrypto?: (cryptoId: string, amount: number) => void
   showSellControls?: boolean
+  onEndGame?: () => void
 }
 
 export default function GameDashboard({ 
@@ -33,7 +34,8 @@ export default function GameDashboard({
   cryptos, 
   onBack,
   onSellCrypto,
-  showSellControls = false
+  showSellControls = false,
+  onEndGame
 }: GameDashboardProps) {
   const [totalValue, setTotalValue] = useState(0)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
@@ -75,6 +77,19 @@ export default function GameDashboard({
     }
   }
 
+  // Bepaal beste stijger (op basis van 24u % verandering) en munt met hoogste prijs
+  const topGainer = cryptos.reduce<CryptoCurrency | null>((best, c) => {
+    if (!best) return c
+    if (typeof c.change24h !== 'number') return best
+    if (typeof best.change24h !== 'number') return c
+    return c.change24h > best.change24h ? c : best
+  }, null)
+
+  const topValueCoin = cryptos.reduce<CryptoCurrency | null>((best, c) => {
+    if (!best) return c
+    return c.price > best.price ? c : best
+  }, null)
+
   const handleSellClick = (cryptoId: string, percentage: number) => {
     const crypto = cryptos.find(c => c.id === cryptoId)
     if (!crypto) return
@@ -106,6 +121,8 @@ export default function GameDashboard({
     setPendingSale(null)
   }
 
+  const [showEndGameModal, setShowEndGameModal] = useState(false)
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 p-4">
       <div className="max-w-6xl mx-auto">
@@ -123,7 +140,6 @@ export default function GameDashboard({
             <Wallet className="w-8 h-8 text-neon-gold" />
             <div>
               <h1 className="text-3xl font-bold text-white">Crypto Wallet</h1>
-              <p className="text-gray-400">Jouw crypto bezit</p>
             </div>
           </div>
         </div>
@@ -136,96 +152,103 @@ export default function GameDashboard({
           </p>
         </div>
 
-        {/* Crypto Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {cryptos.map((crypto) => (
-            <div key={crypto.id} className={`crypto-card ${getColorClass(crypto.color)}`}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-3">
-                  <span className="text-2xl inline-flex items-center justify-center overflow-hidden">
-                    {(() => {
-                      const imagePath = getCryptoImagePath(crypto.symbol)
-                      if (!imagePath) return <span>{crypto.icon}</span>
-                      return (
-                        <Image
-                          src={imagePath}
-                          alt={crypto.name}
-                          width={32}
-                          height={32}
-                          className="object-contain"
-                        />
-                      )
-                    })()}
-                  </span>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">{crypto.name}</h3>
-                    {/*<p className="text-gray-400">{crypto.symbol}</p>---> */}
-                  </div>
-                </div>
-                
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-white">
-                    €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <div className={`flex items-center justify-end space-x-1 ${
-                    crypto.change24h >= 0 ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {crypto.change24h >= 0 ? (
-                      <TrendingUp className="w-4 h-4" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4" />
-                    )}
-                    <span className="text-sm font-medium">
-                      {crypto.change24h >= 0 ? '+' : ''}{crypto.change24h.toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
+        {/* Crypto Cards - tegelstijl gelijk aan Kopen/Markt */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {cryptos.map((crypto) => {
+            const isTopGainerTile = topGainer && crypto.id === topGainer.id
+            const isTopValueTile = topValueCoin && crypto.id === topValueCoin.id
+            const isBothHighlight = isTopGainerTile && isTopValueTile
 
-              {/* Holdings Display */}
-              <div className="space-y-3 bg-dark-bg/30 p-4 rounded-lg">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center">
-                    <p className="text-gray-400 text-sm">Aantal</p>
-                    <p className="text-2xl font-bold text-white">
-                      {crypto.amount.toFixed(2)}
-                    </p>
-                    <p className="text-gray-500 text-xs">{crypto.symbol}</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-gray-400 text-sm">Waarde</p>
-                    <p className="text-2xl font-bold text-neon-gold">
-                      €{(crypto.price * crypto.amount).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
+            return (
+            <div
+              key={crypto.id}
+              className={`crypto-card rounded-xl p-3 bg-dark-bg/40 text-left transition-all ${
+                isBothHighlight
+                  ? 'border-2 border-neon-gold/80 animate-gold-purple-glow-breathe'
+                  : isTopGainerTile
+                    ? 'border-2 border-neon-gold/80 animate-gold-glow-breathe'
+                    : isTopValueTile
+                      ? 'border-2 border-neon-purple/80 animate-purple-glow-breathe'
+                      : 'border border-white/10 hover:border-neon-blue/50 hover:shadow-neon-blue/20'
+              }`}
+            >
+              <div className="flex flex-col items-center">
+                {/* Icon blok */}
+                <div className="relative w-32 h-32 md:w-36 md:h-36 rounded-xl bg-transparent flex items-center justify-center overflow-visible -mt-8 mb-1">
+                  {(() => {
+                    const imagePath = getCryptoImagePath(crypto.symbol)
+                    if (!imagePath) return <span className="text-3xl">{crypto.icon}</span>
+                    return (
+                      <Image
+                        src={imagePath}
+                        alt={crypto.name}
+                        width={150}
+                        height={150}
+                        className="object-contain drop-shadow-[0_0_32px_rgba(0,0,0,1)]"
+                      />
+                    )
+                  })()}
+                  {/* Aantal badge op de figuur */}
+                  <div className="absolute top-1/2 right-0 translate-x-1 -translate-y-1/2 rounded-full bg-neon-purple/80 text-white border border-white/70 px-2.5 py-0.5 text-[11px] font-bold shadow-[0_0_14px_rgba(139,92,246,0.9)]">
+                    {crypto.amount.toFixed(2)}
                   </div>
                 </div>
-                
-                {/* Sell Buttons - only when explicitly enabled via showSellControls */}
-                {showSellControls && crypto.amount > 0 && onSellCrypto && (
-                  <div className="grid grid-cols-3 gap-2 mt-4">
-                    <button
-                      onClick={() => handleSellClick(crypto.id, 25)}
-                      className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all duration-200 hover:scale-105"
-                    >
-                      Verkoop 25%
-                    </button>
-                    <button
-                      onClick={() => handleSellClick(crypto.id, 50)}
-                      className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all duration-200 hover:scale-105"
-                    >
-                      Verkoop 50%
-                    </button>
-                    <button
-                      onClick={() => handleSellClick(crypto.id, 100)}
-                      className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all duration-200 hover:scale-105"
-                    >
-                      Verkoop Alles
-                    </button>
+
+                <div className="w-full mt-1">
+                  {/* Naam + prijs */}
+                  <div className="flex items-center justify-between">
+                    <div className="text-white font-semibold truncate mr-2">{crypto.name}</div>
+                    <div className="text-neon-turquoise font-bold whitespace-nowrap">
+                      €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
                   </div>
-                )}
+
+                  {/* Symbool + 24u badge */}
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="text-gray-400 text-xs">{crypto.symbol}</div>
+                    <div
+                      className={`text-[10px] px-1.5 py-0.5 rounded-sm border flex items-center ${
+                        crypto.change24h >= 0
+                          ? 'text-green-400 border-green-400/30'
+                          : 'text-red-400 border-red-400/30'
+                      }`}
+                    >
+                      {crypto.change24h >= 0 ? (
+                        <TrendingUp className="w-3 h-3 mr-1" />
+                      ) : (
+                        <TrendingDown className="w-3 h-3 mr-1" />
+                      )}
+                      {crypto.change24h >= 0 ? '+' : ''}{crypto.change24h.toFixed(1)}%
+                    </div>
+                  </div>
+
+                  {/* Sell Buttons - alleen als controls actief zijn */}
+                  {showSellControls && crypto.amount > 0 && onSellCrypto && (
+                    <div className="grid grid-cols-3 gap-2 mt-3">
+                      <button
+                        onClick={() => handleSellClick(crypto.id, 25)}
+                        className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white text-[11px] font-bold py-1.5 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                      >
+                        25%
+                      </button>
+                      <button
+                        onClick={() => handleSellClick(crypto.id, 50)}
+                        className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white text-[11px] font-bold py-1.5 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                      >
+                        50%
+                      </button>
+                      <button
+                        onClick={() => handleSellClick(crypto.id, 100)}
+                        className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-[11px] font-bold py-1.5 px-2 rounded-lg transition-all duration-200 hover:scale-105"
+                      >
+                        Alles
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
 
         {/* Game Stats */}
@@ -281,6 +304,49 @@ export default function GameDashboard({
         onClose={handleCloseSuccess}
         value={pendingSale?.value || 0}
       />
+
+      {/* Spel afsluiten knop onderaan dashboard */}
+      <div className="mt-10 flex justify-center">
+        <button
+          type="button"
+          onClick={() => setShowEndGameModal(true)}
+          className="px-6 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold text-sm shadow-lg shadow-red-900/40 border border-red-400/60 transition-transform duration-200 hover:scale-105"
+        >
+          Spel afsluiten
+        </button>
+      </div>
+
+      {showEndGameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="crypto-card max-w-sm w-full p-6 text-center">
+            <h3 className="text-lg font-bold text-white mb-2">Spel definitief afsluiten?</h3>
+            <p className="text-gray-300 text-sm mb-5">
+              Hiermee wordt het huidige spel volledig beëindigd en wordt alle spelgeschiedenis gewist. Weet je het zeker?
+            </p>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                className="flex-1 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 transition-colors text-sm font-semibold"
+                onClick={() => setShowEndGameModal(false)}
+              >
+                Annuleren
+              </button>
+              <button
+                type="button"
+                className="flex-1 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors text-sm font-semibold"
+                onClick={() => {
+                  setShowEndGameModal(false)
+                  if (onEndGame) {
+                    onEndGame()
+                  }
+                }}
+              >
+                Ja, afsluiten
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -31,9 +31,9 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
             <img
-              src="/cryptoclash-logo.png"
+              src="/Collage_logo.png"
               alt="CryptoClash"
-              className="h-40 md:h-66 drop-shadow-[0_8px_30px_rgba(139,92,246,0.6)]"
+              className="w-[50vw] md:w-[25vw] h-auto max-h-[60vh] drop-shadow-[0_8px_30px_rgba(139,92,246,0.6)]"
             />
           </div>
         </div>

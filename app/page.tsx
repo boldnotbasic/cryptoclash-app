@@ -20,10 +20,12 @@ import SpelersRanking from '../components/SpelersRanking'
 import ScanTranscript from '../components/ScanTranscript'
 import ActionsMenu from '@/components/ActionsMenu'
 import BuyCrypto from '@/components/BuyCrypto'
+import Win from '../components/Win'
+import SwapScreen from '@/components/SwapScreen'
 import { ScanEffect } from '@/components/ScanResult'
 import { useSocket } from '@/hooks/useSocket'
 
-type Screen = 'start-screen' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'buy' | 'sell' | 'game-over' | 'resume-game'
+type Screen = 'start-screen' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'buy' | 'sell' | 'win' | 'swap' | 'game-over' | 'resume-game'
 
 interface CryptoCurrency {
   id: string
@@ -61,10 +63,96 @@ export default function Home() {
   const [connectedPlayers, setConnectedPlayers] = useState<number>(0)
   const [dashboardToasts, setDashboardToasts] = useState<{ id: string, message: string, sender: string }[]>([])
   const [joinNotification, setJoinNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, isRejoining: boolean } | null>(null)
+  const [turnNotification, setTurnNotification] = useState<{ id: string, message: string, playerName: string } | null>(null)
+  const [swapNotification, setSwapNotification] = useState<{ id: string, message: string, fromPlayerName: string, fromPlayerAvatar: string, receivedCrypto: string, lostCrypto: string } | null>(null)
   const [currentYear, setCurrentYear] = useState<number>(2024)
+  const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
   
-  // Get socket connection for game events
+  // Get socket connection for game events (room state only; we don't rely on socket.id for turn logic)
   const { socket, room } = useSocket()
+
+  // Find my socket ID in the room players
+  const mySocketId = useMemo(() => {
+    if (!room || !room.players) return null
+    
+    // Find the socket ID that matches my name and avatar
+    for (const [socketId, player] of Object.entries(room.players)) {
+      if (!player.isHost && player.name === playerName && player.avatar === playerAvatar) {
+        return socketId
+      }
+    }
+
+    return null
+  }, [room, playerName, playerAvatar])
+
+  const handleEndGame = () => {
+    console.log('\n🛑 === END GAME REQUEST FROM DASHBOARD ===')
+
+    // Clear any persisted session data
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('cryptoClashSession')
+        localStorage.removeItem('cryptoclash-session')
+      } catch (e) {
+        console.warn('⚠️ Failed to clear local storage session on end game', e)
+      }
+    }
+
+    // Notify server so all spelers worden afgesloten
+    if (socket && roomId) {
+      console.log('📡 Emitting game:end to server for room', roomId)
+      socket.emit('game:end', { roomCode: roomId, requestedBy: playerName })
+    } else {
+      console.log('⚠️ No active socket/room, performing local fallback clear')
+      setRoomId('')
+      setConnectedPlayers(0)
+      setPlayers([])
+      setPlayerScanActions([])
+      setAutoScanActions([])
+      navigateToScreen('qr-scanner')
+    }
+  }
+
+  const isMyTurn = useMemo(() => {
+    // In solo-mode, always allow actions
+    if (!roomId || roomId === 'solo-mode') return true
+
+    // If no room data yet, disable actions in multiplayer
+    if (!room) return false
+
+    // If we can't find our socket ID, disable actions
+    if (!mySocketId) {
+      console.log('🎯 Cannot find my socket ID in room players', { playerName, playerAvatar })
+      return false
+    }
+
+    // Determine who should have the turn
+    let activeTurnSocketId: string | null = null
+
+    if (room.currentTurnPlayerId) {
+      // Server has explicitly set who's turn it is
+      activeTurnSocketId = room.currentTurnPlayerId
+    } else if (room.playerOrder && room.playerOrder.length > 0) {
+      // Fallback: first player in the order
+      activeTurnSocketId = room.playerOrder[0]
+    }
+
+    const myTurn = activeTurnSocketId === mySocketId
+    
+    console.log('🎯 Turn check:', {
+      mySocketId,
+      myName: playerName,
+      myAvatar: playerAvatar,
+      activeTurnSocketId,
+      currentTurnPlayerId: room.currentTurnPlayerId,
+      playerOrder: room.playerOrder,
+      isMyTurn: myTurn
+    })
+    
+    return myTurn
+  }, [roomId, room, mySocketId, playerName, playerAvatar])
+
+  const actionsDisabled = !isMyTurn || isGameFinishedForPlayer
   const lastEmittedScanId = useRef<string | null>(null)
   const appliedEventIdsRef = useRef<Set<string>>(new Set())
   const hasSyncedMarketStateRef = useRef<boolean>(false)
@@ -79,6 +167,16 @@ export default function Home() {
   // Dynamic players data based on room players
   const [players, setPlayers] = useState<any[]>([])
   const [roomPlayers, setRoomPlayers] = useState<any>({}) // Store room player data from server
+  
+  // Utility function to filter valid players (no host, no disconnected)
+  const isValidPlayer = (playerData: any) => {
+    if (!playerData) return false
+    if (playerData.isHost === true) return false
+    if (playerData.disconnected === true) return false
+    // Also filter by name patterns as fallback
+    if (playerData.name && (playerData.name.includes('Host') || playerData.name.includes('host') || playerData.name === 'Market Dashboard')) return false
+    return true
+  }
   
   // Track last sent totalValue to prevent unnecessary updates
   const lastSentTotalValue = useRef<number | null>(null)
@@ -126,22 +224,35 @@ export default function Home() {
 
     console.log('\n📊 === UPDATING DASHBOARD RANKINGS ===')
     console.log('🔄 Processing roomPlayers data...')
+    console.log('👥 Total players in room data:', Object.keys(roomPlayersData).length)
 
     const updatedPlayers = Object.entries(roomPlayersData)
-      .filter(([playerId, playerData]: [string, any]) => !playerData.isHost) // Exclude hosts from ranking
+      .filter(([playerId, playerData]: [string, any]) => {
+        const valid = isValidPlayer(playerData)
+        if (!valid) {
+          console.log(`⏭️ Skipping invalid player: ${playerData.name} (isHost: ${playerData.isHost}, disconnected: ${playerData.disconnected})`)
+        }
+        return valid
+      })
       .map(([playerId, playerData]: [string, any]) => {
         
-        // ALWAYS use server's totalValue - this is what the player calculated and sent
-        let totalValue
-        if (playerData.totalValue !== undefined && playerData.totalValue !== null) {
-          totalValue = playerData.totalValue
-          console.log(`📊 ${playerData.name}: Server totalValue = €${totalValue.toFixed(2)}`)
+        // Rankings moeten ALTIJD werken met de totalValue die voor de speler is opgeslagen.
+        // Er wordt geen nieuw totaal meer berekend uit portfolio/cash om schommelingen te voorkomen.
+        let totalValue = playerData.totalValue
+        
+        console.log(`\n🔍 Processing player: ${playerData.name} (${playerId.substring(0, 8)}...)`)
+        console.log(`   Server data:`, {
+          totalValue: playerData.totalValue,
+          portfolioValue: playerData.portfolioValue,
+          cashBalance: playerData.cashBalance
+        })
+        
+        // Als er (tijdelijk) geen totalValue bekend is, toon 0 en wacht op eerste updateData van de speler.
+        if (totalValue === undefined || totalValue === null || Number.isNaN(totalValue)) {
+          console.log(`   ⚠️ Geen geldige totalValue voor ${playerData.name} – stel voorlopig in op €0, wacht op live update`)
+          totalValue = 0
         } else {
-          // Fallback calculation (should rarely happen)
-          console.warn(`⚠️ ${playerData.name} - No totalValue from server, calculating fallback`)
-          const portfolioValue = calculatePortfolioValue(playerData.portfolio, playerData.name)
-          totalValue = Math.round((portfolioValue + (playerData.cashBalance || 0)) * 100) / 100
-          console.warn(`⚠️ ${playerData.name} - Fallback calculation = €${totalValue.toFixed(2)}`)
+          console.log(`   ✅ Using stored totalValue: €${totalValue.toFixed(2)}`)
         }
         
         return {
@@ -149,8 +260,9 @@ export default function Home() {
           name: playerData.name || 'Unknown Player',
           avatar: playerData.avatar || '👤',
           totalValue: totalValue,
+          portfolioValue: playerData.portfolioValue || 0,
           portfolio: playerData.portfolio || {},
-          cashBalance: playerData.cashBalance || 0,
+          cashBalance: playerData.cashBalance || 1000,
           rank: 0 // Will be calculated after sorting
         }
       })
@@ -253,7 +365,7 @@ export default function Home() {
       price: 2340.80,
       change24h: 4.5,
       amount: 0,
-      color: 'neon-gold',
+      color: 'neon-blue',
       icon: '🔮',
       volume: 3900000,
       marketCap: 32500000
@@ -298,34 +410,123 @@ export default function Home() {
     return Math.round(value * 100) / 100
   }, [cryptoPriceMap])
 
-  // ⚡ INSTANT Dashboard Updates - Direct from players - Optimized
-  const handleLivePlayerUpdate = useCallback(({ playerId, playerName, totalValue, portfolioValue, cashBalance, timestamp }: any) => {
-    console.log(`⚡ LIVE UPDATE RECEIVED: ${playerName} → €${totalValue} (${new Date(timestamp).toLocaleTimeString()})`)
+  // ⚡ INSTANT Dashboard Updates - WATERDICHTE FIX - Alleen values updaten, geen re-sort tenzij nodig
+  const handleLivePlayerUpdate = useCallback(({ playerId, playerName, playerAvatar, totalValue, portfolioValue, cashBalance, timestamp }: any) => {
+    console.log(`\n⚡ === LIVE UPDATE RECEIVED ===`)
+    console.log(`👤 Player: ${playerName} | 💯 €${totalValue?.toFixed(2) || 'N/A'}`)
     
-    // Update players state immediately with live data
+    // Host en dashboard zijn GEEN spelers – nooit in rankings opnemen
+    if (playerName === 'Market Dashboard' || (playerName && playerName.includes('Host'))) {
+      console.log('⏭️ Skipping live update for host/dashboard – geen speler')
+      return
+    }
+    
+    // 🚨 CRITICAL: Validate totalValue before processing
+    if (typeof totalValue !== 'number' || isNaN(totalValue) || totalValue < 0) {
+      console.warn(`⚠️ INVALID totalValue - IGNORING`)
+      return
+    }
+    
+    // 🚨 EXTRA PROTECTION: Reject zero values completely for dashboard
+    if (totalValue === 0) {
+      console.warn(`⚠️ ZERO totalValue received for ${playerName} - IGNORING (prevents flicker)`)
+      return
+    }
+
     setPlayers(prev => {
-      const updated = prev.map(player => {
-        if (player.id === playerId) {
-          return {
-            ...player,
-            totalValue: totalValue,
-            portfolioValue: portfolioValue,
-            cashBalance: cashBalance,
-            lastUpdate: timestamp
+      const existingIndex = prev.findIndex(p => p.id === playerId)
+      
+      // 🚨 Nieuwe speler - alleen toevoegen met geldige waarde
+      if (existingIndex === -1) {
+        if (totalValue <= 0) {
+          console.warn(`⚠️ Not adding ${playerName} with zero value`)
+          return prev
+        }
+        console.log(`➕ Adding new player: ${playerName}`)
+        
+        const newPlayer = {
+          id: playerId,
+          name: playerName,
+          avatar: playerAvatar || '👤',
+          totalValue: totalValue,
+          portfolioValue: portfolioValue,
+          cashBalance: cashBalance,
+          portfolio: {},
+          rank: 0,
+          lastUpdate: timestamp
+        }
+        
+        // Voeg toe en sorteer meteen
+        const withNew = [...prev, newPlayer]
+        const sorted = withNew
+          .filter(p => typeof p.totalValue === 'number' && !isNaN(p.totalValue) && p.totalValue > 0)
+          .sort((a, b) => b.totalValue - a.totalValue)
+          .map((player, index) => ({ ...player, rank: index + 1 }))
+        
+        return sorted
+      }
+      
+      // 🚨 Bestaande speler - ALLEEN VALUE UPDATEN
+      const existingPlayer = prev[existingIndex]
+      const oldValue = existingPlayer.totalValue || 0
+      const newValue = totalValue
+      
+      // Negeer 0-updates als we al een positieve waarde hebben
+      if (newValue <= 0 && oldValue > 0) {
+        console.warn(`⚠️ Ignoring zero update for ${playerName}`)
+        return prev
+      }
+      
+      // Skip als waarde niet significant veranderd is (< €0.01)
+      if (Math.abs(oldValue - newValue) < 0.01) {
+        return prev
+      }
+      
+      console.log(`🔄 ${playerName}: €${oldValue.toFixed(2)} → €${newValue.toFixed(2)}`)
+      
+      // Maak een kopie van de array met de geüpdatete speler
+      const updated = [...prev]
+      updated[existingIndex] = {
+        ...existingPlayer,
+        totalValue: newValue,
+        portfolioValue: portfolioValue,
+        cashBalance: cashBalance,
+        lastUpdate: timestamp
+      }
+      
+      // 🚨 WATERDICHT: Check of de RANKING VOLGORDE verandert
+      // Alleen re-sorteren als de nieuwe waarde de positie zou veranderen
+      const needsResort = (() => {
+        const currentRank = existingPlayer.rank || existingIndex + 1
+        
+        // Check of deze speler nu hoger zou moeten staan
+        for (let i = 0; i < existingIndex; i++) {
+          if (updated[i].totalValue < newValue) {
+            return true // Moet hoger
           }
         }
-        return player
-      })
+        
+        // Check of deze speler nu lager zou moeten staan
+        for (let i = existingIndex + 1; i < updated.length; i++) {
+          if (updated[i].totalValue > newValue) {
+            return true // Moet lager
+          }
+        }
+        
+        return false // Volgorde blijft hetzelfde
+      })()
       
-      // Sort by totalValue and reassign ranks
+      if (!needsResort) {
+        console.log(`✅ Rank stays same - NO RESORT`)
+        return updated
+      }
+      
+      // Alleen sorteren als de volgorde echt verandert
+      console.log(`🔄 Resorting rankings...`)
       const sorted = updated
+        .filter(p => typeof p.totalValue === 'number' && !isNaN(p.totalValue) && p.totalValue > 0)
         .sort((a, b) => b.totalValue - a.totalValue)
         .map((player, index) => ({ ...player, rank: index + 1 }))
-      
-      console.log(`📊 LIVE RANKINGS UPDATE:`)
-      sorted.forEach(p => {
-        console.log(`  ${p.rank}. ${p.name}: €${p.totalValue.toFixed(2)}`)
-      })
       
       return sorted
     })
@@ -364,6 +565,13 @@ export default function Home() {
   // 🎯 UNIFIED DATA SYNC HANDLER - Receives validated data from server
   const handlePlayerDataSync = useCallback(({ playerId, playerName, totalValue, portfolioValue, cashBalance, portfolio, timestamp, version }: any) => {
     console.log(`🎯 UNIFIED SYNC RECEIVED: ${playerName} → €${totalValue} (v${version})`)
+    
+    // 🚨 CRITICAL: Market Dashboard should ONLY use dashboard:livePlayerUpdate
+    // This event can contain stale/zero values and cause flickering
+    if (playerName === 'Market Dashboard' || (playerName && playerName.includes('Host'))) {
+      console.log('📊 Dashboard/host ignoring player:dataSync - deze zijn geen spelers')
+      return
+    }
     
     // Update players state with server-validated data
     setPlayers(prev => {
@@ -412,17 +620,34 @@ export default function Home() {
 
   // Update players when room data or player info changes
   useEffect(() => {
+    // 🚨 CRITICAL: Dashboard should ONLY use dashboard:livePlayerUpdate
+    // updatePlayersFromRoom can contain stale data and override live updates
+    if (playerName === 'Market Dashboard') {
+      console.log('📊 Dashboard detected - COMPLETELY BLOCKING updatePlayersFromRoom')
+      return
+    }
+    
     // Only proceed if we have crypto data
     if (cryptos.length === 0) {
       return
     }
     
+    console.log('\n🔄 === UPDATE PLAYERS FROM ROOM TRIGGERED ===')
+    console.log('🏠 Room ID:', roomId)
+    console.log('👥 Room Players Count:', Object.keys(roomPlayers).length)
+    console.log('📊 Current Players Array Length:', players.length)
+    
     if (Object.keys(roomPlayers).length > 0) {
+      console.log('✅ Updating players from room data')
       updatePlayersFromRoom(roomPlayers)
     } else if (roomId === 'solo-mode' || !roomId) {
+      console.log('🎮 Solo mode - using local player data')
       updatePlayersFromRoom(null) // Triggers solo mode fallback
+    } else {
+      console.log('⚠️ No room players data available yet')
     }
-  }, [cashBalance, playerName, playerAvatar, roomId, roomPlayers, cryptos])
+    console.log('🔄 === UPDATE COMPLETE ===\n')
+  }, [cashBalance, playerName, playerAvatar, roomId, roomPlayers, cryptos, players.length])
 
   // 🎯 UNIFIED DATA SYNC - Single Source of Truth
   useEffect(() => {
@@ -436,7 +661,7 @@ export default function Home() {
     const localPortfolioValue = Math.round(cryptos.reduce((sum, crypto) => sum + (crypto.price * crypto.amount), 0) * 100) / 100
     const localTotalValue = Math.round((localPortfolioValue + cashBalance) * 100) / 100
 
-    const sendUnifiedUpdate = () => {
+    const sendUnifiedUpdate = (force = false) => {
       const timestamp = new Date().toLocaleTimeString()
       console.log(`\n🎯 === UNIFIED DATA SYNC [${timestamp}] ===`)
       console.log(`👤 Player: ${playerName}`)
@@ -463,53 +688,124 @@ export default function Home() {
       console.log(`🎯 === UNIFIED SYNC SENT ===\n`)
     }
 
-    // 🔍 CONSISTENCY CHECK - Compare with server state
-    const serverTotalValue = socket?.id ? roomPlayers[socket.id]?.totalValue : undefined
-    const needsSync = serverTotalValue !== undefined && 
-                     Math.abs(localTotalValue - serverTotalValue) > 0.01
-
-    if (needsSync) {
-      console.log(`🔧 CONSISTENCY CHECK FAILED!`)
-      console.log(`📊 Server: €${serverTotalValue}`)
-      console.log(`📱 Local: €${localTotalValue}`)
-      console.log(`🔄 Forcing immediate sync...`)
-      
-      // Clear any pending timeout and send immediately
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current)
-      }
-      sendUnifiedUpdate()
-      return
-    }
-
-    // 📊 SMART THROTTLING - Reduce server load while maintaining accuracy
+    // 🚨 CRITICAL FIX: ALWAYS send update when cryptos or cashBalance changes
+    // Don't check server state - just send the latest local calculation
+    // The server will validate and broadcast to all clients
     const valueDifference = lastSentTotalValue.current !== null 
       ? Math.abs(localTotalValue - lastSentTotalValue.current) 
       : Infinity
     
-    if (valueDifference > 0.5) {
-      // Significant change - send immediately
+    // Send update if there's ANY change (even 0.01 cent)
+    if (valueDifference > 0.001 || lastSentTotalValue.current === null) {
+      console.log(`📊 Value changed by €${valueDifference.toFixed(2)} - sending update`)
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current)
       }
       sendUnifiedUpdate()
-    } else if (valueDifference > 0.01) {
-      // Small change - debounce for 1 second
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current)
-      }
-      updateTimeoutRef.current = setTimeout(sendUnifiedUpdate, 1000)
+    } else {
+      console.log(`📊 No significant value change (€${valueDifference.toFixed(4)}) - skipping update`)
     }
-    // No change - don't send update
 
     return () => {
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current)
       }
     }
-  }, [cashBalance, cryptos, socket, roomId, playerName, playerAvatar, roomPlayers])
+  }, [cashBalance, cryptos, socket, roomId, playerName, playerAvatar])
 
   // Removed duplicate useEffect - using single useEffect above for player data updates
+
+  // 🔄 PERIODIC SYNC - Ensure dashboard always has latest data
+  // 🚨 Use refs to always access current state without recreating interval
+  const cryptosRef = useRef(cryptos)
+  const cashBalanceRef = useRef(cashBalance)
+  const cryptoPortfolioRef = useRef(cryptoPortfolio)
+  
+  useEffect(() => {
+    cryptosRef.current = cryptos
+    cashBalanceRef.current = cashBalance
+    cryptoPortfolioRef.current = cryptoPortfolio
+  }, [cryptos, cashBalance, cryptoPortfolio])
+  
+  useEffect(() => {
+    if (!socket || !roomId || roomId === 'solo-mode' || !playerName || playerName === 'Market Dashboard') {
+      return
+    }
+
+    console.log(`🔄 Starting periodic sync for ${playerName}`)
+
+    // Send update every 3 seconds to ensure dashboard is always in sync
+    const periodicSyncInterval = setInterval(() => {
+      // 🚨 CRITICAL: Access CURRENT state via refs (not stale closure values)
+      const currentCryptos = cryptosRef.current
+      const currentCash = cashBalanceRef.current
+      const currentPortfolio = cryptoPortfolioRef.current
+      
+      const localPortfolioValue = Math.round(currentCryptos.reduce((sum, crypto) => sum + (crypto.price * crypto.amount), 0) * 100) / 100
+      const localTotalValue = Math.round((localPortfolioValue + currentCash) * 100) / 100
+
+      console.log(`\n🔄 === PERIODIC SYNC ===`)
+      console.log(`👤 Player: ${playerName}`)
+      console.log(`💯 Total Value: €${localTotalValue.toFixed(2)}`)
+      console.log(`💎 Portfolio Value: €${localPortfolioValue.toFixed(2)}`)
+      console.log(`💰 Cash Balance: €${currentCash.toFixed(2)}`)
+      
+      socket.emit('player:updateData', {
+        roomCode: roomId,
+        playerData: {
+          name: playerName,
+          avatar: playerAvatar,
+          portfolio: currentPortfolio,
+          cashBalance: currentCash,
+          portfolioValue: localPortfolioValue,
+          totalValue: localTotalValue,
+          timestamp: Date.now()
+        }
+      })
+      
+      console.log(`🔄 === PERIODIC SYNC SENT ===\n`)
+    }, 3000) // Every 3 seconds (faster updates)
+
+    return () => {
+      console.log(`🔄 Stopping periodic sync for ${playerName}`)
+      clearInterval(periodicSyncInterval)
+    }
+  }, [socket, roomId, playerName, playerAvatar]) // Only recreate when connection changes
+
+  // 🚀 INITIAL SYNC - Send data immediately after joining room
+  useEffect(() => {
+    if (!socket || !roomId || roomId === 'solo-mode' || !playerName) {
+      return
+    }
+
+    // Wait a bit for socket to be fully connected and room joined
+    const initialSyncTimer = setTimeout(() => {
+      const updatedPortfolio = cryptoPortfolio
+      const localPortfolioValue = Math.round(cryptos.reduce((sum, crypto) => sum + (crypto.price * crypto.amount), 0) * 100) / 100
+      const localTotalValue = Math.round((localPortfolioValue + cashBalance) * 100) / 100
+
+      console.log(`\n🚀 === INITIAL SYNC AFTER JOIN ===`)
+      console.log(`👤 Player: ${playerName}`)
+      console.log(`💯 Initial Total Value: €${localTotalValue}`)
+      
+      socket.emit('player:updateData', {
+        roomCode: roomId,
+        playerData: {
+          name: playerName,
+          avatar: playerAvatar,
+          portfolio: updatedPortfolio,
+          cashBalance: cashBalance,
+          portfolioValue: localPortfolioValue,
+          totalValue: localTotalValue,
+          timestamp: Date.now()
+        }
+      })
+      
+      console.log(`🚀 === INITIAL SYNC SENT ===\n`)
+    }, 500) // Wait 500ms after join
+
+    return () => clearTimeout(initialSyncTimer)
+  }, [socket, roomId, playerName]) // Only run when these change (i.e., when joining)
 
   // Respond to dashboard refresh requests by immediately sending current player data
   useEffect(() => {
@@ -607,21 +903,85 @@ export default function Home() {
       }
       
       const handleLobbyUpdate = (room: any) => {
-        console.log('👥 Lobby update received:', room)
+        console.log('👥 === LOBBY UPDATE RECEIVED ===')
+        console.log('👥 Room data:', room)
         if (room && room.players) {
           console.log('👥 Room players data:', room.players)
           setConnectedPlayers(Object.keys(room.players).length)
+          
+          // 🚨 CRITICAL: Dashboard should ONLY use dashboard:livePlayerUpdate for rankings
+          // lobby:update can contain stale totalValue and override live player updates
+          if (playerName === 'Market Dashboard') {
+            console.log('📊 === DASHBOARD: BLOCKING ALL LOBBY:UPDATE LOGIC ===')
+            console.log('📊 Dashboard uses ONLY dashboard:livePlayerUpdate')
+            console.log('📊 NOT updating roomPlayers, NOT touching players state')
+            console.log('📊 This prevents ALL flickering to 0')
+            
+            // 🚨 DO NOT set roomPlayers - this triggers updatePlayersFromRoom
+            // DO NOT add/update players - wait for livePlayerUpdate only
+            
+            return // Skip EVERYTHING from lobby:update on dashboard
+          }
+          
+          // Only set roomPlayers for non-dashboard clients
           setRoomPlayers(room.players)
           
-          // DASHBOARD SELF-HEAL: If we're viewing the dashboard, immediately request fresh data
+          // 🚨 CRITICAL FIX: Immediately sync players array with room.players
+          // This ensures new players appear in rankings instantly
+          setPlayers(prevPlayers => {
+            const existingPlayerIds = new Set(prevPlayers.map(p => p.id))
+            const newPlayers: any[] = []
+            
+            Object.entries(room.players).forEach(([socketId, playerData]: [string, any]) => {
+              if (!isValidPlayer(playerData)) {
+                console.log(`⏭️ Skipping invalid player in lobby update: ${playerData.name}`)
+                return
+              }
+              
+              if (!existingPlayerIds.has(socketId)) {
+                console.log(`➕ Adding new player to rankings: ${playerData.name}`)
+                
+                // 🚨 CRITICAL FIX: Calculate totalValue properly for new players
+                let totalValue = playerData.totalValue
+                if (totalValue === undefined || totalValue === null) {
+                  const portfolioValue = playerData.portfolioValue || 0
+                  const cashBalance = playerData.cashBalance || 1000
+                  totalValue = Math.round((portfolioValue + cashBalance) * 100) / 100
+                  console.log(`🔧 New player ${playerData.name} - Calculated totalValue: €${totalValue.toFixed(2)}`)
+                }
+                
+                newPlayers.push({
+                  id: socketId,
+                  name: playerData.name,
+                  avatar: playerData.avatar,
+                  totalValue: totalValue,
+                  portfolioValue: playerData.portfolioValue || 0,
+                  cashBalance: playerData.cashBalance || 1000,
+                  portfolio: playerData.portfolio || {},
+                  rank: 0,
+                  lastUpdate: Date.now()
+                })
+              }
+            })
+            
+            if (newPlayers.length > 0) {
+              const combined = [...prevPlayers, ...newPlayers]
+              const sorted = combined.sort((a, b) => b.totalValue - a.totalValue).map((p, i) => ({ ...p, rank: i + 1 }))
+              console.log(`✅ Updated rankings with ${newPlayers.length} new players`)
+              return sorted
+            }
+            return prevPlayers
+          })
+          
+          // DASHBOARD SELF-HEAL: Request fresh data
           if (playerName === 'Market Dashboard' && socket && roomId) {
             console.log('🔧 DASHBOARD SELF-HEAL: Requesting immediate refresh after lobby update')
             setTimeout(() => {
               socket.emit('dashboard:requestRefresh', { roomCode: roomId })
-            }, 100) // Small delay to ensure all players have processed the lobby update
+            }, 100)
           }
           
-          console.log('🔄 Room players updated, useEffect will handle player calculations')
+          console.log('🔄 Room players updated')
         }
       }
       
@@ -633,6 +993,169 @@ export default function Home() {
       socket.on('lobby:update', handleLobbyUpdate)
       socket.on('dashboard:livePlayerUpdate', handleLivePlayerUpdate)
       socket.on('player:dataSync', handlePlayerDataSync)
+      
+      // Handle turn changes
+      socket.on('turn:changed', ({ newTurnPlayerId, newTurnPlayerName, previousTurnPlayerId }: any) => {
+        console.log('⏭️ Turn changed:', { newTurnPlayerId, newTurnPlayerName, previousTurnPlayerId })
+        
+        // Show notification popup
+        const notificationId = `turn-${Date.now()}`
+        setTurnNotification({
+          id: notificationId,
+          message: `Beurt nu aan ${newTurnPlayerName}`,
+          playerName: newTurnPlayerName
+        })
+        
+        // Auto-hide notification after 4 seconds
+        setTimeout(() => {
+          setTurnNotification(prev => prev?.id === notificationId ? null : prev)
+        }, 4000)
+      })
+      
+      // Handle incoming swap from another player
+      socket.on('player:swapReceived', ({ fromPlayerName, fromPlayerAvatar, receivedCryptoId, receivedAmount, lostCryptoId, lostAmount }: any) => {
+        console.log('🔄 Swap received from another player:', { fromPlayerName, receivedCryptoId, receivedAmount, lostCryptoId, lostAmount })
+        
+        // Update local cryptos: -1 of lost crypto, +1 of received crypto
+        // receivedCryptoId and lostCryptoId are SYMBOLS (not IDs)
+        setCryptos(prevCryptos => {
+          const newCryptos = prevCryptos.map(c => {
+            if (c.symbol === lostCryptoId) {
+              // Lose 1 coin
+              return { ...c, amount: Math.max(0, c.amount - 1) }
+            } else if (c.symbol === receivedCryptoId) {
+              // Gain 1 coin
+              return { ...c, amount: c.amount + 1 }
+            }
+            return c
+          })
+          
+          // Calculate new values
+          const newPortfolioValue = Math.round(newCryptos.reduce((sum, c) => sum + (c.price * c.amount), 0) * 100) / 100
+          const newTotalValue = Math.round((newPortfolioValue + cashBalance) * 100) / 100
+          
+          // Update server with new values
+          if (socket && roomId) {
+            const newPortfolioMap = newCryptos.reduce((acc: any, c: any) => { 
+              acc[c.symbol] = c.amount
+              return acc 
+            }, {} as Record<string, number>)
+            
+            socket.emit('player:updateData', {
+              roomCode: roomId,
+              playerData: {
+                name: playerName,
+                avatar: playerAvatar,
+                portfolio: newPortfolioMap,
+                cashBalance: cashBalance,
+                portfolioValue: newPortfolioValue,
+                totalValue: newTotalValue,
+                timestamp: Date.now()
+              }
+            })
+          }
+          
+          // Record swap action using the NEW cryptos state
+          const receivedCrypto = newCryptos.find(c => c.symbol === receivedCryptoId)
+          const lostCrypto = newCryptos.find(c => c.symbol === lostCryptoId)
+          const swapAction = {
+            id: `swap-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+            timestamp: Date.now(),
+            // Log vanuit HUIDIGE speler gezien
+            player: playerName,
+            action: `Swap 1x ${lostCrypto?.symbol || lostCryptoId} ↔ 1x ${receivedCrypto?.symbol || receivedCryptoId}`,
+            effect: `met ${fromPlayerName}`,
+            avatar: playerAvatar
+          }
+
+          // Lokale acties-log updaten (voor speler UI)
+          // De auto-broadcast useEffect zal deze actie automatisch naar de server sturen
+          setPlayerScanActions(prev => [swapAction, ...prev.slice(0, 9)])
+          
+          // Show styled notification instead of alert
+          const notificationId = `swap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          setSwapNotification({
+            id: notificationId,
+            fromPlayerName: fromPlayerName,
+            fromPlayerAvatar: fromPlayerAvatar,
+            receivedCrypto: receivedCrypto?.symbol || receivedCryptoId,
+            lostCrypto: lostCrypto?.symbol || lostCryptoId
+          })
+          
+          // Auto-hide notification after 5 seconds
+          setTimeout(() => {
+            setSwapNotification(prev => prev?.id === notificationId ? null : prev)
+          }, 5000)
+          
+          return newCryptos
+        })
+      })
+      
+      // Handle game reset - when host starts a new game
+      socket.on('game:reset', ({ message, roomCode }: any) => {
+        console.log(`\n🔄 === GAME RESET RECEIVED ===`)
+        console.log(`📝 Message: ${message}`)
+        console.log(`🏠 Room: ${roomCode}`)
+        console.log(`👤 Current player: ${playerName}`)
+        
+        // Only process if this is a regular player (not host/dashboard)
+        if (playerName !== 'Market Dashboard' && !playerName.includes('Host')) {
+          // Show message to player
+          alert(message)
+          
+          // Reset to player login screen so they can rejoin with same credentials
+          setCurrentScreen('player-login')
+          
+          // Clear room connection but keep player name/avatar
+          setRoomId('')
+          setConnectedPlayers(0)
+          
+          // Reset players list
+          setPlayers([])
+          
+          console.log(`✅ Player ${playerName} redirected to login screen - can rejoin with same credentials`)
+        } else {
+          console.log(`📊 Host/Dashboard detected - ignoring reset message (they initiated it)`)
+        }
+        console.log(`🔄 === GAME RESET PROCESSED ===\n`)
+      })
+      
+      // Handle game ended - when host ends the game completely
+      socket.on('game:ended', ({ message, roomCode }: any) => {
+        console.log(`\n🛑 === GAME ENDED RECEIVED ===`)
+        console.log(`📝 Message: ${message}`)
+        console.log(`🏠 Room: ${roomCode}`)
+        console.log(`👤 Current player: ${playerName}`)
+        
+        // Show message to all users
+        alert(message)
+        
+        // Reset to appropriate screen
+        if (playerName === 'Market Dashboard') {
+          // Dashboard goes back to QR scanner
+          setCurrentScreen('qr-scanner')
+          console.log(`📊 Dashboard redirected to QR scanner`)
+        } else if (playerName.includes('Host')) {
+          // Host goes back to host setup
+          setCurrentScreen('host-setup')
+          console.log(`🎮 Host redirected to setup screen`)
+        } else {
+          // Regular players go to login
+          setCurrentScreen('player-login')
+          console.log(`👤 Player redirected to login screen`)
+        }
+        
+        // Clear all game state
+        setRoomId('')
+        setConnectedPlayers(0)
+        setPlayers([])
+        setPlayerScanActions([])
+        setAutoScanActions([])
+        
+        console.log(`✅ Game state cleared - ready for new game`)
+        console.log(`🛑 === GAME ENDED PROCESSED ===\n`)
+      })
+      
       // Test message -> used to show toast on Market Dashboard
       socket.on('test:messageReceived', handleTestMessageReceived)
       // Authoritative market state (percentages) from server
@@ -716,6 +1239,12 @@ export default function Home() {
         socket.off('lobby:update', handleLobbyUpdate)
         socket.off('dashboard:livePlayerUpdate', handleLivePlayerUpdate)
         socket.off('player:dataSync', handlePlayerDataSync)
+        // Extra: voorkom dubbele handlers
+        socket.off('turn:changed')
+        socket.off('player:swapReceived')
+        socket.off('market:stateUpdate')
+        socket.off('game:reset')
+        socket.off('game:ended')
         socket.off('test:messageReceived', handleTestMessageReceived)
         socket.off('crypto:priceUpdate')
         socket.off('crypto:forceRecalculation')
@@ -740,6 +1269,18 @@ export default function Home() {
       console.warn('Failed to sync dashboard market state', e)
     }
   }, [socket, roomId, playerName, cryptos])
+
+  useEffect(() => {
+    if (!socket || !roomId || roomId === 'solo-mode') return
+    if (playerName !== 'Market Dashboard') return
+
+    const interval = setInterval(() => {
+      console.log('⏱️ Dashboard requesting periodic refresh (10s)')
+      socket.emit('dashboard:requestRefresh', { roomCode: roomId })
+    }, 10000)
+
+    return () => clearInterval(interval)
+  }, [socket, roomId, playerName])
 
   // Request scan data when joining a room
   useEffect(() => {
@@ -819,6 +1360,13 @@ export default function Home() {
     return () => clearTimeout(t)
   }, [joinNotification])
 
+  // Auto-hide turn notification after 4 seconds
+  useEffect(() => {
+    if (!turnNotification) return
+    const t = setTimeout(() => setTurnNotification(null), 4000)
+    return () => clearTimeout(t)
+  }, [turnNotification])
+
   // Ensure newest player-added scan is broadcast to room if not yet emitted
   useEffect(() => {
     // Skip if not in multiplayer room
@@ -872,7 +1420,7 @@ export default function Home() {
         console.log('⚡ IMMEDIATE navigation to loading screen')
         setCurrentScreen('starting-game')
         
-        // Then navigate to final destination after 3 seconds
+        // Then navigate to final destination after 7 seconds
         setTimeout(() => {
           if (isHost) {
             console.log('👑 Host navigating to LIVE MARKET SCREEN (market-dashboard)')
@@ -882,7 +1430,7 @@ export default function Home() {
             setCurrentScreen('main-menu')
           }
           console.log('✅ Final navigation completed')
-        }, 3000)
+        }, 7000)
       }
 
       socket.on('game:started', handleGameStarted)
@@ -1066,6 +1614,43 @@ export default function Home() {
           }
           
           console.log('✅ Market event applied to crypto prices!')
+          
+          // 🎯 CRITICAL FIX: Recalculate and update totalValue after market events
+          // This ensures rankings stay accurate when prices change
+          // Use setCryptos callback to get the updated crypto values
+          setCryptos(prevCryptos => {
+            // Calculate new portfolio value with updated prices
+            const updatedPortfolioValue = Math.round(prevCryptos.reduce((sum, crypto) => sum + (crypto.price * crypto.amount), 0) * 100) / 100
+            const updatedTotalValue = Math.round((updatedPortfolioValue + cashBalance) * 100) / 100
+            
+            console.log('🔄 Recalculating totalValue after market event...')
+            console.log(`📊 Updated Portfolio Value: €${updatedPortfolioValue.toFixed(2)}`)
+            console.log(`💯 Updated Total Value: €${updatedTotalValue.toFixed(2)}`)
+            
+            if (socket && roomId && roomId !== 'solo-mode') {
+              socket.emit('player:updateData', {
+                roomCode: roomId,
+                playerData: {
+                  name: playerName,
+                  avatar: playerAvatar,
+                  totalValue: updatedTotalValue,
+                  portfolioValue: updatedPortfolioValue,
+                  cashBalance: cashBalance,
+                  portfolio: prevCryptos.reduce((acc, crypto) => {
+                    if (crypto.amount > 0) {
+                      acc[crypto.symbol] = crypto.amount
+                    }
+                    return acc
+                  }, {} as { [key: string]: number }),
+                  timestamp: Date.now(),
+                  version: Date.now()
+                }
+              })
+              console.log('📡 Updated player data sent to server after market event')
+            }
+            
+            return prevCryptos // Return unchanged cryptos since we already updated them above
+          })
         }
         console.log('🔍 === MARKET EVENT CHECK COMPLETE ===\n')
       }
@@ -1294,7 +1879,9 @@ export default function Home() {
       gameStartTime: Date.now(),
       lastSaveTime: Date.now()
     }
+    console.log('🎮 Setting gameState:', newGameState)
     setGameState(newGameState)
+    setIsGameFinishedForPlayer(false)
     setCurrentYear(startYear)
     // Players go to main menu (hosts already at market dashboard)
     navigateToScreen('main-menu')
@@ -1319,6 +1906,7 @@ export default function Home() {
     
     // Reset all state
     setGameState(null)
+    setIsGameFinishedForPlayer(false)
     setCashBalance(1000)
     setCryptos([
       {
@@ -1402,75 +1990,18 @@ export default function Home() {
     console.log('\n🎯 === QR SCAN EFFECT APPLIED ===')
     console.log('📊 Effect:', effect)
     
-    // STEP 1: Apply EVENT effects FIRST (Bull Run, Market Crash, Whale Alert)
-    // These must happen BEFORE navigation to ensure state updates complete
+    // STEP 1: EVENT effects (Bull Run, Market Crash, Whale Alert)
+    // Marktprijzen worden ALLEEN via server scanData (handleScanDataUpdate) aangepast,
+    // zodat elke client dezelfde +/‑% ziet en we geen dubbele toepassing krijgen.
     if (effect.type === 'event') {
-      console.log('\n🎰 === APPLYING EVENT EFFECT ===')
+      console.log('\n🎰 === EVENT EFFECT DETECTED (handled by server scanData) ===')
       console.log('🔍 Effect type:', effect.type)
       console.log('🔍 Effect message:', JSON.stringify(effect.message))
       console.log('🔍 Contains "Market Crash"?', effect.message.includes('Market Crash'))
       console.log('🔍 Contains "Bull Run"?', effect.message.includes('Bull Run'))
       console.log('🔍 Contains "Whale Alert"?', effect.message.includes('Whale Alert'))
-      
-      if (effect.message.includes('Bull Run')) {
-        console.log('🚀 BULL RUN: All coins +5%')
-        setCryptos(prev => prev.map(crypto => {
-          const newPrice = Math.round(crypto.price * 1.05 * 100) / 100
-          console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (+5%)`)
-          return {
-            ...crypto,
-            price: newPrice,
-            change24h: crypto.change24h + 5,
-            volume: crypto.volume * (0.9 + Math.random() * 0.2),
-            marketCap: crypto.marketCap * 1.05
-          }
-        }))
-        console.log('✅ Bull Run applied to all coins')
-      } else if (effect.message.includes('Market Crash') || effect.message.toLowerCase().includes('market crash')) {
-        console.log('📉 MARKET CRASH: All coins -10%')
-        console.log('🔍 Original prices before crash:', cryptos.map(c => `${c.symbol}: €${c.price}`))
-        
-        setCryptos(prev => {
-          const newCryptos = prev.map(crypto => {
-            const newPrice = Math.round(crypto.price * 0.9 * 100) / 100
-            console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (-10%)`)
-            return {
-              ...crypto,
-              price: newPrice,
-              change24h: crypto.change24h - 10,
-              volume: crypto.volume * (0.8 + Math.random() * 0.4),
-              marketCap: crypto.marketCap * 0.9
-            }
-          })
-          console.log('🔍 New prices after crash:', newCryptos.map(c => `${c.symbol}: €${c.price}`))
-          return newCryptos
-        })
-        console.log('✅ Market Crash applied to all coins')
-      } else if (effect.message.includes('Whale Alert')) {
-        const randomIndex = Math.floor(Math.random() * cryptos.length)
-        const targetCoin = cryptos[randomIndex]
-        console.log(`🐋 WHALE ALERT: Random coin +50% → ${targetCoin?.symbol || 'unknown'}`)
-        setCryptos(prev => prev.map((crypto, index) => {
-          if (index === randomIndex) {
-            const newPrice = Math.round(crypto.price * 1.5 * 100) / 100
-            console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (+50%)`)
-            return {
-              ...crypto,
-              price: newPrice,
-              change24h: 50,
-              volume: crypto.volume * 2,
-              marketCap: crypto.marketCap * 1.5
-            }
-          }
-          return crypto
-        }))
-        console.log('✅ Whale Alert applied to random coin')
-      } else {
-        console.log('⚠️ UNKNOWN EVENT - No matching pattern found!')
-        console.log('🔍 Effect message was:', JSON.stringify(effect.message))
-        console.log('🔍 Available patterns: "Bull Run", "Market Crash", "Whale Alert"')
-      }
-      console.log('🎰 === EVENT EFFECT COMPLETE ===\n')
+      // Geen lokale prijsaanpassing hier: server past markt aan en stuurt scanData/update,
+      // die in handleScanDataUpdate de nieuwe prijzen doorvoert voor alle spelers.
     }
     
     // STEP 2: Build effect text for display
@@ -1661,9 +2192,25 @@ export default function Home() {
   const handleWaitingRoomStart = () => {
     // IMMEDIATE loading screen - no delay
     console.log('🎮 Game starting - showing loading screen immediately')
+    
+    // Set gameState for multiplayer based on room settings
+    if (room && room.settings) {
+      const currentYear = new Date().getFullYear()
+      const newGameState: GameState = {
+        startYear: currentYear,
+        gameDuration: room.settings.gameDuration || 1,
+        gameStartTime: Date.now(),
+        lastSaveTime: Date.now()
+      }
+      console.log('🎮 Setting multiplayer gameState:', newGameState)
+      setGameState(newGameState)
+      setIsGameFinishedForPlayer(false)
+      setCurrentYear(currentYear)
+    }
+    
     navigateToScreen('starting-game')
     
-    // Short 3-second loading screen
+    // Longer 7-second loading screen
     setTimeout(() => {
       console.log('🎮 Loading complete - navigating to game interface')
       if (isHost) {
@@ -1671,7 +2218,7 @@ export default function Home() {
       } else {
         navigateToScreen('main-menu')
       }
-    }, 3000)
+    }, 7000)
   }
 
   const handleMarketDashboardNavigation = (screen: 'qr-scanner' | 'main-menu' | 'market' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript') => {
@@ -1817,9 +2364,39 @@ export default function Home() {
                 cryptos={cryptos}
                 year={currentYear}
                 onPassStart={() => {
+                  try {
+                    console.log('🎯 onPassStart called - gameState:', gameState)
+                    console.log('🎯 currentYear:', currentYear)
+                    console.log('🎯 isGameFinishedForPlayer:', isGameFinishedForPlayer)
+                    
+                    // Check EERST of speler al alle jaren heeft gespeeld
+                    if (gameState && typeof gameState.startYear === 'number' && typeof gameState.gameDuration === 'number') {
+                      const yearsCompleted = currentYear - gameState.startYear + 1
+                      console.log(`🔍 Years check: startYear=${gameState.startYear}, currentYear=${currentYear}, yearsCompleted=${yearsCompleted}, gameDuration=${gameState.gameDuration}`)
+                      
+                      if (yearsCompleted >= gameState.gameDuration) {
+                        console.log('🛑 Speler heeft al alle jaren voltooid, kan niet verder')
+                        setIsGameFinishedForPlayer(true)
+                        return // Stop hier, geen jaar-verhoging
+                      }
+                    } else {
+                      console.log('⚠️ Geen gameState gevonden of incomplete data - allowing year advance')
+                    }
+
+                  // Voeg alleen jaren toe als het spel nog loopt
                   setCashBalance(prev => Math.round((prev + 500) * 100) / 100)
                   setCurrentYear(prev => {
                     const next = prev + 1
+
+                    // Check na verhoging of dit het laatste jaar was
+                    if (gameState && typeof gameState.startYear === 'number' && typeof gameState.gameDuration === 'number') {
+                      const yearsCompleted = next - gameState.startYear + 1
+                      if (yearsCompleted >= gameState.gameDuration) {
+                        console.log('🏁 Alle speeljaren afgerond voor speler', playerName, `(${yearsCompleted}/${gameState.gameDuration})`)
+                        setIsGameFinishedForPlayer(true)
+                      }
+                    }
+
                     // Add a player scan action so it shows in the activities list
                     try {
                       const scan = {
@@ -1834,6 +2411,9 @@ export default function Home() {
                     } catch {}
                     return next
                   })
+                  } catch (error) {
+                    console.error('Error in onPassStart:', error)
+                  }
                 }}
                 onNavigate={handleMenuNavigation}
                 lastScanEffect={lastScanEffect}
@@ -1842,10 +2422,19 @@ export default function Home() {
                 playerScanActions={playerScanActions}
                 autoScanActions={autoScanActions}
                 transactions={transactions}
+                actionsDisabled={actionsDisabled}
+                onEndTurnConfirm={() => {
+                  console.log('⏭️ End turn confirmed from MainMenu')
+                  if (socket && roomId && roomId !== 'solo-mode') {
+                    socket.emit('turn:end', { roomCode: roomId })
+                  }
+                  navigateToScreen('main-menu')
+                }}
                 onSendTestMessage={handleSendTestMessage}
                 onAddScanAction={handleAddScanAction}
                 onVerifyRoom={verifyRoomMembership}
                 onApplyScanEffect={handleQRScan}
+                gameFinished={isGameFinishedForPlayer || false}
               />
             )
             
@@ -1867,6 +2456,7 @@ export default function Home() {
                 roomId={roomId}
                 dashboardToasts={dashboardToasts}
                 socket={socket}
+                onEndGame={handleEndGame}
               />
             )
           
@@ -1879,7 +2469,13 @@ export default function Home() {
                 <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-64 h-64 bg-neon-gold/10 blur-3xl rounded-full animate-pulse" />
                 
                 <div className="relative text-center crypto-card px-10 py-12 bg-white/5 border-white/10">
-                  <div className="w-20 h-20 border-4 border-neon-blue border-t-transparent rounded-full animate-spin mx-auto mb-5 shadow-neon-blue/30" />
+                  <div className="mb-6 flex justify-center">
+                    <img
+                      src="/Collage_logo.png"
+                      alt="CryptoClash"
+                      className="w-[40vw] md:w-[18vw] h-auto max-h-[40vh] drop-shadow-[0_8px_30px_rgba(139,92,246,0.6)]"
+                    />
+                  </div>
                   <h2 className="text-2xl font-extrabold bg-gradient-to-r from-neon-blue via-neon-purple to-neon-gold bg-clip-text text-transparent">
                     Spel wordt gestart...
                   </h2>
@@ -1911,6 +2507,7 @@ export default function Home() {
                 cryptos={cryptos}
                 onBack={() => navigateToScreen('main-menu')}
                 onSellCrypto={handleSellCrypto}
+                onEndGame={handleEndGame}
               />
             )
             
@@ -1962,6 +2559,13 @@ export default function Home() {
               <ActionsMenu 
                 playerName={playerName}
                 playerAvatar={playerAvatar}
+                onEndTurnConfirm={() => {
+                  console.log('⏭️ End turn confirmed from ActionsMenu')
+                  if (socket && roomId && roomId !== 'solo-mode') {
+                    socket.emit('turn:end', { roomCode: roomId })
+                  }
+                  navigateToScreen('main-menu')
+                }}
                 onNavigate={(screen) => {
                   if (screen === 'main-menu') {
                     navigateToScreen('main-menu')
@@ -1969,11 +2573,18 @@ export default function Home() {
                     navigateToScreen('buy')
                   } else if (screen === 'sell') {
                     navigateToScreen('sell')
+                  } else if (screen === 'win') {
+                    navigateToScreen('win')
+                  } else if (screen === 'swap') {
+                    navigateToScreen('swap')
                   } else {
                     console.log(`Navigate to ${screen} - Coming soon!`)
                   }
                 }}
                 onApplyScanEffect={handleQRScan}
+                playerScanActions={playerScanActions}
+                autoScanActions={autoScanActions}
+                actionsDisabled={actionsDisabled}
               />
             )
             
@@ -1984,7 +2595,7 @@ export default function Home() {
                 playerAvatar={playerAvatar}
                 cryptos={cryptos}
                 cashBalance={cashBalance}
-                onBack={() => navigateToScreen('actions-menu')}
+                onBack={() => navigateToScreen('main-menu')}
                 onConfirmBuy={(symbol, quantity) => {
                   // Calculate cost using current price
                   const selected = cryptos.find(c => c.symbol === symbol)
@@ -2026,8 +2637,6 @@ export default function Home() {
                       }
                     })
                   }
-
-                  navigateToScreen('main-menu')
                 }}
               />
             )
@@ -2101,8 +2710,224 @@ export default function Home() {
                     })
                   }
 
-                  // After selling, hide sell buttons by navigating to plain portfolio view
-                  navigateToScreen('portfolio')
+                  // Na verkoop terug naar hoofdmenu i.p.v. in verkoopflow te blijven
+                  navigateToScreen('main-menu')
+                }}
+              />
+            )
+            
+          case 'win':
+            return (
+              <Win
+                playerName={playerName}
+                playerAvatar={playerAvatar}
+                cryptos={cryptos}
+                onNavigate={(screen) => navigateToScreen(screen as Screen)}
+                onWinCrypto={(cryptoSymbol: string) => {
+                  // Add 1 crypto coin to player's wallet
+                  const newCryptos = cryptos.map(c => 
+                    c.symbol === cryptoSymbol ? { ...c, amount: c.amount + 1 } : c
+                  )
+                  setCryptos(newCryptos)
+
+                  // Calculate new portfolio value and total value
+                  const newPortfolioMap = newCryptos.reduce((acc: any, c: any) => { 
+                    acc[c.symbol] = c.amount
+                    return acc 
+                  }, {} as Record<string, number>)
+                  const newPortfolioValue = Math.round(newCryptos.reduce((sum, c) => sum + (c.price * c.amount), 0) * 100) / 100
+                  const newTotalValue = Math.round((newPortfolioValue + cashBalance) * 100) / 100
+
+                  // Record win action
+                  const coin = cryptos.find(c => c.symbol === cryptoSymbol)
+                  const winAction = {
+                    id: `win-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+                    timestamp: Date.now(),
+                    player: playerName || 'Speler',
+                    action: `Win ${coin?.name || cryptoSymbol}`,
+                    effect: `+1 ${cryptoSymbol}`,
+                    avatar: playerAvatar
+                  }
+                  setPlayerScanActions(prev => [winAction, ...prev.slice(0, 9)])
+
+                  // Sync with server
+                  if (socket && roomId) {
+                    socket.emit('player:updateData', {
+                      roomCode: roomId,
+                      playerData: {
+                        name: playerName,
+                        avatar: playerAvatar,
+                        portfolio: newPortfolioMap,
+                        cashBalance: cashBalance,
+                        portfolioValue: newPortfolioValue,
+                        totalValue: newTotalValue,
+                        timestamp: Date.now()
+                      }
+                    })
+                  }
+
+                  console.log(`✅ Player won 1 ${cryptoSymbol}`)
+                }}
+                onWinCash={() => {
+                  // Add €500 to player's cash wallet
+                  const newCash = Math.round((cashBalance + 500) * 100) / 100
+                  setCashBalance(newCash)
+
+                  // Calculate new total value
+                  const newPortfolioMap = cryptos.reduce((acc: any, c: any) => { 
+                    acc[c.symbol] = c.amount
+                    return acc 
+                  }, {} as Record<string, number>)
+                  const newPortfolioValue = Math.round(cryptos.reduce((sum, c) => sum + (c.price * c.amount), 0) * 100) / 100
+                  const newTotalValue = Math.round((newPortfolioValue + newCash) * 100) / 100
+
+                  // Record transaction
+                  setTransactions(prev => [{
+                    id: `tx-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+                    type: 'win',
+                    cryptoSymbol: 'CASH',
+                    cryptoName: 'Cash Win',
+                    amount: 500,
+                    price: 1,
+                    total: 500,
+                    timestamp: Date.now()
+                  }, ...prev])
+
+                  // Record win action
+                  const winAction = {
+                    id: `win-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+                    timestamp: Date.now(),
+                    player: playerName || 'Speler',
+                    action: 'Win Cash',
+                    effect: '+€500',
+                    avatar: playerAvatar
+                  }
+                  setPlayerScanActions(prev => [winAction, ...prev.slice(0, 9)])
+
+                  // Sync with server
+                  if (socket && roomId) {
+                    socket.emit('player:updateData', {
+                      roomCode: roomId,
+                      playerData: {
+                        name: playerName,
+                        avatar: playerAvatar,
+                        portfolio: newPortfolioMap,
+                        cashBalance: newCash,
+                        portfolioValue: newPortfolioValue,
+                        totalValue: newTotalValue,
+                        timestamp: Date.now()
+                      }
+                    })
+                  }
+
+                  console.log(`✅ Player won €500 cash`)
+                }}
+                onWinGoldHen={() => {
+                  // Add €1000 to player's cash wallet via Goudhaantje
+                  const newCash = Math.round((cashBalance + 1000) * 100) / 100
+                  setCashBalance(newCash)
+
+                  // Calculate new total value
+                  const newPortfolioMap = cryptos.reduce((acc: any, c: any) => { 
+                    acc[c.symbol] = c.amount
+                    return acc 
+                  }, {} as Record<string, number>)
+                  const newPortfolioValue = Math.round(cryptos.reduce((sum, c) => sum + (c.price * c.amount), 0) * 100) / 100
+                  const newTotalValue = Math.round((newPortfolioValue + newCash) * 100) / 100
+
+                  // Record transaction
+                  setTransactions(prev => [{
+                    id: `tx-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+                    type: 'win',
+                    cryptoSymbol: 'CASH',
+                    cryptoName: 'Goudhaantje',
+                    amount: 1000,
+                    price: 1,
+                    total: 1000,
+                    timestamp: Date.now()
+                  }, ...prev])
+
+                  // Record win action
+                  const winAction = {
+                    id: `win-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+                    timestamp: Date.now(),
+                    player: playerName || 'Speler',
+                    action: 'Win Goudhaantje',
+                    effect: '+€1000',
+                    avatar: playerAvatar
+                  }
+                  setPlayerScanActions(prev => [winAction, ...prev.slice(0, 9)])
+
+                  // Sync with server
+                  if (socket && roomId) {
+                    socket.emit('player:updateData', {
+                      roomCode: roomId,
+                      playerData: {
+                        name: playerName,
+                        avatar: playerAvatar,
+                        portfolio: newPortfolioMap,
+                        cashBalance: newCash,
+                        portfolioValue: newPortfolioValue,
+                        totalValue: newTotalValue,
+                        timestamp: Date.now()
+                      }
+                    })
+                  }
+
+                  console.log(`✅ Player won €1000 via Goudhaantje`)
+                }}
+              />
+            )
+            
+          case 'swap':
+            return (
+              <SwapScreen
+                playerName={playerName}
+                playerAvatar={playerAvatar}
+                cryptos={cryptos}
+                players={players}
+                onNavigate={(screen) => navigateToScreen(screen as Screen)}
+                onSwapConfirm={(myCryptoId: string, otherPlayerId: string, otherCryptoId: string) => {
+                  // Zoek mijn crypto, de gekozen crypto van de andere speler en de speler zelf
+                  const myCrypto = cryptos.find(c => c.id === myCryptoId)
+                  const otherCrypto = cryptos.find(c => c.id === otherCryptoId)
+                  const otherPlayer = players.find(p => p.id === otherPlayerId)
+                  
+                  if (!myCrypto || !otherCrypto || !otherPlayer) {
+                    console.error('❌ Ongeldige swap: crypto of speler niet gevonden')
+                    return
+                  }
+
+                  // Controle: beide spelers moeten minstens 1 munt hebben
+                  const myAmount = myCrypto.amount
+                  const otherAmount = otherPlayer.portfolio[otherCrypto.symbol] || 0
+
+                  if (myAmount < 1) {
+                    console.error('❌ Ongeldige swap: jij hebt minder dan 1 munt')
+                    return
+                  }
+
+                  if (otherAmount < 1) {
+                    console.error('❌ Ongeldige swap: andere speler heeft minder dan 1 munt')
+                    return
+                  }
+
+                  // Stuur swap request naar server - server doet alle updates
+                  // Beide spelers krijgen player:swapReceived en updaten daar hun portfolio
+                  if (socket && roomId && mySocketId) {
+                    socket.emit('player:swap', {
+                      roomCode: roomId,
+                      fromPlayerId: mySocketId,
+                      toPlayerId: otherPlayerId,
+                      fromCryptoId: myCrypto.symbol,
+                      toCryptoId: otherCrypto.symbol
+                    })
+
+                    console.log(`✅ Swap aangevraagd: 1x ${myCrypto.symbol} ↔ 1x ${otherCrypto.symbol} met ${otherPlayer.name}`)
+                  }
+
+                  // Na bevestigen van de swap terug naar hoofdmenu; updates komen via player:swapReceived
+                  navigateToScreen('main-menu')
                 }}
               />
             )
@@ -2146,6 +2971,56 @@ export default function Home() {
                   {joinNotification.isRejoining ? '🔄 Speler teruggekeerd' : '🎉 Nieuwe speler'}
                 </p>
                 <p className="text-base font-bold text-white">{joinNotification.message}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Turn change notification overlay */}
+      {turnNotification && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-md">
+          <div className="relative w-full max-w-xl mx-4 rounded-2xl bg-dark-bg/95 border border-neon-gold/50 shadow-[0_0_40px_rgba(255,215,0,0.35)] overflow-hidden">
+            {/* Top accent bar */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-neon-gold via-neon-purple to-neon-gold" />
+
+            <div className="px-6 pt-5 pb-6 flex items-start space-x-4">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-neon-gold/15 border border-neon-gold/60 shadow-inner">
+                <span className="text-2xl">⚡</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-neon-gold tracking-wide uppercase mb-1">Beurt gewisseld</p>
+                <p className="text-xl font-extrabold text-white mb-2">
+                  Beurt nu aan <span className="text-neon-gold">{turnNotification.playerName}</span>
+                </p>
+                <p className="text-sm text-gray-300">
+                  Wacht even op de acties van deze speler. Zodra hij zijn beurt beëindigt, ben jij weer aan zet.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Swap notification overlay */}
+      {swapNotification && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-md">
+          <div className="relative w-full max-w-xl mx-4 rounded-2xl bg-dark-bg/95 border border-neon-purple/50 shadow-[0_0_40px_rgba(168,85,247,0.35)] overflow-hidden">
+            {/* Top accent bar */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-neon-purple via-neon-gold to-neon-purple" />
+
+            <div className="px-6 pt-5 pb-6 flex items-start space-x-4">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-neon-purple/15 border border-neon-purple/60 shadow-inner">
+                <span className="text-2xl">🔄</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-neon-purple tracking-wide uppercase mb-1">Swap ontvangen</p>
+                <p className="text-xl font-extrabold text-white mb-2">
+                  Ruil met <span className="text-neon-gold">{swapNotification.fromPlayerName}</span> {swapNotification.fromPlayerAvatar}
+                </p>
+                <p className="text-sm text-gray-300">
+                  Je hebt <span className="text-neon-gold font-semibold">1x {swapNotification.receivedCrypto}</span> ontvangen en <span className="text-red-400 font-semibold">1x {swapNotification.lostCrypto}</span> weggegeven.
+                </p>
               </div>
             </div>
           </div>

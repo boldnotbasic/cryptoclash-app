@@ -18,6 +18,7 @@ interface Room {
     volatility: string
     gameDuration: number
   }
+  playerOrder?: string[]
 }
 
 interface SocketContextType {
@@ -25,6 +26,7 @@ interface SocketContextType {
   connected: boolean
   room: Room | null
   error: string | null
+  roomCode: string | null
   createRoom: (roomCode: string, hostName: string, hostAvatar: string, settings: any) => void
   joinRoom: (roomCode: string, playerName: string, playerAvatar: string) => void
   startGame: (roomCode: string) => void
@@ -46,6 +48,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [connected, setConnected] = useState(false)
   const [room, setRoom] = useState<Room | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [roomCode, setRoomCode] = useState<string | null>(null)
 
   useEffect(() => {
     // Only create socket if it doesn't exist
@@ -75,12 +78,19 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.log('🔌 Global socket connected:', socket.id)
         setConnected(true)
         setError(null)
+        
+        // 🚨 FIX: Try to recover room state if we have room data from before disconnect
+        if (roomCode && room) {
+          console.log('🔄 Attempting to recover room state after reconnect for room:', roomCode)
+          socket.emit('room:requestState', { roomCode })
+        }
       })
 
       socket.on('disconnect', (reason) => {
         console.log('🔌 Global socket disconnected:', reason)
         setConnected(false)
-        setRoom(null)
+        // 🚨 FIX: Don't clear room on disconnect - keep it for recovery
+        // setRoom(null)
       })
 
       socket.on('connect_error', (error) => {
@@ -94,6 +104,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.log('🏠 Room created/joined successfully:', roomCode)
         console.log('🏠 Room data:', room)
         setRoom(room)
+        setRoomCode(roomCode)
         setError(null)
       })
 
@@ -111,6 +122,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         
         if (room && room.players) {
           setRoom(room)
+          setRoomCode(roomCode)
           setError(null)
           console.log('✅ Room state updated successfully')
         } else {
@@ -127,8 +139,15 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       // Lobby events
       socket.on('lobby:update', (updatedRoom) => {
-        console.log('🔄 Lobby updated')
+        console.log('🔄 === LOBBY UPDATE RECEIVED ===')
+        console.log('👥 Players in update:', Object.keys(updatedRoom?.players || {}).length)
+        if (updatedRoom && updatedRoom.players) {
+          Object.entries(updatedRoom.players).forEach(([id, player]: [string, any]) => {
+            console.log(`  - ${player.avatar} ${player.name} (${id.substring(0, 8)}...)${player.isHost ? ' 👑' : ''}`)
+          })
+        }
         setRoom(updatedRoom)
+        console.log('✅ Room state updated from lobby:update')
       })
 
       // Game events
@@ -149,6 +168,21 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       socket.on('debug:rooms', (rooms) => {
         console.log('📋 Available rooms:', Object.keys(rooms))
+      })
+
+      // 🚨 NEW: Room state recovery events
+      socket.on('room:stateRecovered', ({ roomCode, room }) => {
+        console.log('🔄 Room state recovered:', roomCode)
+        setRoom(room)
+        setRoomCode(roomCode)
+        setError(null)
+      })
+
+      socket.on('room:stateRecoveryError', (errorMessage) => {
+        console.error('🔄 Room state recovery error:', errorMessage)
+        setError(errorMessage)
+        setRoom(null)
+        setRoomCode(null)
       })
     }
 
@@ -211,6 +245,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       connected,
       room,
       error,
+      roomCode,
       createRoom,
       joinRoom,
       startGame,

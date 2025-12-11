@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { CheckCircle, TrendingUp, TrendingDown, Zap, AlertTriangle, Gift } from 'lucide-react'
 
@@ -18,78 +18,94 @@ export interface ScanEffect {
   color: string
 }
 
-const scanScenarios: ScanEffect[] = [
+interface ScanScenarioTemplate {
+  type: ScanEffect['type']
+  cryptoSymbol?: string
+  minPercentage?: number
+  maxPercentage?: number
+  baseMessage: string
+  icon: string
+  color: string
+}
+
+const whaleSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+
+const scanScenarios: ScanScenarioTemplate[] = [
   {
     type: 'boost',
     cryptoSymbol: 'DSHEEP',
-    percentage: 15,
-    message: 'DigiSheep stijgt 15%!',
+    minPercentage: -30,
+    maxPercentage: 30,
+    baseMessage: 'DigiSheep stijgt {PERCENTAGE}!',
     icon: '🐑',
     color: 'neon-purple'
   },
   {
     type: 'boost',
     cryptoSymbol: 'NGT',
-    percentage: 8,
-    message: 'Nugget rally +8%!',
+    minPercentage: -30,
+    maxPercentage: 30,
+    baseMessage: 'Nugget rally {PERCENTAGE}!',
     icon: '🐔',
     color: 'neon-gold'
   },
   {
     type: 'crash',
     cryptoSymbol: 'LNTR',
-    percentage: -12,
-    message: 'Lentra crash -12%!',
+    minPercentage: -30,
+    maxPercentage: 30,
+    baseMessage: 'Lentra crash {PERCENTAGE}!',
     icon: '🌟',
     color: 'neon-blue'
   },
   {
     type: 'boost',
     cryptoSymbol: 'OMLT',
-    percentage: 20,
-    message: 'Omlet explodeert +20%!',
+    minPercentage: 10,
+    maxPercentage: 25,
+    baseMessage: 'Omlet beweegt {PERCENTAGE}!',
     icon: '🥚',
     color: 'neon-turquoise'
   },
   {
-    type: 'event',
-    message: 'Bull Run! Alle munten +5%!',
-    icon: '🚀',
-    color: 'neon-gold'
-  },
-  {
     type: 'boost',
     cryptoSymbol: 'REX',
-    percentage: 25,
-    message: 'Rex breakthrough +25%!',
+    minPercentage: -30,
+    maxPercentage: 30,
+    baseMessage: 'Rex move {PERCENTAGE}!',
     icon: '💫',
     color: 'neon-purple'
   },
   {
     type: 'crash',
     cryptoSymbol: 'ORLO',
-    percentage: -8,
-    message: 'Orlo dip -8%',
+    minPercentage: -30,
+    maxPercentage: 30,
+    baseMessage: 'Orlo dip {PERCENTAGE}',
     icon: '🎵',
     color: 'neon-gold'
   },
   {
     type: 'event',
-    message: 'Market Crash! Alle munten -10%!',
-    icon: '📉',
-    color: 'red-500'
-  },
-  {
-    type: 'boost',
-    cryptoSymbol: 'DSHEEP',
-    percentage: 30,
-    message: 'DigiSheep moon shot +30%!',
-    icon: '🐑',
-    color: 'neon-purple'
+    minPercentage: 5,
+    maxPercentage: 5,
+    baseMessage: 'Bull Run! Alle munten {PERCENTAGE}!',
+    icon: '�',
+    color: 'neon-gold'
   },
   {
     type: 'event',
-    message: 'Whale Alert! Random munt +50%!',
+    minPercentage: -10,
+    maxPercentage: -10,
+    baseMessage: 'Market Crash! Alle munten {PERCENTAGE}!',
+    icon: '�',
+    color: 'red-500'
+  },
+  {
+    type: 'event',
+    minPercentage: 50,
+    maxPercentage: 50,
+    baseMessage: 'Whale Alert! {SYMBOL} {PERCENTAGE}!',
     icon: '🐋',
     color: 'neon-turquoise'
   }
@@ -98,68 +114,113 @@ const scanScenarios: ScanEffect[] = [
 export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) {
   const [currentScenario, setCurrentScenario] = useState<ScanEffect | null>(null)
   const [isVisible, setIsVisible] = useState(false)
+  const initializedRef = useRef(false)
+
+  const buildScenarioFromTemplate = (template: ScanScenarioTemplate): ScanEffect => {
+    let percentage: number | undefined = undefined
+    if (typeof template.minPercentage === 'number' && typeof template.maxPercentage === 'number') {
+      const raw = template.minPercentage + Math.random() * (template.maxPercentage - template.minPercentage)
+      percentage = Math.round(raw * 10) / 10
+    }
+
+    let message = template.baseMessage
+    if (template.type === 'event') {
+      // Events blijven hun percentage in de titel tonen
+      if (message.includes('{PERCENTAGE}')) {
+        message = message
+          .replace('{PERCENTAGE}', '')
+          .replace(/\s+(!|\?|\.)/g, '$1')
+          .replace(/\s{2,}/g, ' ')
+          .trim()
+      }
+    } else {
+      // Voor coin-scenario's: geen percentage in de titel en werkwoord normaliseren naar stijgt/daalt
+      if (percentage !== undefined) {
+        const isPositive = percentage > 0
+        // vervang verschillende werkwoorden naar stijgt/daalt
+        message = message.replace(/\b(stijgt|daalt|beweegt|rally|crash|move|dip)\b/gi, isPositive ? 'stijgt' : 'daalt')
+      }
+      // verwijder placeholder en opschonen van extra spaties/teken
+      if (message.includes('{PERCENTAGE}')) {
+        message = message
+          .replace('{PERCENTAGE}', '')
+          .replace(/\s+(!|\?|\.)/g, '$1')
+          .replace(/\s{2,}/g, ' ')
+          .trim()
+      }
+    }
+
+    let cryptoSymbol = template.cryptoSymbol
+    if (message.includes('{SYMBOL}')) {
+      if (!cryptoSymbol) {
+        cryptoSymbol = whaleSymbols[Math.floor(Math.random() * whaleSymbols.length)]
+      }
+      message = message.replace('{SYMBOL}', cryptoSymbol)
+    }
+
+    return {
+      type: template.type,
+      cryptoSymbol,
+      percentage,
+      message,
+      icon: template.icon,
+      color: template.color
+    }
+  }
 
   useEffect(() => {
+    // React 18 StrictMode runt effects twee keer in dev; zorg dat we
+    // maar één keer een scenario kiezen en audio afspelen.
+    if (initializedRef.current) return
+    initializedRef.current = true
     console.log('ScanResult component mounted')
-    // Select random scenario
-    const randomScenario = scanScenarios[Math.floor(Math.random() * scanScenarios.length)]
-    console.log('Selected scenario:', randomScenario)
-    setCurrentScenario(randomScenario)
-    
+    const randomTemplate = scanScenarios[Math.floor(Math.random() * scanScenarios.length)]
+    const scenario = buildScenarioFromTemplate(randomTemplate)
+    console.log('Selected scenario:', scenario)
+    setCurrentScenario(scenario)
+
     // Play audio based on effect type (after user interaction)
     const playAudio = async () => {
       try {
-        const isPositive = (randomScenario.percentage && randomScenario.percentage > 0) || 
-                          randomScenario.message.includes('Bull Run') || 
-                          randomScenario.message.includes('stijgt') ||
-                          randomScenario.message.includes('+')
-        
-        if (isPositive) {
-          // Success sound - higher pitched beep
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-          
-          // Resume audio context if suspended (browser autoplay policy)
-          if (audioContext.state === 'suspended') {
-            await audioContext.resume()
-          }
-          const oscillator = audioContext.createOscillator()
-          const gainNode = audioContext.createGain()
-          
-          oscillator.connect(gainNode)
-          gainNode.connect(audioContext.destination)
-          
-          oscillator.frequency.setValueAtTime(800, audioContext.currentTime)
-          oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1)
-          oscillator.type = 'sine'
-          
-          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
-          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
-          
-          oscillator.start(audioContext.currentTime)
-          oscillator.stop(audioContext.currentTime + 0.3)
+        // Bepaal expliciet of dit een stijging (succes-geluid) of daling (fail-geluid) is
+        const msg = (scenario.message || '').toLowerCase()
+        let isPositive = false
+
+        if (typeof scenario.percentage === 'number') {
+          // Percentage bekend: >0 = stijging, <0 = daling
+          isPositive = scenario.percentage > 0
         } else {
-          // Failure sound - lower pitched descending tone
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-          
-          // Resume audio context if suspended (browser autoplay policy)
-          if (audioContext.state === 'suspended') {
-            await audioContext.resume()
+          // Geen expliciet percentage: leid af uit tekst / event naam
+          if (
+            msg.includes('bull run') ||
+            msg.includes('whale alert') ||
+            msg.includes('+') ||
+            msg.includes('stijgt') ||
+            msg.includes('omhoog')
+          ) {
+            isPositive = true
           }
-          const oscillator = audioContext.createOscillator()
-          const gainNode = audioContext.createGain()
-          
-          oscillator.connect(gainNode)
-          gainNode.connect(audioContext.destination)
-          
-          oscillator.frequency.setValueAtTime(400, audioContext.currentTime)
-          oscillator.frequency.setValueAtTime(200, audioContext.currentTime + 0.4)
-          oscillator.type = 'sawtooth'
-          
-          gainNode.gain.setValueAtTime(0.2, audioContext.currentTime)
-          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4)
-          
-          oscillator.start(audioContext.currentTime)
-          oscillator.stop(audioContext.currentTime + 0.4)
+          // Market Crash / daalt blijven standaard negatief (isPositive blijft false)
+        }
+
+        if (isPositive) {
+          // Gebruik jouw eigen succes-geluid uit /public
+          const audio = new Audio('/chime_success.wav')
+          audio.volume = 0.9
+          try {
+            await audio.play()
+          } catch (err) {
+            console.warn('Failed to play success sound', err)
+          }
+        } else {
+          // Gebruik jouw eigen fail-geluid uit /public
+          const audio = new Audio('/fail_sound.wav')
+          audio.volume = 0.9
+          try {
+            await audio.play()
+          } catch (err) {
+            console.warn('Failed to play fail sound', err)
+          }
         }
       } catch (error) {
         console.log('Audio not supported:', error)
@@ -173,19 +234,29 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
       await playAudio()
     }, 100)
     
-    // Auto close after 3 seconds
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run once on mount
+
+  // Separate effect for auto-close timer that depends on currentScenario being set
+  useEffect(() => {
+    if (!currentScenario) return
+    
+    console.log('Starting auto-close timer for scenario:', currentScenario.message)
     const timer = setTimeout(() => {
-      console.log('Auto-closing scan result')
+      console.log('🔥 FORCE CLOSING scan result NOW')
       setIsVisible(false)
       setTimeout(() => {
-        console.log('Applying effect and closing')
-        onApplyEffect(randomScenario)
+        console.log('🔥 APPLYING EFFECT and closing')
+        onApplyEffect(currentScenario)
         onClose()
       }, 300)
-    }, 3000)
+    }, 3100) // 100ms fade-in + 3000ms display time
 
-    return () => clearTimeout(timer)
-  }, [onClose, onApplyEffect])
+    return () => {
+      console.log('🧹 Cleaning up auto-close timer')
+      clearTimeout(timer)
+    }
+  }, [currentScenario, onApplyEffect, onClose])
 
   if (!currentScenario) return null
 
@@ -200,6 +271,20 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
       case 'NGT': return '/Nugget.png'
       default: return null
     }
+  }
+
+  // Custom images for event-scenario's (Bull Run, Market Crash, Whale Alert)
+  // Gebruikt jouw bestaande files in /public:
+  //  - /Bull-run.png
+  //  - /Beurscrash.png
+  //  - /Whala-alert.png
+  const getEventImagePath = () => {
+    if (currentScenario.type !== 'event') return null
+    const msg = currentScenario.message || ''
+    if (msg.includes('Bull Run')) return '/Bull-run.png'
+    if (msg.includes('Market Crash')) return '/Beurscrash.png'
+    if (msg.includes('Whale Alert')) return '/Whala-alert.png'
+    return null
   }
 
   const getBackgroundColor = () => {
@@ -236,36 +321,46 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">     
       <div className={`transform transition-all duration-500 ${
         isVisible ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
       }`}>
         <div className={`crypto-card ${getBorderColor()} bg-gradient-to-br ${getBackgroundColor()} max-w-md w-full text-center p-8`}>
-          {/* Success Icon */}
-          <div className="mb-6">
-            <div className="mx-auto w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
-              <CheckCircle className="w-8 h-8 text-green-400" />
-            </div>
-            <h2 className="text-2xl font-bold text-green-400 mb-2">Scan Gelukt!</h2>
-          </div>
 
           {/* Crypto Icon */}
           <div className="mb-6">
             <div className="text-8xl mb-4 flex items-center justify-center">
               {(() => {
-                const imagePath = getCryptoImagePath(currentScenario.cryptoSymbol)
-                if (!imagePath) {
-                  return <span>{currentScenario.icon}</span>
+                // Eerst: custom event image (Bull Run / Market Crash / Whale Alert)
+                const eventImage = getEventImagePath()
+                if (eventImage) {
+                  return (
+                    <Image                               
+                      src={eventImage}
+                      alt={currentScenario.message}
+                      width={180}
+                      height={180}
+                      className="object-contain"
+                    />
+                  )
                 }
-                return (
-                  <Image
-                    src={imagePath}
-                    alt={currentScenario.cryptoSymbol || 'Crypto'}
-                    width={96}
-                    height={96}
-                    className="object-contain"
-                  />
-                )
+
+                // Anders: normale crypto image op basis van symbool
+                const imagePath = getCryptoImagePath(currentScenario.cryptoSymbol)
+                if (imagePath) {
+                  return (
+                    <Image
+                      src={imagePath}
+                      alt={currentScenario.cryptoSymbol || 'Crypto'}
+                      width={180}
+                      height={180}
+                      className="object-contain"
+                    />
+                  )
+                }
+
+                // Fallback: emoji/icon uit scenario
+                return <span>{currentScenario.icon}</span>
               })()}
             </div>
             {currentScenario.cryptoSymbol && (
@@ -295,27 +390,7 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
             )}
           </div>
 
-          {/* Effect Type Badge */}
-          <div className="mb-6">
-            {currentScenario.type === 'boost' && (
-              <div className="inline-flex items-center space-x-2 bg-green-500/20 px-4 py-2 rounded-full">
-                <Zap className="w-4 h-4 text-green-400" />
-                <span className="text-green-400 font-semibold">BOOST</span>
-              </div>
-            )}
-            {currentScenario.type === 'crash' && (
-              <div className="inline-flex items-center space-x-2 bg-red-500/20 px-4 py-2 rounded-full">
-                <AlertTriangle className="w-4 h-4 text-red-400" />
-                <span className="text-red-400 font-semibold">CRASH</span>
-              </div>
-            )}
-            {currentScenario.type === 'event' && (
-              <div className="inline-flex items-center space-x-2 bg-yellow-500/20 px-4 py-2 rounded-full">
-                <Gift className="w-4 h-4 text-yellow-400" />
-                <span className="text-yellow-400 font-semibold">EVENT</span>
-              </div>
-            )}
-          </div>
+
 
           {/* Auto-close indicator */}
           <div className="text-gray-400 text-sm">
@@ -327,20 +402,6 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
             </div>
             Wordt automatisch toegepast...
           </div>
-
-          {/* Manual close button */}
-          <button
-            onClick={() => {
-              setIsVisible(false)
-              setTimeout(() => {
-                onApplyEffect(currentScenario)
-                onClose()
-              }, 300)
-            }}
-            className="mt-4 text-gray-400 hover:text-white transition-colors text-sm underline"
-          >
-            Nu toepassen
-          </button>
         </div>
       </div>
     </div>

@@ -64,10 +64,13 @@ interface MainMenuProps {
   transactions?: any[]
   year?: number
   onPassStart?: () => void
+  gameFinished?: boolean
   onApplyScanEffect?: (effect: ScanEffect) => void
+  actionsDisabled?: boolean
+  onEndTurnConfirm?: () => void
 }
 
-export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate, onAddScanAction, lastScanEffect, cashBalance = 0, players = [], playerScanActions = [], autoScanActions = [], onSendTestMessage, onVerifyRoom, transactions = [], year = 2024, onPassStart, onApplyScanEffect }: MainMenuProps) {
+export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate, onAddScanAction, lastScanEffect, cashBalance = 0, players = [], playerScanActions = [], autoScanActions = [], onSendTestMessage, onVerifyRoom, transactions = [], year = 2024, onPassStart, onApplyScanEffect, actionsDisabled = false, onEndTurnConfirm, gameFinished = false }: MainMenuProps) {
   // Calculate portfolio value (with consistent rounding)
   const portfolioValue = Math.round(cryptos.reduce((sum, crypto) => sum + (crypto.price * crypto.amount), 0) * 100) / 100
   const totalValue = Math.round((portfolioValue + cashBalance) * 100) / 100
@@ -244,18 +247,37 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 p-4">
       <div className="max-w-6xl mx-auto">
-        <Header playerName={playerName} playerAvatar={playerAvatar} onLogoClick={() => {}} />
+        <Header 
+          playerName={playerName} 
+          playerAvatar={playerAvatar} 
+          onLogoClick={() => {}} 
+          actionsDisabled={actionsDisabled}
+          onEndTurnConfirm={onEndTurnConfirm}
+        />
 
-        
+        {/* Overlay wanneer speler alle jaren heeft gespeeld */}
+        {gameFinished && (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="max-w-md mx-4 rounded-2xl bg-dark-bg/95 border border-neon-gold/60 shadow-[0_0_40px_rgba(250,204,21,0.6)] p-6 text-center">
+              <h2 className="text-2xl font-bold text-neon-gold mb-3">Spel beëindigd</h2>
+              <p className="text-gray-200 text-sm mb-1">
+                Je hebt alle speeljaren voltooid.
+              </p>
+              <p className="text-gray-400 text-xs">
+                Wacht tot de andere spelers het spel hebben afgerond.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Menu Buttons */}
         <div className="grid grid-cols-2 gap-4 mb-8">
           {/* Acties - Icon boven tekst */}
           <button
-            onClick={() => onNavigate('actions-menu')}
+            onClick={actionsDisabled ? undefined : () => onNavigate('actions-menu')}
             className={getTileClasses(
               true,
-              "crypto-card bg-gradient-to-br from-green-500 to-neon-purple text-center p-0 group h-[200px] flex flex-col shadow-lg hover:shadow-green-500/20"
+              `crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 text-center p-0 group h-[200px] flex flex-col shadow-lg shadow-purple-500/30 ${actionsDisabled ? 'opacity-40 pointer-events-none' : 'hover:shadow-purple-500/50 hover:border-purple-500/90'}`
             )}
           >
             <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-2">
@@ -263,6 +285,12 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                 <ListChecks className="w-9 h-9 text-white" />
               </div>
               <h3 className="text-lg font-bold text-white tracking-tight">Acties</h3>
+              {!actionsDisabled && (
+                <div className="flex items-center space-x-1 px-2 py-1 bg-neon-gold/20 border border-neon-gold/50 rounded-full">
+                  <span className="text-xs text-neon-gold font-bold">Jouw beurt</span>
+                  <span className="text-neon-gold">⚡</span>
+                </div>
+              )}
             </div>
           </button>
 
@@ -271,7 +299,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             onClick={() => onNavigate('market')}
             className={getTileClasses(
               true,
-              "crypto-card bg-gradient-to-br from-neon-blue to-neon-turquoise relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg hover:shadow-cyan-500/20"
+              "crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:border-purple-500/90"
             )}
           >
             {/* Top deel: Icon + Titel */}
@@ -324,7 +352,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             onClick={() => onNavigate('portfolio')}
             className={getTileClasses(
               true,
-              "crypto-card bg-gradient-to-br from-neon-turquoise to-neon-gold relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg hover:shadow-cyan-500/20"
+              "crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:border-purple-500/90"
             )}
           >
             {/* Top deel: Icon naast titel */}
@@ -360,7 +388,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                         <span className="text-lg">{crypto.icon}</span>
                       )}
                       <span className="text-[10px] text-white/90 mt-1 font-semibold">
-                        {crypto.amount.toFixed(0)}
+                        {crypto.amount.toFixed(2)}
                       </span>
                     </div>
                   )
@@ -383,7 +411,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             onClick={() => onNavigate('cash')}
             className={getTileClasses(
               true,
-              "crypto-card bg-gradient-to-br from-neon-gold to-green-500 relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg hover:shadow-yellow-500/20"
+              "crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:border-purple-500/90"
             )}
           >
             {/* Top deel: Icon naast titel */}
@@ -441,61 +469,92 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             </div>
           </button>
 
-          {/* Scannen - Icon boven tekst */}
+          {/* Speeljaar - Jaartal tegel */}
           <button
-            onClick={() => onNavigate('qr-scanner')}
+            onClick={() => {
+              if (!gameFinished) {
+                setIsYearModalOpen(true)
+              }
+            }}
             className={getTileClasses(
               true,
-              "crypto-card bg-gradient-to-br from-neon-purple to-neon-blue text-center p-0 group h-[200px] flex flex-col shadow-lg hover:shadow-purple-500/20 opacity-60"
+              `crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 text-center p-0 group h-[200px] flex flex-col shadow-lg shadow-purple-500/30 ${gameFinished ? 'opacity-40 pointer-events-none' : 'hover:shadow-purple-500/50 hover:border-purple-500/90'}`
             )}
           >
             <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-2">
               <div className="p-3 bg-white/20 rounded-xl transition-colors shadow-inner">
-                <QrCode className="w-9 h-9 text-white" />
+                <span className="text-4xl">📅</span>
               </div>
-              <h3 className="text-lg font-bold text-white tracking-tight">Scannen</h3>
-              <p className="text-xs text-white/70">Weldra beschikbaar</p>
+              <h3 className="text-lg font-bold text-white tracking-tight">Speeljaar</h3>
+              <p className="text-2xl font-bold text-neon-gold">{year}</p>
             </div>
           </button>
 
-          {/* Rankings - Met top 3 spelers emojis (verplaatst naar onder rechts) */}
+          {/* Live Rankings - Naast Speeljaar */}
           <button
             onClick={() => onNavigate('rankings')}
             className={getTileClasses(
               true,
-              "crypto-card bg-gradient-to-br from-purple-600 to-blue-600 relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg hover:shadow-purple-500/20"
+              "crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:border-purple-500/90"
             )}
           >
-            {/* Top deel: Icon + Titel */}
-            <div className="pt-5 pb-3 flex items-center justify-center">
-              <div className="flex items-center space-x-2.5">
-                <div className="p-2 bg-white/20 rounded-xl flex-shrink-0 shadow-inner">
-                  <Users className="w-5 h-5 text-white" />
-                </div>
-                <h3 className="text-lg font-bold text-white tracking-tight">Rankings</h3>
-              </div>
+            {/* Top deel: Titel */}
+            <div className="pt-3 pb-2 flex items-center justify-center">
+              <h3 className="text-sm font-bold text-white tracking-tight">🏆 Live Rankings</h3>
             </div>
-            {/* Spacer voor ruimte */}
-            <div className="flex-1"></div>
-            {/* Donker vlak met top 3 spelers */}
-            <div className="bg-gradient-to-t from-dark-bg/90 to-dark-bg/70 backdrop-blur-sm py-2.5 px-3 flex justify-center items-center space-x-3 border-t border-white/5">
-              {players
-                .filter(player => !player.name.includes('Host') && !player.name.includes('host'))
-                .sort((a, b) => b.totalValue - a.totalValue)
-                .slice(0, 3)
-                .map((player, index) => (
-                  <div key={player.id} className="flex flex-col items-center">
-                    <div className="text-xl mb-0.5">
-                      {index === 0 && '947'}
-                      {index === 1 && '948'}
-                      {index === 2 && '949'}
+            
+            {/* Listview met spelers en totaal vermogen */}
+            <div className="flex-1 px-3 pb-3 overflow-hidden">
+              <div className="space-y-1">
+                {players
+                  .sort((a, b) => b.totalValue - a.totalValue)
+                  .slice(0, 3)
+                  .map((player, index) => (
+                    <div key={player.id} className={`flex items-center justify-between p-2 rounded-lg border transition-all duration-300 ${
+                      index === 0 ? 'bg-gradient-to-r from-yellow-400/10 to-yellow-600/10 border-yellow-400/30' :
+                      index === 1 ? 'bg-gradient-to-r from-gray-300/10 to-gray-500/10 border-gray-300/30' :
+                      index === 2 ? 'bg-gradient-to-r from-amber-600/10 to-amber-800/10 border-amber-600/30' :
+                      'bg-gradient-to-r from-gray-600/10 to-gray-800/10 border-gray-400/30'
+                    } ${player.name === playerName ? 'ring-1 ring-neon-gold ring-opacity-50' : ''}`}>
+                      
+                      {/* Links: Ranking + Avatar + Naam (met truncatie) */}
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                          index === 0 ? 'bg-yellow-400/20 text-yellow-400' :
+                          index === 1 ? 'bg-gray-300/20 text-gray-300' :
+                          index === 2 ? 'bg-amber-600/20 text-amber-600' :
+                          'bg-gray-600/20 text-gray-400'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div className="flex items-center space-x-1 min-w-0">
+                          <span className="text-sm">{player.avatar}</span>
+                          <span className="text-xs text-gray-300 max-w-[80px] truncate">
+                            {player.name}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* Rechts: Totaal Vermogen */}
+                      <div className="text-right">
+                        <p className={`text-xs font-bold ${
+                          index === 0 ? 'text-yellow-400' :
+                          index === 1 ? 'text-gray-300' :
+                          index === 2 ? 'text-amber-600' :
+                          'text-gray-400'
+                        }`}>
+                          €{player.totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-base">{player.avatar}</div>
+                  ))}
+                
+                {players.length === 0 && (
+                  <div className="text-center py-4">
+                    <span className="text-gray-400 text-xs">Geen spelers</span>
                   </div>
-                ))}
-              {players.filter(player => !player.name.includes('Host') && !player.name.includes('host')).length === 0 && (
-                <span className="text-gray-400 text-xs">Geen spelers</span>
-              )}
+                )}
+              </div>
             </div>
           </button>
         </div>
@@ -561,11 +620,6 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             </div>
           </div>
         </div>
-
-        
-
-        
-
 
         {/* Recent Player Actions */}
         <div className="mt-8 mb-8">
@@ -662,43 +716,6 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           </div>
         </div>
 
-        {/* Speeljaar, Live Rankings, Jouw Positie */}
-        {/* Year Widget */}
-        <button
-          type="button"
-          className="crypto-card mb-6 text-center cursor-pointer w-full pointer-events-auto relative z-10"
-          onClick={() => {
-            console.log('📅 Year widget clicked (click)')
-            setIsYearModalOpen(true)
-          }}
-          onTouchStart={() => {
-            console.log('📅 Year widget clicked (touch)')
-            setIsYearModalOpen(true)
-          }}
-          onPointerDown={() => {
-            console.log('📅 Year widget clicked (pointerdown)')
-            setIsYearModalOpen(true)
-          }}
-          onMouseDown={() => {
-            console.log('📅 Year widget clicked (mousedown)')
-            setIsYearModalOpen(true)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              setIsYearModalOpen(true)
-            }
-          }}
-          aria-label="Speeljaar - voorbij START?"
-        >
-          <div className="flex items-center justify-center space-x-2">
-            <span className="text-2xl">📅</span>
-            <div>
-              <p className="text-gray-400 text-sm">Speeljaar</p>
-              <p className="text-3xl font-bold text-neon-gold">{year}</p>
-            </div>
-          </div>
-        </button>
 
         {isYearModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -731,44 +748,6 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           </div>
         )}
 
-        {/* Live Rankings */}
-        <div 
-          className={getTileClasses(
-            true,
-            "crypto-card mb-6",
-            "hover:scale-105 transition-transform duration-200 cursor-pointer"
-          )} 
-          onClick={() => onNavigate('rankings')}
-        >
-          <h3 className="text-lg font-bold text-white mb-4 text-center">🏆 Live Rankings</h3>
-          <div className="flex justify-center items-center space-x-3">
-            {players
-              .sort((a, b) => b.totalValue - a.totalValue)
-              .map((player, index) => (
-                <div key={player.id} className="flex flex-col items-center">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold transition-all duration-300 border-2 ${
-                    index === 0 ? 'bg-gradient-to-br from-yellow-400/20 to-yellow-600/20 text-yellow-400 border-yellow-400 shadow-lg shadow-yellow-400/30' :
-                    index === 1 ? 'bg-gradient-to-br from-gray-300/20 to-gray-500/20 text-gray-300 border-gray-300 shadow-lg shadow-gray-400/30' :
-                    index === 2 ? 'bg-gradient-to-br from-amber-600/20 to-amber-800/20 text-amber-600 border-amber-600 shadow-lg shadow-amber-600/30' :
-                    'bg-gradient-to-br from-gray-600/20 to-gray-800/20 text-gray-400 border-gray-400 shadow-lg shadow-gray-600/30'
-                  } ${player.name === playerName ? 'ring-4 ring-neon-gold ring-opacity-70' : ''}`}>
-                    <span className="text-sm">{player.avatar}</span>
-                  </div>
-                  <div className="mt-1 text-center">
-                    <p className={`text-xs font-bold ${
-                      index === 0 ? 'text-yellow-400' :
-                      index === 1 ? 'text-gray-300' :
-                      index === 2 ? 'text-amber-600' :
-                      'text-gray-400'
-                    }`}>#{index + 1}</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      €{(player.totalValue / 1000).toFixed(1)}K
-                    </p>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
 
         {/* Jouw Positie */}
         <div className="crypto-card mb-8 text-center">
