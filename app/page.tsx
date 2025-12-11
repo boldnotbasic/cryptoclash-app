@@ -1076,6 +1076,7 @@ export default function Home() {
           const notificationId = `swap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
           setSwapNotification({
             id: notificationId,
+            message: `Swap 1x ${lostCrypto?.symbol || lostCryptoId} ↔ 1x ${receivedCrypto?.symbol || receivedCryptoId}`,
             fromPlayerName: fromPlayerName,
             fromPlayerAvatar: fromPlayerAvatar,
             receivedCrypto: receivedCrypto?.symbol || receivedCryptoId,
