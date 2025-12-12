@@ -1253,21 +1253,21 @@ export default function Home() {
     }
   }, [socket, handleLivePlayerUpdate, handlePlayerDataSync])
 
-  // Dashboard pushes its current market snapshot once to initialize server state
+  // ALL CLIENTS push their current market snapshot once to initialize server state
+  // This ensures the server knows the initial change24h values (like -3.2%, -1.8%, etc.)
   useEffect(() => {
     try {
       if (!socket || !roomId) return
-      if (playerName !== 'Market Dashboard') return
       if (hasSyncedMarketStateRef.current) return
       const changeMap = cryptos.reduce((acc, c) => {
         acc[c.symbol] = typeof c.change24h === 'number' ? c.change24h : 0
         return acc
       }, {} as Record<string, number>)
-      console.log('📤 Dashboard syncing market state to server', changeMap)
+      console.log(`📤 ${playerName} syncing initial market state to server`, changeMap)
       socket.emit('dashboard:syncMarketState', { roomCode: roomId, changeMap })
       hasSyncedMarketStateRef.current = true
     } catch (e) {
-      console.warn('Failed to sync dashboard market state', e)
+      console.warn('Failed to sync initial market state', e)
     }
   }, [socket, roomId, playerName, cryptos])
 
