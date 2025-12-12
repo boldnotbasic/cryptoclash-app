@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks, Power } from 'lucide-react'
+import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks, Power, SkipForward } from 'lucide-react'
 import Header from './Header'
 
 interface CryptoCurrency {
@@ -182,6 +182,23 @@ export default function MarketDashboard({
     }
 
     generateTestScan()
+  }
+
+  // Force next turn function for debugging/fixing turn bugs
+  const handleForceNextTurn = () => {
+    console.log('\n⏭️ === FORCE NEXT TURN FROM DASHBOARD ===')
+    console.log('📺 Dashboard playerName:', playerName)
+    console.log('🏠 Room ID:', roomId)
+    console.log('🔌 Socket connected:', !!socket && socket.connected)
+
+    if (!socket || !roomId || roomId === 'solo-mode') {
+      console.warn('⚠️ Cannot force next turn - missing socket or not in multiplayer room')
+      return
+    }
+
+    console.log('📡 Emitting turn:end to force next player turn')
+    socket.emit('turn:end', { roomCode: roomId })
+    console.log('✅ Force next turn request sent')
   }
 
   // Update time every second
@@ -1018,17 +1035,27 @@ export default function MarketDashboard({
         </div>
       </div>
 
-      {/* Spel afsluiten - alleen zichtbaar op host Market Dashboard, onder Markt Impact Analyse */}
+      {/* Dashboard controls - alleen zichtbaar op host Market Dashboard, onder Markt Impact Analyse */}
       {playerName === 'Market Dashboard' && (
         <div className="max-w-6xl mx-auto mt-4 mb-4">
-          <button
-            type="button"
-            onClick={() => setShowEndGameModal(true)}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 via-red-700 to-red-800 hover:from-red-700 hover:via-red-800 hover:to-red-900 text-white font-semibold text-sm shadow-lg shadow-red-900/40 border border-red-400/60 transition-transform duration-200 hover:scale-[1.01] flex items-center justify-center gap-2"
-          >
-            <Power className="w-4 h-4" />
-            <span>Spel afsluiten</span>
-          </button>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={handleForceNextTurn}
+              className="py-3 rounded-xl bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 hover:from-blue-700 hover:via-blue-800 hover:to-blue-900 text-white font-semibold text-sm shadow-lg shadow-blue-900/40 border border-blue-400/60 transition-transform duration-200 hover:scale-[1.01] flex items-center justify-center gap-2"
+            >
+              <SkipForward className="w-4 h-4" />
+              <span>Volgende Beurt</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowEndGameModal(true)}
+              className="py-3 rounded-xl bg-gradient-to-r from-red-600 via-red-700 to-red-800 hover:from-red-700 hover:via-red-800 hover:to-red-900 text-white font-semibold text-sm shadow-lg shadow-red-900/40 border border-red-400/60 transition-transform duration-200 hover:scale-[1.01] flex items-center justify-center gap-2"
+            >
+              <Power className="w-4 h-4" />
+              <span>Spel afsluiten</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
