@@ -32,6 +32,17 @@ const globalCryptoPrices = {
   ORLO: 2340.80
 }
 
+// 🚨 CRITICAL: Default market change24h values (matches client-side initial values)
+// This prevents using || 0 when clients haven't synced yet
+const defaultMarketChange24h = {
+  DSHEEP: 7.3,
+  NGT: -1.8,
+  LNTR: 12.1,
+  OMLT: -3.2,
+  REX: 15.7,
+  ORLO: 4.5
+}
+
 // 🚨 CRITICAL: Centralized scan data per room - SERVER SOURCE OF TRUTH
 const roomScanData = {
   // roomCode: {
@@ -157,7 +168,7 @@ function startActivityInterval(roomCode, socketIo) {
       }
       // Update authoritative change24h map
       if (!roomMarketChange24h[roomCode]) roomMarketChange24h[roomCode] = {}
-      const prevChange = roomMarketChange24h[roomCode][randomCrypto] || 0
+      const prevChange = roomMarketChange24h[roomCode][randomCrypto] ?? defaultMarketChange24h[randomCrypto] ?? 0
       roomMarketChange24h[roomCode][randomCrypto] = Math.round((prevChange + percentage) * 10) / 10
       
       // Broadcast updated crypto prices first
@@ -1259,7 +1270,7 @@ app.prepare().then(() => {
         if (!roomMarketChange24h[roomCode]) roomMarketChange24h[roomCode] = {}
         if (scanAction.cryptoSymbol && typeof scanAction.percentageValue === 'number') {
           const sym = scanAction.cryptoSymbol
-          const prev = roomMarketChange24h[roomCode][sym] || 0
+          const prev = roomMarketChange24h[roomCode][sym] ?? defaultMarketChange24h[sym] ?? 0
           roomMarketChange24h[roomCode][sym] = Math.round((prev + scanAction.percentageValue) * 10) / 10
         }
         
@@ -1267,16 +1278,16 @@ app.prepare().then(() => {
         if (scanAction.effect) {
           if (scanAction.effect.includes('Bull Run')) {
             Object.keys(globalCryptoPrices).forEach(symbol => {
-              const prev = roomMarketChange24h[roomCode][symbol] || 0
+              const prev = roomMarketChange24h[roomCode][symbol] ?? defaultMarketChange24h[symbol] ?? 0
               roomMarketChange24h[roomCode][symbol] = Math.round((prev + 5) * 10) / 10
             })
           } else if (scanAction.effect.includes('Market Crash')) {
             Object.keys(globalCryptoPrices).forEach(symbol => {
-              const prev = roomMarketChange24h[roomCode][symbol] || 0
+              const prev = roomMarketChange24h[roomCode][symbol] ?? defaultMarketChange24h[symbol] ?? 0
               roomMarketChange24h[roomCode][symbol] = Math.round((prev - 10) * 10) / 10
             })
           } else if (scanAction.effect.includes('Whale Alert') && whaleAlertSymbol) {
-            const prev = roomMarketChange24h[roomCode][whaleAlertSymbol] || 0
+            const prev = roomMarketChange24h[roomCode][whaleAlertSymbol] ?? defaultMarketChange24h[whaleAlertSymbol] ?? 0
             roomMarketChange24h[roomCode][whaleAlertSymbol] = Math.round((prev + 50) * 10) / 10
           }
         }
