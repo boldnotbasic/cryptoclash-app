@@ -71,6 +71,14 @@ export default function MarketDashboard({
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showEndGameModal, setShowEndGameModal] = useState(false)
+  const [eventCard, setEventCard] = useState<{
+    id: string
+    title: string
+    effect: string
+    icon: string
+    color: string
+    timestamp: number
+  } | null>(null)
 
   const getCryptoImagePath = (symbol: string) => {
     switch (symbol) {
@@ -221,6 +229,7 @@ export default function MarketDashboard({
     }
   }, [socket, roomId, playerName])
 
+  // Helper function to sanitize effects
   const sanitizeEffect = (effect: string) => {
     try {
       if (typeof effect !== 'string') return effect
@@ -231,6 +240,74 @@ export default function MarketDashboard({
       return effect
     }
   }
+
+  // Watch for new automatic events and show event cards
+  useEffect(() => {
+    if (!autoScanActions || autoScanActions.length === 0) return
+
+    const latestAutoEvent = autoScanActions[0] // Most recent is first
+    if (!latestAutoEvent) return
+
+    const effect = sanitizeEffect(latestAutoEvent.effect)
+    
+    // Check if this is a market-wide event or individual crypto event
+    const isMarketEvent = effect.includes('Bull Run') || effect.includes('Market Crash') || effect.includes('Whale Alert')
+    const isIndividualEvent = effect.includes('stijgt') || effect.includes('daalt')
+    
+    if (isMarketEvent || isIndividualEvent) {
+      // Check if we already showed this event (prevent duplicate cards)
+      if (eventCard && eventCard.id === latestAutoEvent.id) return
+
+      let title = ''
+      let icon = ''
+      let color = ''
+      let effectText = ''
+
+      if (effect.includes('Bull Run')) {
+        title = 'Bull Run! Alle munten!'
+        icon = '🚀'
+        color = 'from-green-600 to-green-800'
+        effectText = '+5%'
+      } else if (effect.includes('Market Crash')) {
+        title = 'Market Crash! Alle munten!'
+        icon = '📉'
+        color = 'from-red-600 to-red-800'
+        effectText = '-10%'
+      } else if (effect.includes('Whale Alert')) {
+        title = 'Whale Alert!'
+        icon = '🐋'
+        color = 'from-blue-600 to-blue-800'
+        effectText = '+50%'
+      } else if (isIndividualEvent) {
+        // Parse individual crypto events like "Lentra daalt! -11%"
+        const parts = effect.split(' ')
+        const cryptoName = parts[0] || 'Crypto'
+        const isPositive = effect.includes('stijgt')
+        const percentageMatch = effect.match(/[+-]?\d+%/)
+        const percentage = percentageMatch ? percentageMatch[0] : (isPositive ? '+10%' : '-10%')
+        
+        title = `${cryptoName} ${isPositive ? 'stijgt' : 'daalt'}!`
+        icon = isPositive ? '📈' : '📉'
+        color = isPositive ? 'from-green-600 to-green-800' : 'from-red-600 to-red-800'
+        effectText = percentage
+      }
+
+      // Show event card
+      setEventCard({
+        id: latestAutoEvent.id,
+        title,
+        effect: effectText,
+        icon,
+        color,
+        timestamp: latestAutoEvent.timestamp
+      })
+
+      // Auto-hide after 4 seconds
+      setTimeout(() => {
+        setEventCard(null)
+      }, 4000)
+    }
+  }, [autoScanActions, eventCard])
 
   const getTimeAgo = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000)
@@ -650,11 +727,8 @@ export default function MarketDashboard({
           <div className="crypto-card bg-gradient-to-r from-neon-purple/10 to-neon-blue/10 border border-neon-purple/30">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                <span className="animate-pulse">🎲</span>
-                <span>Automatische Events</span>
-                <span className="text-xs bg-neon-purple/20 text-neon-purple px-2 py-1 rounded-full">
-                  LIVE
-                </span>
+                <span className="animate-pulse">🔔</span>
+                <span>Beurs</span>
               </h3>
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             </div>
@@ -673,59 +747,27 @@ export default function MarketDashboard({
                 const timeAgo = Math.floor((Date.now() - action.timestamp) / 1000)
                 const minutes = Math.floor(timeAgo / 60)
                 const seconds = timeAgo % 60
-                const effect = sanitizeEffect(action.effect)
-                
-                // Determine event type and styling
-                const isMarketWide = effect.includes('Bull Run') || effect.includes('Market Crash') || effect.includes('Whale Alert')
-                const isPositive = effect.includes('+') || effect.includes('Bull Run')
-                const isNegative = effect.includes('-') || effect.includes('Market Crash')
-                
-                let eventIcon = '🤖'
-                let eventBg = 'bg-dark-bg/30'
-                let eventBorder = ''
-                
-                if (effect.includes('Bull Run')) {
-                  eventIcon = '🚀'
-                  eventBg = 'bg-gradient-to-r from-green-500/20 to-green-600/20'
-                  eventBorder = 'border border-green-400/40'
-                } else if (effect.includes('Market Crash')) {
-                  eventIcon = '📉'
-                  eventBg = 'bg-gradient-to-r from-red-500/20 to-red-600/20'
-                  eventBorder = 'border border-red-400/40'
-                } else if (effect.includes('Whale Alert')) {
-                  eventIcon = '🐋'
-                  eventBg = 'bg-gradient-to-r from-blue-500/20 to-purple-600/20'
-                  eventBorder = 'border border-blue-400/40'
-                }
                 
                 return (
-                  <div key={action.id} className={`flex items-center justify-between p-3 rounded-lg ${eventBg} ${eventBorder} ${isMarketWide ? 'ring-1 ring-neon-gold/30' : ''}`}>
-                    <div className="flex items-center space-x-3">
-                      <span className="text-lg">{eventIcon}</span>
-                      <div className="flex flex-col">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm text-white font-medium">
-                            {isMarketWide ? 'Markt Event' : 'Beurs Activiteit'}
-                          </span>
-                          {isMarketWide && (
-                            <span className="px-2 py-0.5 bg-neon-gold/20 text-neon-gold text-xs rounded-full font-semibold">
-                              BREED
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs text-gray-400">{action.action}</span>
-                      </div>
+                  <div key={action.id} className="flex items-center justify-between p-2 bg-dark-bg/30 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm">
+                        {action.player === 'Bot' ? '🤖' : 
+                         action.player === 'CryptoMaster' ? '🚀' : 
+                         action.player === 'BlockchainBoss' ? '💎' : '⚡'}
+                      </span>
+                      <span className="text-sm text-white font-medium">{action.player}</span>
+                      <span className="text-xs text-gray-400">•</span>
+                      <span className="text-xs text-gray-400">{action.action}</span>
                     </div>
                     
-                    <div className="flex items-center space-x-3">
-                      <span className={`text-sm font-bold px-2 py-1 rounded ${
-                        isPositive ? 'text-green-400 bg-green-400/10' : 
-                        isNegative ? 'text-red-400 bg-red-400/10' : 
-                        'text-yellow-400 bg-yellow-400/10'
+                    <div className="flex items-center space-x-2">
+                      <span className={`text-sm font-bold ${
+                        action.effect.includes('+') ? 'text-green-400' : 'text-red-400'
                       }`}>
-                        {effect}
+                        {sanitizeEffect(action.effect)}
                       </span>
-                      <span className="text-xs text-gray-500 min-w-[3rem] text-right">
+                      <span className="text-xs text-gray-500">
                         {minutes > 0 ? `${minutes}m` : `${seconds}s`}
                       </span>
                     </div>
@@ -1089,6 +1131,45 @@ export default function MarketDashboard({
             >
               <Power className="w-4 h-4" />
               <span>Spel afsluiten</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Event Card Overlay - shows automatic market events */}
+      {eventCard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md">
+          <div className={`relative w-full max-w-md mx-4 rounded-2xl bg-gradient-to-br ${eventCard.color} p-6 shadow-2xl transform animate-pulse`}>
+            {/* Event Icon */}
+            <div className="text-center mb-4">
+              <div className="text-6xl mb-2">{eventCard.icon}</div>
+            </div>
+            
+            {/* Event Title */}
+            <div className="text-center mb-4">
+              <h2 className="text-2xl font-bold text-white mb-2">
+                {eventCard.title}
+              </h2>
+              <div className="text-4xl font-extrabold text-white">
+                {eventCard.effect}
+              </div>
+            </div>
+            
+            {/* Auto-apply message */}
+            <div className="text-center">
+              <p className="text-white/80 text-sm">
+                Wordt automatisch toegepast...
+              </p>
+            </div>
+            
+            {/* Close button */}
+            <button
+              onClick={() => setEventCard(null)}
+              className="absolute top-3 right-3 text-white/60 hover:text-white transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
         </div>
