@@ -650,8 +650,11 @@ export default function MarketDashboard({
           <div className="crypto-card bg-gradient-to-r from-neon-purple/10 to-neon-blue/10 border border-neon-purple/30">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                <span className="animate-pulse">🔔</span>
-                <span>Beurs</span>
+                <span className="animate-pulse">🎲</span>
+                <span>Automatische Events</span>
+                <span className="text-xs bg-neon-purple/20 text-neon-purple px-2 py-1 rounded-full">
+                  LIVE
+                </span>
               </h3>
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             </div>
@@ -670,27 +673,59 @@ export default function MarketDashboard({
                 const timeAgo = Math.floor((Date.now() - action.timestamp) / 1000)
                 const minutes = Math.floor(timeAgo / 60)
                 const seconds = timeAgo % 60
+                const effect = sanitizeEffect(action.effect)
+                
+                // Determine event type and styling
+                const isMarketWide = effect.includes('Bull Run') || effect.includes('Market Crash') || effect.includes('Whale Alert')
+                const isPositive = effect.includes('+') || effect.includes('Bull Run')
+                const isNegative = effect.includes('-') || effect.includes('Market Crash')
+                
+                let eventIcon = '🤖'
+                let eventBg = 'bg-dark-bg/30'
+                let eventBorder = ''
+                
+                if (effect.includes('Bull Run')) {
+                  eventIcon = '🚀'
+                  eventBg = 'bg-gradient-to-r from-green-500/20 to-green-600/20'
+                  eventBorder = 'border border-green-400/40'
+                } else if (effect.includes('Market Crash')) {
+                  eventIcon = '📉'
+                  eventBg = 'bg-gradient-to-r from-red-500/20 to-red-600/20'
+                  eventBorder = 'border border-red-400/40'
+                } else if (effect.includes('Whale Alert')) {
+                  eventIcon = '🐋'
+                  eventBg = 'bg-gradient-to-r from-blue-500/20 to-purple-600/20'
+                  eventBorder = 'border border-blue-400/40'
+                }
                 
                 return (
-                  <div key={action.id} className="flex items-center justify-between p-2 bg-dark-bg/30 rounded-lg">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm">
-                        {action.player === 'Bot' ? '🤖' : 
-                         action.player === 'CryptoMaster' ? '🚀' : 
-                         action.player === 'BlockchainBoss' ? '💎' : '⚡'}
-                      </span>
-                      <span className="text-sm text-white font-medium">{action.player}</span>
-                      <span className="text-xs text-gray-400">•</span>
-                      <span className="text-xs text-gray-400">{action.action}</span>
+                  <div key={action.id} className={`flex items-center justify-between p-3 rounded-lg ${eventBg} ${eventBorder} ${isMarketWide ? 'ring-1 ring-neon-gold/30' : ''}`}>
+                    <div className="flex items-center space-x-3">
+                      <span className="text-lg">{eventIcon}</span>
+                      <div className="flex flex-col">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm text-white font-medium">
+                            {isMarketWide ? 'Markt Event' : 'Beurs Activiteit'}
+                          </span>
+                          {isMarketWide && (
+                            <span className="px-2 py-0.5 bg-neon-gold/20 text-neon-gold text-xs rounded-full font-semibold">
+                              BREED
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-400">{action.action}</span>
+                      </div>
                     </div>
                     
-                    <div className="flex items-center space-x-2">
-                      <span className={`text-sm font-bold ${
-                        action.effect.includes('+') ? 'text-green-400' : 'text-red-400'
+                    <div className="flex items-center space-x-3">
+                      <span className={`text-sm font-bold px-2 py-1 rounded ${
+                        isPositive ? 'text-green-400 bg-green-400/10' : 
+                        isNegative ? 'text-red-400 bg-red-400/10' : 
+                        'text-yellow-400 bg-yellow-400/10'
                       }`}>
-                        {sanitizeEffect(action.effect)}
+                        {effect}
                       </span>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-500 min-w-[3rem] text-right">
                         {minutes > 0 ? `${minutes}m` : `${seconds}s`}
                       </span>
                     </div>
