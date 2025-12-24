@@ -70,6 +70,7 @@ export default function MarketDashboard({
 }: MarketDashboardProps) {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
   const [showEndGameModal, setShowEndGameModal] = useState(false)
   const [showKansEvent, setShowKansEvent] = useState(false)
   const [currentKansEvent, setCurrentKansEvent] = useState<{
@@ -252,6 +253,31 @@ export default function MarketDashboard({
     console.log('📡 Emitting turn:end to force next player turn')
     socket.emit('turn:end', { roomCode: roomId })
     console.log('✅ Force next turn request sent')
+  }
+
+  // Manual sync function to refresh all player data
+  const handleManualSync = () => {
+    console.log('\n🔄 === MANUAL SYNC TRIGGERED ===')
+    console.log('📺 Dashboard playerName:', playerName)
+    console.log('🏠 Room ID:', roomId)
+    console.log('🔌 Socket connected:', !!socket && socket.connected)
+
+    if (!socket || !roomId || roomId === 'solo-mode') {
+      console.warn('⚠️ Cannot sync - missing socket or not in multiplayer room')
+      return
+    }
+
+    setIsSyncing(true)
+    console.log('📡 Requesting full data refresh from all players')
+    
+    // Request fresh data from server
+    socket.emit('dashboard:requestRefresh', { roomCode: roomId })
+    
+    // Visual feedback - stop syncing animation after 2 seconds
+    setTimeout(() => {
+      setIsSyncing(false)
+      console.log('✅ Sync complete')
+    }, 2000)
   }
 
   // Update time every second
@@ -577,11 +603,27 @@ export default function MarketDashboard({
                     <span className="text-neon-purple text-xs font-bold">Room: {roomId}</span>
                   </div>
                 )}
-                <div>
-                  <p className="text-gray-400 text-xs">Laatste update</p>
-                  <p className="text-neon-gold font-semibold text-sm">
-                    {currentTime.toLocaleTimeString('nl-NL')}
-                  </p>
+                <div className="flex items-center gap-2">
+                  <div>
+                    <p className="text-gray-400 text-xs">Laatste update</p>
+                    <p className="text-neon-gold font-semibold text-sm">
+                      {currentTime.toLocaleTimeString('nl-NL')}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleManualSync}
+                    disabled={isSyncing}
+                    className={`p-2 rounded-lg transition-all ${
+                      isSyncing 
+                        ? 'bg-neon-blue/20 cursor-not-allowed' 
+                        : 'bg-neon-blue/10 hover:bg-neon-blue/20 active:scale-95'
+                    }`}
+                    title="Sync alle speler data"
+                  >
+                    <RefreshCw 
+                      className={`w-4 h-4 text-neon-blue ${isSyncing ? 'animate-spin' : ''}`}
+                    />
+                  </button>
                 </div>
               </div>
             </div>
