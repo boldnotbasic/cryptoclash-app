@@ -24,6 +24,7 @@ import Win from '../components/Win'
 import SwapScreen from '@/components/SwapScreen'
 import { ScanEffect } from '@/components/ScanResult'
 import { useSocket } from '@/hooks/useSocket'
+import TurnTimer from '@/components/TurnTimer'
 
 type Screen = 'start-screen' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'buy' | 'sell' | 'win' | 'swap' | 'game-over' | 'resume-game'
 
@@ -67,6 +68,7 @@ export default function Home() {
   const [swapNotification, setSwapNotification] = useState<{ id: string, message: string, fromPlayerName: string, fromPlayerAvatar: string, receivedCrypto: string, lostCrypto: string } | null>(null)
   const [currentYear, setCurrentYear] = useState<number>(2024)
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
+  const [turnTimeLeft, setTurnTimeLeft] = useState<number>(60)
   
   // Get socket connection for game events (room state only; we don't rely on socket.id for turn logic)
   const { socket, room } = useSocket()
@@ -139,15 +141,14 @@ export default function Home() {
 
     const myTurn = activeTurnSocketId === mySocketId
     
-    console.log('🎯 Turn check:', {
-      mySocketId,
-      myName: playerName,
-      myAvatar: playerAvatar,
-      activeTurnSocketId,
-      currentTurnPlayerId: room.currentTurnPlayerId,
-      playerOrder: room.playerOrder,
-      isMyTurn: myTurn
-    })
+    console.log('🎯 === TURN CHECK ===')
+    console.log('  My socket ID:', mySocketId)
+    console.log('  My name:', playerName)
+    console.log('  Active turn socket ID:', activeTurnSocketId)
+    console.log('  Room currentTurnPlayerId:', room.currentTurnPlayerId)
+    console.log('  Room playerOrder:', room.playerOrder)
+    console.log('  ✅ IS MY TURN:', myTurn)
+    console.log('🎯 === END TURN CHECK ===')
     
     return myTurn
   }, [roomId, room, mySocketId, playerName, playerAvatar])
@@ -995,8 +996,14 @@ export default function Home() {
       socket.on('player:dataSync', handlePlayerDataSync)
       
       // Handle turn changes
-      socket.on('turn:changed', ({ newTurnPlayerId, newTurnPlayerName, previousTurnPlayerId }: any) => {
-        console.log('⏭️ Turn changed:', { newTurnPlayerId, newTurnPlayerName, previousTurnPlayerId })
+      socket.on('turn:changed', ({ newTurnPlayerId, newTurnPlayerName, previousTurnPlayerId, autoAdvanced }: any) => {
+        console.log('⏭️ === TURN CHANGED EVENT ===')
+        console.log('  New turn player ID:', newTurnPlayerId)
+        console.log('  New turn player name:', newTurnPlayerName)
+        console.log('  Previous turn player ID:', previousTurnPlayerId)
+        console.log('  Auto advanced:', autoAdvanced)
+        console.log('  My socket ID:', mySocketId)
+        console.log('  Is it my turn now?:', newTurnPlayerId === mySocketId)
         
         // Show notification popup
         const notificationId = `turn-${Date.now()}`
@@ -1010,6 +1017,8 @@ export default function Home() {
         setTimeout(() => {
           setTurnNotification(prev => prev?.id === notificationId ? null : prev)
         }, 4000)
+        
+        console.log('⏭️ === TURN CHANGED EVENT END ===')
       })
       
       // Handle incoming swap from another player
@@ -2586,6 +2595,7 @@ export default function Home() {
                 playerScanActions={playerScanActions}
                 autoScanActions={autoScanActions}
                 actionsDisabled={actionsDisabled}
+                turnTimeLeft={turnTimeLeft}
               />
             )
             
@@ -2739,7 +2749,7 @@ export default function Home() {
                   const newPortfolioValue = Math.round(newCryptos.reduce((sum, c) => sum + (c.price * c.amount), 0) * 100) / 100
                   const newTotalValue = Math.round((newPortfolioValue + cashBalance) * 100) / 100
 
-                  // Record win action
+                  // Record win action (marked as win so it doesn't show as beurs event)
                   const coin = cryptos.find(c => c.symbol === cryptoSymbol)
                   const winAction = {
                     id: `win-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
@@ -2747,7 +2757,8 @@ export default function Home() {
                     player: playerName || 'Speler',
                     action: `Win ${coin?.name || cryptoSymbol}`,
                     effect: `+1 ${cryptoSymbol}`,
-                    avatar: playerAvatar
+                    avatar: playerAvatar,
+                    isWinAction: true // Flag to exclude from beurs event display
                   }
                   setPlayerScanActions(prev => [winAction, ...prev.slice(0, 9)])
 
@@ -2794,14 +2805,15 @@ export default function Home() {
                     timestamp: Date.now()
                   }, ...prev])
 
-                  // Record win action
+                  // Record win action (marked as win so it doesn't show as beurs event)
                   const winAction = {
                     id: `win-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
                     timestamp: Date.now(),
                     player: playerName || 'Speler',
                     action: 'Win Cash',
                     effect: '+€500',
-                    avatar: playerAvatar
+                    avatar: playerAvatar,
+                    isWinAction: true // Flag to exclude from beurs event display
                   }
                   setPlayerScanActions(prev => [winAction, ...prev.slice(0, 9)])
 
@@ -2848,14 +2860,15 @@ export default function Home() {
                     timestamp: Date.now()
                   }, ...prev])
 
-                  // Record win action
+                  // Record win action (marked as win so it doesn't show as beurs event)
                   const winAction = {
                     id: `win-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
                     timestamp: Date.now(),
                     player: playerName || 'Speler',
                     action: 'Win Goudhaantje',
                     effect: '+€1000',
-                    avatar: playerAvatar
+                    avatar: playerAvatar,
+                    isWinAction: true // Flag to exclude from beurs event display
                   }
                   setPlayerScanActions(prev => [winAction, ...prev.slice(0, 9)])
 
@@ -3026,6 +3039,28 @@ export default function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Global Turn Timer - visible on all screens when it's player's turn */}
+      {roomId && roomId !== 'solo-mode' && !isHost && (
+        <TurnTimer 
+          isMyTurn={isMyTurn && !isGameFinishedForPlayer}
+          onTimeExpired={() => {
+            console.log('⏰ CLIENT: Turn timer expired - requesting turn end')
+            if (socket && roomId) {
+              console.log('⏰ Emitting turn:end event to room:', roomId)
+              socket.emit('turn:end', { roomCode: roomId })
+              console.log('⏰ turn:end event emitted')
+            } else {
+              console.error('⏰ Cannot emit turn:end - socket or roomId missing', { socket: !!socket, roomId })
+            }
+          }}
+          onTimeUpdate={(timeLeft) => {
+            setTurnTimeLeft(timeLeft)
+          }}
+          turnDuration={60}
+          gameStartTime={gameState?.gameStartTime}
+        />
       )}
     </div>
   )

@@ -23,9 +23,10 @@ interface ActionsMenuProps {
   actionsDisabled?: boolean
   playerScanActions?: ScanAction[]
   autoScanActions?: ScanAction[]
+  turnTimeLeft?: number
 }
 
-export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onApplyScanEffect, onEndTurnConfirm, actionsDisabled, playerScanActions = [], autoScanActions = [] }: ActionsMenuProps) {
+export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onApplyScanEffect, onEndTurnConfirm, actionsDisabled, playerScanActions = [], autoScanActions = [], turnTimeLeft = 60 }: ActionsMenuProps) {
   const [showScan, setShowScan] = useState(false)
   const [actionsEnabled, setActionsEnabled] = useState(true)
   
@@ -144,6 +145,7 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
           playerAvatar={playerAvatar} 
           onLogoClick={() => onNavigate('main-menu')} 
           actionsDisabled={actionsDisabled}
+          turnTimeLeft={turnTimeLeft}
           onEndTurnConfirm={() => {
             if (onEndTurnConfirm) {
               onEndTurnConfirm()

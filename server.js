@@ -22,6 +22,10 @@ const activityIntervals = {}
 // Track per-player cleanup timers for disconnected players
 const playerCleanupTimers = new Map()
 
+// Track turn timers per room (auto-end turn after 60 seconds)
+const turnTimers = new Map()
+const TURN_DURATION = 60 * 1000 // 60 seconds
+
 // 🚨 CRITICAL: Global crypto prices - SINGLE SOURCE OF TRUTH
 const globalCryptoPrices = {
   DSHEEP: 42.30,
@@ -89,6 +93,86 @@ function cancelRoomCleanup(roomCode) {
   if (roomCleanupTimers.has(roomCode)) {
     clearTimeout(roomCleanupTimers.get(roomCode))
     roomCleanupTimers.delete(roomCode)
+  }
+}
+
+// Turn timer functions
+function startTurnTimer(roomCode, io) {
+  // Clear existing timer if any
+  if (turnTimers.has(roomCode)) {
+    clearTimeout(turnTimers.get(roomCode))
+  }
+  
+  console.log(`⏰ Starting turn timer for room ${roomCode} (${TURN_DURATION / 1000}s)`)
+  
+  const timer = setTimeout(() => {
+    console.log(`⏰ Turn timer expired for room ${roomCode} - auto-ending turn`)
+    
+    const room = rooms[roomCode]
+    if (!room) {
+      console.log('❌ Room not found, skipping auto turn end')
+      return
+    }
+    
+    // Auto-advance turn using same logic as manual turn:end
+    const nonHostIds = Object.keys(room.players || {}).filter(id => !room.players[id].isHost)
+    if (nonHostIds.length === 0) {
+      console.log('⚠️ No non-host players, skipping turn logic')
+      return
+    }
+    
+    let order = Array.isArray(room.playerOrder) ? room.playerOrder : []
+    order = order.filter(id => nonHostIds.includes(id))
+    const missing = nonHostIds.filter(id => !order.includes(id))
+    order = [...order, ...missing]
+    if (order.length === 0) {
+      console.log('⚠️ Empty order after sanitization, skipping')
+      return
+    }
+    
+    const currentId = room.currentTurnPlayerId && order.includes(room.currentTurnPlayerId)
+      ? room.currentTurnPlayerId
+      : order[0]
+    const currentIndex = order.indexOf(currentId)
+    const nextIndex = (currentIndex + 1) % order.length
+    const nextId = order[nextIndex]
+    
+    room.playerOrder = order
+    room.currentTurnPlayerId = nextId
+    
+    const nextPlayer = room.players[nextId]
+    const nextPlayerName = nextPlayer ? nextPlayer.name : 'Onbekende speler'
+    
+    console.log('⏰ Auto turn advanced:', {
+      previous: currentId,
+      next: nextId,
+      nextPlayerName,
+      order
+    })
+    
+    // Broadcast room update
+    io.to(roomCode).emit('lobby:update', room)
+    
+    // Send turn notification
+    io.to(roomCode).emit('turn:changed', {
+      newTurnPlayerId: nextId,
+      newTurnPlayerName: nextPlayerName,
+      previousTurnPlayerId: currentId,
+      autoAdvanced: true // Flag to indicate this was auto-advanced
+    })
+    
+    // Start timer for next player
+    startTurnTimer(roomCode, io)
+  }, TURN_DURATION)
+  
+  turnTimers.set(roomCode, timer)
+}
+
+function cancelTurnTimer(roomCode) {
+  if (turnTimers.has(roomCode)) {
+    console.log(`⏰ Cancelling turn timer for room ${roomCode}`)
+    clearTimeout(turnTimers.get(roomCode))
+    turnTimers.delete(roomCode)
   }
 }
 
@@ -218,6 +302,8 @@ function stopActivityInterval(roomCode) {
     delete activityIntervals[roomCode]
     console.log(`🛑 Stopped activity interval for room ${roomCode}`)
   }
+  // Also cancel turn timer when stopping activities
+  cancelTurnTimer(roomCode)
 }
 
 app.prepare().then(() => {
@@ -784,6 +870,12 @@ app.prepare().then(() => {
         // Start live market activities interval now (first event in 30 seconds)
         console.log(`⏰ Live market activities will start in 30 seconds...`)
         startActivityInterval(roomCode, io)
+        
+        // Start turn timer for first player after 5 second delay (loading screen time)
+        console.log(`⏰ Turn timer will start in 5 seconds for first player...`)
+        setTimeout(() => {
+          startTurnTimer(roomCode, io)
+        }, 5000)
       } else {
         console.log(`❌ Room ${roomCode} not found`)
       }
@@ -847,6 +939,9 @@ app.prepare().then(() => {
           newTurnPlayerName: nextPlayerName,
           previousTurnPlayerId: currentId
         })
+        
+        // Restart turn timer for next player
+        startTurnTimer(roomCode, io)
       } catch (e) {
         console.warn('⚠️ Failed to handle turn:end', e)
       }
@@ -885,6 +980,7 @@ app.prepare().then(() => {
         // Stop any running intervals/cleanups and remove room state
         stopActivityInterval(roomCode)
         cancelRoomCleanup(roomCode)
+        cancelTurnTimer(roomCode)
         delete rooms[roomCode]
 
         // Clear scan history and market change state so a new game starts completely clean

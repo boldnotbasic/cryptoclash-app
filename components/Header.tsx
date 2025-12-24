@@ -9,9 +9,10 @@ interface HeaderProps {
   onLogoClick?: () => void
   onEndTurnConfirm?: () => void
   actionsDisabled?: boolean
+  turnTimeLeft?: number
 }
 
-export default function Header({ playerName, playerAvatar, onLogoClick, onEndTurnConfirm, actionsDisabled }: HeaderProps) {
+export default function Header({ playerName, playerAvatar, onLogoClick, onEndTurnConfirm, actionsDisabled, turnTimeLeft = 60 }: HeaderProps) {
   const [isEndTurnModalOpen, setIsEndTurnModalOpen] = useState(false)
 
   return (
@@ -60,9 +61,11 @@ export default function Header({ playerName, playerAvatar, onLogoClick, onEndTur
             console.log('⏭️ Einde beurt knop geklikt')
             setIsEndTurnModalOpen(true)
           }}
-          className={`crypto-card flex items-center justify-center py-3 text-base font-semibold text-white gap-2 transition-colors ${
+          className={`crypto-card flex items-center justify-center py-3 text-base font-semibold text-white gap-2 transition-all ${
             actionsDisabled
               ? 'bg-dark-bg/60 opacity-40 pointer-events-none'
+              : turnTimeLeft <= 10
+              ? 'bg-red-600/80 hover:bg-red-600/90 animate-pulse'
               : 'bg-dark-bg/80 hover:bg-dark-bg/90'
           }`}
         >

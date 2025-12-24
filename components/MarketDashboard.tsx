@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks, Power, SkipForward } from 'lucide-react'
 import Header from './Header'
@@ -71,14 +71,18 @@ export default function MarketDashboard({
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showEndGameModal, setShowEndGameModal] = useState(false)
-  const [eventCard, setEventCard] = useState<{
+  const [showKansEvent, setShowKansEvent] = useState(false)
+  const [currentKansEvent, setCurrentKansEvent] = useState<{
     id: string
-    title: string
-    effect: string
+    type: 'boost' | 'crash' | 'event'
+    cryptoSymbol?: string
+    percentage?: number
+    message: string
     icon: string
     color: string
     timestamp: number
   } | null>(null)
+  const lastShownEventId = useRef<string | null>(null)
 
   const getCryptoImagePath = (symbol: string) => {
     switch (symbol) {
@@ -89,6 +93,47 @@ export default function MarketDashboard({
       case 'REX': return '/rex.png'
       case 'NGT': return '/Nugget.png'
       default: return null
+    }
+  }
+
+  // Custom images for event-scenario's (Bull Run, Market Crash, Whale Alert)
+  const getEventImagePath = (message: string) => {
+    if (message.includes('Bull Run')) return '/Bull-run.png'
+    if (message.includes('Market Crash')) return '/Beurscrash.png'
+    if (message.includes('Whale Alert')) return '/Whala-alert.png'
+    return null
+  }
+
+  const getBackgroundColor = (color: string) => {
+    switch (color) {
+      case 'neon-purple': return 'from-purple-600/20 to-purple-800/20'
+      case 'neon-blue': return 'from-blue-600/20 to-blue-800/20'
+      case 'neon-turquoise': return 'from-cyan-600/20 to-cyan-800/20'
+      case 'neon-gold': return 'from-yellow-600/20 to-yellow-800/20'
+      case 'red-500': return 'from-red-600/20 to-red-800/20'
+      default: return 'from-purple-600/20 to-blue-600/20'
+    }
+  }
+
+  const getTextColor = (color: string) => {
+    switch (color) {
+      case 'neon-purple': return 'text-neon-purple'
+      case 'neon-blue': return 'text-neon-blue'
+      case 'neon-turquoise': return 'text-neon-turquoise'
+      case 'neon-gold': return 'text-neon-gold'
+      case 'red-500': return 'text-red-400'
+      default: return 'text-neon-purple'
+    }
+  }
+
+  const getBorderColor = (color: string) => {
+    switch (color) {
+      case 'neon-purple': return 'border-neon-purple shadow-neon-purple'
+      case 'neon-blue': return 'border-neon-blue shadow-neon-blue'
+      case 'neon-turquoise': return 'border-neon-turquoise shadow-neon-turquoise'
+      case 'neon-gold': return 'border-neon-gold shadow-neon-gold'
+      case 'red-500': return 'border-red-500 shadow-red-500'
+      default: return 'border-neon-purple shadow-neon-purple'
     }
   }
 
@@ -241,73 +286,192 @@ export default function MarketDashboard({
     }
   }
 
-  // Watch for new automatic events and show event cards
+  // Watch for new events and show event cards (ONLY player kans events, NOT auto beurs events or win actions)
   useEffect(() => {
-    if (!autoScanActions || autoScanActions.length === 0) return
+    // Only use player scan actions (kans events), exclude auto scan actions (beurs events) and win actions
+    const playerEvents = [...(playerScanActions || [])]
+      .filter((action: any) => !action.isWinAction) // Filter out win actions
+      .sort((a, b) => b.timestamp - a.timestamp)
 
-    const latestAutoEvent = autoScanActions[0] // Most recent is first
-    if (!latestAutoEvent) return
+    console.log('🎯 DASHBOARD EVENT DETECTION (PLAYER KANS EVENTS ONLY):')
+    console.log('📊 Auto scan actions (EXCLUDED):', autoScanActions?.length || 0)
+    console.log('👤 Player scan actions (INCLUDED):', playerScanActions?.length || 0)
+    console.log('🏆 Win actions (EXCLUDED):', (playerScanActions || []).filter((a: any) => a.isWinAction).length)
+    console.log('🎲 Player kans events to check:', playerEvents.length)
 
-    const effect = sanitizeEffect(latestAutoEvent.effect)
+    if (playerEvents.length === 0) return
+
+    const latestEvent = playerEvents[0] // Most recent player kans event is first
+    if (!latestEvent) return
+
+    const effect = sanitizeEffect(latestEvent.effect)
+    console.log('🎲 Latest event effect:', effect)
+    console.log('🆔 Latest event ID:', latestEvent.id)
+    console.log('⏰ Latest event timestamp:', new Date(latestEvent.timestamp).toLocaleTimeString())
     
     // Check if this is a market-wide event or individual crypto event
     const isMarketEvent = effect.includes('Bull Run') || effect.includes('Market Crash') || effect.includes('Whale Alert')
-    const isIndividualEvent = effect.includes('stijgt') || effect.includes('daalt')
+    
+    // Expanded detection for individual crypto events - check for various formats
+    const isIndividualEvent = 
+      effect.includes('stijgt') || effect.includes('daalt') ||  // Dutch: "stijgt/daalt"
+      effect.includes('beweegt') ||                            // Dutch: "beweegt" 
+      effect.includes('move') ||                               // English: "move"
+      effect.includes('dip') ||                                // English: "dip"
+      /\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/.test(effect)      // Any crypto symbol in effect
+    
+    console.log('🔍 Event detection:')
+    console.log('  📈 Is market event:', isMarketEvent)
+    console.log('  💰 Is individual event:', isIndividualEvent)
+    console.log('  🎯 Should show event:', isMarketEvent || isIndividualEvent)
     
     if (isMarketEvent || isIndividualEvent) {
       // Check if we already showed this event (prevent duplicate cards)
-      if (eventCard && eventCard.id === latestAutoEvent.id) return
+      if (lastShownEventId.current === latestEvent.id) return
+      
+      // Mark this event as shown
+      lastShownEventId.current = latestEvent.id
 
-      let title = ''
+      let eventType: 'boost' | 'crash' | 'event' = 'event'
+      let cryptoSymbol: string | undefined = undefined
+      let percentage: number | undefined = undefined
+      let message = ''
       let icon = ''
       let color = ''
-      let effectText = ''
 
       if (effect.includes('Bull Run')) {
-        title = 'Bull Run! Alle munten!'
+        message = 'Bull Run! Alle munten!'
         icon = '🚀'
-        color = 'from-green-600 to-green-800'
-        effectText = '+5%'
+        color = 'neon-gold'
+        eventType = 'event'
+        percentage = 5
       } else if (effect.includes('Market Crash')) {
-        title = 'Market Crash! Alle munten!'
+        message = 'Market Crash! Alle munten!'
         icon = '📉'
-        color = 'from-red-600 to-red-800'
-        effectText = '-10%'
+        color = 'red-500'
+        eventType = 'event'
+        percentage = -10
       } else if (effect.includes('Whale Alert')) {
-        title = 'Whale Alert!'
+        message = 'Whale Alert!'
         icon = '🐋'
-        color = 'from-blue-600 to-blue-800'
-        effectText = '+50%'
+        color = 'neon-turquoise'
+        eventType = 'event'
+        percentage = 50
+        // Extract crypto symbol from effect if available
+        const symbolMatch = effect.match(/\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/)
+        if (symbolMatch) {
+          cryptoSymbol = symbolMatch[0]
+          message = `Whale Alert! ${cryptoSymbol}!`
+        }
       } else if (isIndividualEvent) {
-        // Parse individual crypto events like "Lentra daalt! -11%"
+        // Parse individual crypto events - support multiple formats
         const parts = effect.split(' ')
         const cryptoName = parts[0] || 'Crypto'
-        const isPositive = effect.includes('stijgt')
-        const percentageMatch = effect.match(/[+-]?\d+%/)
-        const percentage = percentageMatch ? percentageMatch[0] : (isPositive ? '+10%' : '-10%')
         
-        title = `${cryptoName} ${isPositive ? 'stijgt' : 'daalt'}!`
-        icon = isPositive ? '📈' : '📉'
-        color = isPositive ? 'from-green-600 to-green-800' : 'from-red-600 to-red-800'
-        effectText = percentage
+        // Extract percentage from effect (CRITICAL: must match ScanResult logic exactly)
+        // Look for percentage with + or - sign, including decimals
+        const percentageMatch = effect.match(/([+-]?\d+(?:\.\d+)?)%?/)
+        const percentageValue = percentageMatch ? parseFloat(percentageMatch[1]) : 0
+        
+        // SIMPLIFIED: Use same logic as ScanResult - only percentage determines direction
+        const isPositive = percentageValue > 0
+        
+        console.log('🔍 PERCENTAGE PARSING DEBUG:')
+        console.log('  📊 Original effect:', effect)
+        console.log('  🔢 Percentage match:', percentageMatch)
+        console.log('  📈 Percentage value:', percentageValue)
+        console.log('  ✅ Is positive:', isPositive)
+        
+        // Map crypto names to symbols
+        const nameToSymbol: { [key: string]: string } = {
+          'DigiSheep': 'DSHEEP',
+          'Nugget': 'NGT', 
+          'Lentra': 'LNTR',
+          'Omlet': 'OMLT',
+          'Rex': 'REX',
+          'Orlo': 'ORLO'
+        }
+        
+        // Try to extract symbol directly from effect first
+        const symbolMatch = effect.match(/\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/)
+        cryptoSymbol = symbolMatch ? symbolMatch[0] : (nameToSymbol[cryptoName] || cryptoName)
+        
+        // Create appropriate message based on the original effect
+        if (effect.includes('beweegt')) {
+          message = `${cryptoName} beweegt!`
+        } else if (effect.includes('move')) {
+          message = `${cryptoName} move!`
+        } else if (effect.includes('dip')) {
+          message = `${cryptoName} dip!`
+        } else {
+          message = `${cryptoName} ${isPositive ? 'stijgt' : 'daalt'}!`
+        }
+        
+        // Set crypto-specific colors and icons EXACTLY as in ScanResult scenarios
+        const cryptoColors: { [key: string]: string } = {
+          'DSHEEP': 'neon-purple',     // From ScanResult line 41
+          'NGT': 'neon-gold',         // From ScanResult line 50  
+          'LNTR': 'neon-blue',        // From ScanResult line 59
+          'OMLT': 'neon-turquoise',   // From ScanResult line 68
+          'REX': 'neon-purple',       // From ScanResult line 77
+          'ORLO': 'neon-gold'         // From ScanResult line 86
+        }
+        
+        const cryptoIcons: { [key: string]: string } = {
+          'DSHEEP': '🐑',             // From ScanResult line 40
+          'NGT': '🐔',               // From ScanResult line 49
+          'LNTR': '🌟',              // From ScanResult line 58
+          'OMLT': '🥚',              // From ScanResult line 67
+          'REX': '💫',               // From ScanResult line 76
+          'ORLO': '🎵'               // From ScanResult line 85
+        }
+        
+        icon = cryptoIcons[cryptoSymbol] || (isPositive ? '📈' : '📉')
+        color = cryptoColors[cryptoSymbol] || (isPositive ? 'neon-purple' : 'red-500')
+        eventType = isPositive ? 'boost' : 'crash'
+        percentage = percentageValue // Keep original percentage value with correct sign
+        
+        console.log('🎨 STYLING DEBUG:')
+        console.log('  🎯 Final percentage:', percentage)
+        console.log('  🎨 Color:', color)
+        console.log('  📊 Event type:', eventType)
+        console.log('  🔄 Is positive check:', isPositive)
       }
 
-      // Show event card
-      setEventCard({
-        id: latestAutoEvent.id,
-        title,
-        effect: effectText,
+      // Show kans event with ScanResult styling
+      setCurrentKansEvent({
+        id: latestEvent.id,
+        type: eventType,
+        cryptoSymbol,
+        percentage,
+        message,
         icon,
         color,
-        timestamp: latestAutoEvent.timestamp
+        timestamp: latestEvent.timestamp
       })
+      
+      setShowKansEvent(true)
+      
+      console.log('✅ SHOWING PLAYER KANS EVENT ON DASHBOARD:')
+      console.log('  📊 Message:', message)
+      console.log('  💰 Symbol:', cryptoSymbol)
+      console.log('  📈 Percentage:', percentage)
+      console.log('  🎨 Color:', color)
+      console.log('  🎯 Icon:', icon)
+      console.log('  🎲 Source: PLAYER KANS EVENT (not auto beurs event)')
 
-      // Auto-hide after 4 seconds
+      // Auto-hide after 3.1 seconds (same as ScanResult)
       setTimeout(() => {
-        setEventCard(null)
-      }, 4000)
+        setShowKansEvent(false)
+        setTimeout(() => {
+          setCurrentKansEvent(null)
+        }, 300) // Wait for fade out animation (same as ScanResult)
+      }, 3100)
+    } else {
+      console.log('❌ Event NOT shown on dashboard:', effect)
+      console.log('   Reason: Not recognized as market or individual event')
     }
-  }, [autoScanActions, eventCard])
+  }, [playerScanActions]) // Only watch player kans events, not auto beurs events
 
   const getTimeAgo = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000)
@@ -1136,41 +1300,88 @@ export default function MarketDashboard({
         </div>
       )}
 
-      {/* Event Card Overlay - shows automatic market events */}
-      {eventCard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md">
-          <div className={`relative w-full max-w-md mx-4 rounded-2xl bg-gradient-to-br ${eventCard.color} p-6 shadow-2xl transform animate-pulse`}>
-            {/* Event Icon */}
-            <div className="text-center mb-4">
-              <div className="text-6xl mb-2">{eventCard.icon}</div>
-            </div>
-            
-            {/* Event Title */}
-            <div className="text-center mb-4">
-              <h2 className="text-2xl font-bold text-white mb-2">
-                {eventCard.title}
-              </h2>
-              <div className="text-4xl font-extrabold text-white">
-                {eventCard.effect}
+      {/* Kans Event Overlay - shows kans events with ScanResult styling */}
+      {showKansEvent && currentKansEvent && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className={`transform transition-all duration-500 ${
+            showKansEvent ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
+          }`}>
+            <div className={`crypto-card ${getBorderColor(currentKansEvent.color)} bg-gradient-to-br ${getBackgroundColor(currentKansEvent.color)} max-w-md w-full text-center p-8`}>
+
+              {/* Crypto Icon */}
+              <div className="mb-6">
+                <div className="text-8xl mb-4 flex items-center justify-center">
+                  {(() => {
+                    // Eerst: custom event image (Bull Run / Market Crash / Whale Alert)
+                    const eventImage = getEventImagePath(currentKansEvent.message)
+                    if (eventImage) {
+                      return (
+                        <Image
+                          src={eventImage}
+                          alt={currentKansEvent.message}
+                          width={180}
+                          height={180}
+                          className="object-contain"
+                        />
+                      )
+                    }
+
+                    // Anders: normale crypto image op basis van symbool
+                    const imagePath = getCryptoImagePath(currentKansEvent.cryptoSymbol || '')
+                    if (imagePath) {
+                      return (
+                        <Image
+                          src={imagePath}
+                          alt={currentKansEvent.cryptoSymbol || 'Crypto'}
+                          width={180}
+                          height={180}
+                          className="object-contain"
+                        />
+                      )
+                    }
+
+                    // Fallback: emoji/icon uit scenario
+                    return <span>{currentKansEvent.icon}</span>
+                  })()} 
+                </div>
+                {currentKansEvent.cryptoSymbol && (
+                  <div className="text-lg text-gray-400 mb-2">{currentKansEvent.cryptoSymbol}</div>
+                )}
+              </div>
+
+              {/* Effect Message */}
+              <div className="mb-6">
+                <h3 className={`text-3xl font-bold ${getTextColor(currentKansEvent.color)} mb-2`}>
+                  {currentKansEvent.message}
+                </h3>
+                
+                {currentKansEvent.percentage && (
+                  <div className="flex items-center justify-center space-x-2">
+                    {currentKansEvent.percentage > 0 ? (
+                      <TrendingUp className="w-6 h-6 text-green-400" />
+                    ) : (
+                      <TrendingDown className="w-6 h-6 text-red-400" />
+                    )}
+                    <span className={`text-2xl font-bold ${
+                      currentKansEvent.percentage > 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {currentKansEvent.percentage > 0 ? '+' : ''}{currentKansEvent.percentage}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Auto-close indicator */}
+              <div className="text-gray-400 text-sm">
+                <div className="w-full bg-gray-700 rounded-full h-1 mb-2">
+                  <div 
+                    className="bg-neon-gold h-1 rounded-full transition-all duration-3100 ease-linear"
+                    style={{ width: showKansEvent ? '0%' : '100%' }}
+                  ></div>
+                </div>
+                Wordt automatisch toegepast...
               </div>
             </div>
-            
-            {/* Auto-apply message */}
-            <div className="text-center">
-              <p className="text-white/80 text-sm">
-                Wordt automatisch toegepast...
-              </p>
-            </div>
-            
-            {/* Close button */}
-            <button
-              onClick={() => setEventCard(null)}
-              className="absolute top-3 right-3 text-white/60 hover:text-white transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
           </div>
         </div>
       )}
