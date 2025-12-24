@@ -871,11 +871,9 @@ app.prepare().then(() => {
         console.log(`⏰ Live market activities will start in 30 seconds...`)
         startActivityInterval(roomCode, io)
         
-        // Start turn timer for first player after 5 second delay (loading screen time)
-        console.log(`⏰ Turn timer will start in 5 seconds for first player...`)
-        setTimeout(() => {
-          startTurnTimer(roomCode, io)
-        }, 5000)
+        // Don't start timer for first player - they get unlimited time
+        // Timer will start from second player onwards (in turn:end handler)
+        console.log(`⏰ First player gets unlimited time - timer starts from 2nd player`)
       } else {
         console.log(`❌ Room ${roomCode} not found`)
       }

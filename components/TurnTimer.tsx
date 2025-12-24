@@ -19,8 +19,6 @@ export default function TurnTimer({
 }: TurnTimerProps) {
   const [timeLeft, setTimeLeft] = useState(turnDuration)
   const [isExpired, setIsExpired] = useState(false)
-  const [showTimer, setShowTimer] = useState(false)
-  const initialDelayApplied = useRef(false)
 
   useEffect(() => {
     // Reset timer when turn changes to MY turn
@@ -28,36 +26,11 @@ export default function TurnTimer({
       console.log('⏰ Timer reset - MY turn started!')
       setTimeLeft(turnDuration)
       setIsExpired(false)
-      
-      // For the very first turn (first player), apply 5 second delay
-      if (gameStartTime && !initialDelayApplied.current) {
-        const timeSinceStart = Date.now() - gameStartTime
-        if (timeSinceStart < 5000) {
-          // Game just started, apply remaining delay
-          const remainingDelay = 5000 - timeSinceStart
-          console.log(`⏰ First turn - delaying timer by ${remainingDelay}ms`)
-          setShowTimer(false)
-          setTimeout(() => {
-            setShowTimer(true)
-            initialDelayApplied.current = true
-          }, remainingDelay)
-        } else {
-          // Game started more than 5 seconds ago, show immediately
-          setShowTimer(true)
-          initialDelayApplied.current = true
-        }
-      } else {
-        // Not first turn, show immediately
-        setShowTimer(true)
-      }
-    } else {
-      console.log('⏰ Not my turn - hiding timer')
-      setShowTimer(false)
     }
-  }, [isMyTurn, turnDuration, gameStartTime])
+  }, [isMyTurn, turnDuration])
 
   useEffect(() => {
-    if (!isMyTurn || isExpired || !showTimer) return
+    if (!isMyTurn || isExpired) return
 
     console.log('⏰ Starting timer interval')
     const interval = setInterval(() => {
@@ -87,14 +60,14 @@ export default function TurnTimer({
       console.log('⏰ Cleaning up timer interval')
       clearInterval(interval)
     }
-  }, [isMyTurn, isExpired, onTimeExpired, showTimer])
+  }, [isMyTurn, isExpired, onTimeExpired, onTimeUpdate])
 
-  // Don't show timer if it's not my turn OR if we're still in initial delay
-  if (!isMyTurn || !showTimer) return null
+  // Don't show timer if it's not my turn
+  if (!isMyTurn) return null
 
   const percentage = (timeLeft / turnDuration) * 100
   const isWarning = timeLeft <= 10
-  const radius = 50 // Kleiner gemaakt
+  const radius = 64 // Increased to reach inner edge (72 - 8 strokeWidth = 64)
   const circumference = 2 * Math.PI * radius
   // Reversed: start from full circle and decrease
   const strokeDashoffset = circumference * (1 - percentage / 100)
@@ -131,7 +104,7 @@ export default function TurnTimer({
           }`}>
             {timeLeft}
           </span>
-          <span className="text-xs text-gray-400 mt-1">seconden</span>
+          <span className="text-xs text-gray-400 mt-1">sec</span>
         </div>
       </div>
     </div>
