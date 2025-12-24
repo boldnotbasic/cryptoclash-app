@@ -38,7 +38,7 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
     if (onApplyScanEffect) {
       onApplyScanEffect({ ...(effect as any), marketOnly: true, source: 'kans' } as any)
     }
-    setShowScan(false)
+    // Don't call setShowScan(false) here - ScanResult component handles onClose itself
   }, [onApplyScanEffect])
   
   const actionButtons = [
