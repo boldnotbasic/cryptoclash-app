@@ -1466,6 +1466,22 @@ export default function Home() {
       console.log('💬 Message:', message)
       console.log('📦 Room:', recoveredRoom)
       
+      // Find my player data in the recovered room
+      if (recoveredRoom && recoveredRoom.players) {
+        // Find player by socket ID (current socket)
+        const myPlayerData = recoveredRoom.players[socket?.id || '']
+        
+        if (myPlayerData && !myPlayerData.isHost) {
+          console.log('👤 Restoring player identity:', myPlayerData)
+          // Restore player name and avatar from server
+          setPlayerName(myPlayerData.name)
+          setPlayerAvatar(myPlayerData.avatar)
+          console.log('✅ Player identity restored:', myPlayerData.name, myPlayerData.avatar)
+        } else {
+          console.warn('⚠️ Could not find player data in recovered room')
+        }
+      }
+      
       // Show success notification
       setDashboardToasts(prev => [...prev, {
         id: Date.now().toString(),
