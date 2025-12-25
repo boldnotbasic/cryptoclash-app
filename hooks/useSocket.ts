@@ -142,30 +142,66 @@ export const useSocket = (): UseSocketReturn => {
       console.log('🔌 Connected to server:', socket.id)
       setConnected(true)
       setError(null)
-      // Try automatic rejoin if we have prior identity and no room set yet
+      
+      // Try to recover session from localStorage
       try {
-        const raw = localStorage.getItem(AUTO_JOIN_STORAGE_KEY)
-        const attemptRaw = sessionStorage.getItem(AUTO_JOIN_ATTEMPT_KEY)
-        const lastAttempt = attemptRaw ? parseInt(attemptRaw, 10) : 0
-        const now = Date.now()
-        if (raw && !room && (!lastAttempt || now - lastAttempt > 3000)) {
-          const data = JSON.parse(raw)
-          const { roomCode, playerName, playerAvatar } = data || {}
-          if (roomCode && playerName && playerAvatar) {
-            console.log('🤖 Auto-rejoin attempt with saved identity:', data)
-            sessionStorage.setItem(AUTO_JOIN_ATTEMPT_KEY, String(now))
-            socket.emit('player:join', { roomCode, playerName, playerAvatar })
+        const savedRoomState = localStorage.getItem('cryptoclash-room-state')
+        const savedIdentity = localStorage.getItem(AUTO_JOIN_STORAGE_KEY)
+        
+        if (savedRoomState && savedIdentity) {
+          const roomData = JSON.parse(savedRoomState)
+          const identity = JSON.parse(savedIdentity)
+          const { roomCode, playerName, playerAvatar } = identity
+          
+          console.log('🔄 === SESSION RECOVERY ATTEMPT ===')
+          console.log('📦 Saved room state found:', roomData)
+          console.log('👤 Player identity:', { playerName, playerAvatar })
+          console.log('🏠 Room code:', roomCode)
+          
+          // Emit session recovery request to server
+          socket.emit('player:recoverSession', {
+            roomCode,
+            playerName,
+            playerAvatar,
+            previousRoomState: roomData
+          })
+          
+          console.log('✅ Session recovery request sent')
+        } else if (savedIdentity && !room) {
+          // Fallback to simple rejoin if no room state saved
+          const attemptRaw = sessionStorage.getItem(AUTO_JOIN_ATTEMPT_KEY)
+          const lastAttempt = attemptRaw ? parseInt(attemptRaw, 10) : 0
+          const now = Date.now()
+          
+          if (!lastAttempt || now - lastAttempt > 3000) {
+            const data = JSON.parse(savedIdentity)
+            const { roomCode, playerName, playerAvatar } = data || {}
+            if (roomCode && playerName && playerAvatar) {
+              console.log('🤖 Auto-rejoin attempt with saved identity:', data)
+              sessionStorage.setItem(AUTO_JOIN_ATTEMPT_KEY, String(now))
+              socket.emit('player:join', { roomCode, playerName, playerAvatar })
+            }
           }
         }
       } catch (e) {
-        console.warn('Auto-rejoin failed to read storage', e)
+        console.warn('Session recovery failed', e)
       }
     })
 
     socket.on('disconnect', (reason) => {
       console.log('🔌 Disconnected from server:', reason)
+      console.log('💾 Keeping room state for reconnection recovery')
       setConnected(false)
-      setRoom(null)
+      // DON'T clear room - keep it for recovery on reconnect
+      // Save current room state to localStorage for recovery
+      if (room) {
+        try {
+          localStorage.setItem('cryptoclash-room-state', JSON.stringify(room))
+          console.log('💾 Room state saved to localStorage')
+        } catch (e) {
+          console.warn('Failed to save room state', e)
+        }
+      }
     })
 
     socket.on('connect_error', (error) => {
@@ -265,12 +301,51 @@ export const useSocket = (): UseSocketReturn => {
     socket.on('lobby:update', (updatedRoom) => {
       console.log('🔄 Lobby updated')
       setRoom(updatedRoom)
+      // Save updated room state
+      try {
+        localStorage.setItem('cryptoclash-room-state', JSON.stringify(updatedRoom))
+      } catch (e) {
+        console.warn('Failed to save updated room state', e)
+      }
     })
 
     // Game events
     socket.on('game:started', ({ room }) => {
       console.log('🎮 Game started!')
       setRoom(room)
+      // Save room state for recovery
+      try {
+        localStorage.setItem('cryptoclash-room-state', JSON.stringify(room))
+      } catch (e) {
+        console.warn('Failed to save room state on game start', e)
+      }
+    })
+    
+    // Session recovery events
+    socket.on('player:sessionRecovered', ({ room, message }) => {
+      console.log('✅ === SESSION RECOVERED ===')
+      console.log('📦 Room state:', room)
+      console.log('💬 Message:', message)
+      setRoom(room)
+      setError(null)
+      // Update saved room state
+      try {
+        localStorage.setItem('cryptoclash-room-state', JSON.stringify(room))
+      } catch (e) {
+        console.warn('Failed to update room state', e)
+      }
+    })
+    
+    socket.on('player:sessionRecoveryFailed', ({ message }) => {
+      console.error('❌ Session recovery failed:', message)
+      // Clear stale data
+      try {
+        localStorage.removeItem('cryptoclash-room-state')
+        localStorage.removeItem(AUTO_JOIN_STORAGE_KEY)
+      } catch (e) {
+        console.warn('Failed to clear stale session data', e)
+      }
+      setError(message)
     })
 
     // Host start game events - ERROR HANDLING REMOVED

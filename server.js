@@ -798,6 +798,106 @@ app.prepare().then(() => {
       console.log(`🔄 === ROOM STATE RECOVERY COMPLETE ===\n`)
     })
 
+    // 🚨 NEW: Full session recovery for PWA reconnections
+    socket.on('player:recoverSession', ({ roomCode, playerName, playerAvatar, previousRoomState }) => {
+      console.log(`\n🔄 === FULL SESSION RECOVERY REQUEST ===`)
+      console.log(`🏠 Room Code: ${roomCode}`)
+      console.log(`👤 Player: ${playerName} ${playerAvatar}`)
+      console.log(`🔌 New Socket ID: ${socket.id}`)
+      
+      const room = rooms[roomCode]
+      if (!room) {
+        console.log(`❌ Room ${roomCode} not found for session recovery`)
+        socket.emit('player:sessionRecoveryFailed', { 
+          message: 'Lobby bestaat niet meer. Start een nieuw spel.' 
+        })
+        return
+      }
+      
+      // Find existing player by name and avatar
+      const existingPlayer = Object.entries(room.players).find(
+        ([id, p]) => p.name === playerName && p.avatar === playerAvatar
+      )
+      
+      if (existingPlayer) {
+        const [oldSocketId, oldPlayerData] = existingPlayer
+        console.log(`✅ Found existing player data`)
+        console.log(`🔌 Old Socket: ${oldSocketId} -> New Socket: ${socket.id}`)
+        
+        // Cancel any pending cleanup for the old socket
+        const cleanupKey = `${roomCode}:${oldSocketId}`
+        if (playerCleanupTimers.has(cleanupKey)) {
+          clearTimeout(playerCleanupTimers.get(cleanupKey))
+          playerCleanupTimers.delete(cleanupKey)
+          console.log(`🧹 Cancelled pending cleanup for ${playerName}`)
+        }
+        
+        // Remove old socket entry
+        delete room.players[oldSocketId]
+        
+        // Add player with new socket ID, preserving ALL data
+        room.players[socket.id] = {
+          ...oldPlayerData,
+          joinedAt: oldPlayerData.joinedAt || Date.now(), // Keep original join time
+          isRejoining: true,
+          disconnected: false,
+          disconnectedAt: undefined
+        }
+        
+        // Update player order if needed
+        if (room.playerOrder && room.playerOrder.includes(oldSocketId)) {
+          const orderIndex = room.playerOrder.indexOf(oldSocketId)
+          room.playerOrder[orderIndex] = socket.id
+          console.log(`✅ Updated player order: ${oldSocketId} -> ${socket.id}`)
+        }
+        
+        // Update current turn player if needed
+        if (room.currentTurnPlayerId === oldSocketId) {
+          room.currentTurnPlayerId = socket.id
+          console.log(`✅ Updated current turn player: ${oldSocketId} -> ${socket.id}`)
+        }
+        
+        // Join Socket.IO room
+        socket.join(roomCode)
+        console.log(`✅ Socket ${socket.id} joined Socket.IO room ${roomCode}`)
+        
+        // Send success with full room state
+        socket.emit('player:sessionRecovered', { 
+          room, 
+          message: `Welkom terug, ${playerName}! Je sessie is hersteld.` 
+        })
+        
+        // Broadcast to others that player reconnected
+        socket.to(roomCode).emit('player:reconnected', {
+          playerName,
+          playerAvatar,
+          message: `${playerName} is weer verbonden`
+        })
+        
+        // Broadcast updated room state
+        io.to(roomCode).emit('lobby:update', room)
+        
+        // Send market state
+        const marketChange = roomMarketChange24h[roomCode] || {}
+        socket.emit('market:stateUpdate', { change24h: marketChange })
+        
+        // Send scan data
+        if (roomScanData[roomCode]) {
+          socket.emit('scanData:update', {
+            autoScanActions: roomScanData[roomCode].autoScanActions,
+            playerScanActions: roomScanData[roomCode].playerScanActions
+          })
+        }
+        
+        console.log(`✅ Session fully recovered for ${playerName}`)
+        console.log(`🔄 === SESSION RECOVERY COMPLETE ===\n`)
+      } else {
+        // Player not found - try regular join
+        console.log(`⚠️ Player ${playerName} not found in room - attempting regular join`)
+        socket.emit('player:join', { roomCode, playerName, playerAvatar })
+      }
+    })
+
     // Start game - NO LOGIC, JUST START
     socket.on('host:startGame', ({ roomCode }) => {
       console.log(`\n🚀 === GAME START - NO QUESTIONS ASKED ===`)

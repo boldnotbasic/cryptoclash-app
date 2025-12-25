@@ -87,6 +87,8 @@ export default function Home() {
     return null
   }, [room, playerName, playerAvatar])
 
+  // Session recovery events will be added after state declarations
+
   const handleEndGame = () => {
     console.log('\n🛑 === END GAME REQUEST FROM DASHBOARD ===')
 
@@ -95,6 +97,10 @@ export default function Home() {
       try {
         localStorage.removeItem('cryptoClashSession')
         localStorage.removeItem('cryptoclash-session')
+        localStorage.removeItem('cryptoclash-last-join')
+        localStorage.removeItem('cryptoclash-room-state')
+        localStorage.removeItem('cryptoclash-player-state')
+        console.log('✅ All session data cleared')
       } catch (e) {
         console.warn('⚠️ Failed to clear local storage session on end game', e)
       }
@@ -1450,6 +1456,62 @@ export default function Home() {
       }
     }
   }, [socket, isHost, playerName, currentScreen])
+
+  // === SESSION RECOVERY EVENT HANDLERS ===
+  useEffect(() => {
+    if (!socket) return
+
+    const handleSessionRecovered = ({ room: recoveredRoom, message }: any) => {
+      console.log('✅ === SESSION RECOVERED ===')
+      console.log('💬 Message:', message)
+      console.log('📦 Room:', recoveredRoom)
+      
+      // Show success notification
+      setDashboardToasts(prev => [...prev, {
+        id: Date.now().toString(),
+        message: message || 'Sessie hersteld!',
+        sender: 'Systeem'
+      }])
+      
+      // Navigate to main menu if not already in game
+      if (currentScreen === 'login' || currentScreen === 'waiting-room') {
+        navigateToScreen('main-menu')
+      }
+    }
+
+    const handleSessionRecoveryFailed = ({ message }: any) => {
+      console.error('❌ Session recovery failed:', message)
+      // Clear stale data and return to login
+      try {
+        localStorage.removeItem('cryptoclash-player-state')
+        localStorage.removeItem('cryptoclash-room-state')
+      } catch (e) {
+        console.warn('Failed to clear stale data', e)
+      }
+      navigateToScreen('login')
+    }
+
+    const handlePlayerReconnected = ({ playerName: reconnectedPlayer, playerAvatar: reconnectedAvatar, message }: any) => {
+      console.log('🔄 Player reconnected:', reconnectedPlayer)
+      if (currentScreen === 'market-dashboard') {
+        setDashboardToasts(prev => [...prev, {
+          id: Date.now().toString(),
+          message: message || `${reconnectedPlayer} is weer verbonden`,
+          sender: 'Systeem'
+        }])
+      }
+    }
+
+    socket.on('player:sessionRecovered', handleSessionRecovered)
+    socket.on('player:sessionRecoveryFailed', handleSessionRecoveryFailed)
+    socket.on('player:reconnected', handlePlayerReconnected)
+
+    return () => {
+      socket.off('player:sessionRecovered', handleSessionRecovered)
+      socket.off('player:sessionRecoveryFailed', handleSessionRecoveryFailed)
+      socket.off('player:reconnected', handlePlayerReconnected)
+    }
+  }, [socket, currentScreen])
 
   // === CORE EVENT HANDLERS FOR MARKET DATA ===
   useEffect(() => {
