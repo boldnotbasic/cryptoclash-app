@@ -1474,24 +1474,30 @@ export default function Home() {
     if (!socket) return
 
     const handleSessionRecovered = ({ room: recoveredRoom, message }: any) => {
-      console.log('✅ === SESSION RECOVERED ===')
+      console.log('\n\n🔥 === FULL SESSION RECOVERY DEBUG ===')
       console.log('💬 Message:', message)
-      console.log('📦 Room:', recoveredRoom)
+      console.log('📦 Recovered Room:', recoveredRoom)
+      console.log('🔍 Current socket.id:', socket?.id)
       
       // CRITICAL: Restore roomId from recovered room
       if (recoveredRoom && recoveredRoom.code) {
-        console.log('🏠 Restoring roomId:', recoveredRoom.code)
+        console.log('🏠 Setting roomId:', recoveredRoom.code)
         setRoomId(recoveredRoom.code)
+      } else {
+        console.error('❌ No room code in recovered room!')
       }
       
       // Find my player data in the recovered room
       let restoredPlayerName = playerName
       if (recoveredRoom && recoveredRoom.players) {
+        console.log('👥 All players in recovered room:', Object.keys(recoveredRoom.players))
+        
         // Find player by socket ID (current socket)
         const myPlayerData = recoveredRoom.players[socket?.id || '']
+        console.log('👤 My player data:', myPlayerData)
         
         if (myPlayerData && !myPlayerData.isHost) {
-          console.log('👤 Restoring player identity:', myPlayerData)
+          console.log('✅ Restoring player identity:', myPlayerData)
           // Restore player name and avatar from server
           setPlayerName(myPlayerData.name)
           setPlayerAvatar(myPlayerData.avatar)
@@ -1500,9 +1506,14 @@ export default function Home() {
           
           // Restore isHost status
           setIsHost(false)
+          console.log('✅ isHost set to false')
         } else {
-          console.warn('⚠️ Could not find player data in recovered room')
+          console.error('❌ Could not find player data in recovered room or player is host!')
+          console.error('  socket.id:', socket?.id)
+          console.error('  myPlayerData:', myPlayerData)
         }
+      } else {
+        console.error('❌ No players in recovered room!')
       }
       
       // Show success notification
@@ -1512,12 +1523,24 @@ export default function Home() {
         sender: 'Systeem'
       }])
       
+      // Log current state AFTER recovery
+      console.log('\n📊 === STATE AFTER RECOVERY ===')
+      console.log('  roomId:', recoveredRoom?.code)
+      console.log('  playerName:', restoredPlayerName)
+      console.log('  socket.id:', socket?.id)
+      console.log('  currentScreen:', currentScreen)
+      console.log('  room.currentTurnPlayerId:', recoveredRoom?.currentTurnPlayerId)
+      console.log('  room.playerOrder:', recoveredRoom?.playerOrder)
+      
       // Navigate to main menu if not already in game
       if (currentScreen === 'login' || currentScreen === 'waiting-room') {
+        console.log('➡️ Navigating to main-menu')
         navigateToScreen('main-menu')
+      } else {
+        console.log('ℹ️ Staying on current screen:', currentScreen)
       }
       
-      console.log('✅ Session recovery complete - roomId:', recoveredRoom?.code, 'playerName:', restoredPlayerName)
+      console.log('🔥 === SESSION RECOVERY DEBUG COMPLETE ===\n\n')
     }
 
     const handleSessionRecoveryFailed = ({ message }: any) => {
@@ -2537,10 +2560,24 @@ export default function Home() {
                 transactions={transactions}
                 actionsDisabled={actionsDisabled}
                 onEndTurnConfirm={() => {
-                  console.log('⏭️ End turn confirmed from MainMenu')
+                  console.log('\n🔥 === END TURN CLICKED (MainMenu) ===')
+                  console.log('  socket exists:', !!socket)
+                  console.log('  socket.id:', socket?.id)
+                  console.log('  socket.connected:', socket?.connected)
+                  console.log('  roomId:', roomId)
+                  console.log('  isMyTurn:', isMyTurn)
+                  console.log('  actionsDisabled:', actionsDisabled)
+                  
                   if (socket && roomId && roomId !== 'solo-mode') {
+                    console.log('✅ Emitting turn:end to room:', roomId)
                     socket.emit('turn:end', { roomCode: roomId })
+                    console.log('✅ turn:end emitted successfully')
+                  } else {
+                    console.error('❌ Cannot emit turn:end!')
+                    console.error('  socket:', !!socket)
+                    console.error('  roomId:', roomId)
                   }
+                  console.log('🔥 === END TURN COMPLETE ===\n')
                   navigateToScreen('main-menu')
                 }}
                 onSendTestMessage={handleSendTestMessage}
@@ -2673,10 +2710,24 @@ export default function Home() {
                 playerName={playerName}
                 playerAvatar={playerAvatar}
                 onEndTurnConfirm={() => {
-                  console.log('⏭️ End turn confirmed from ActionsMenu')
+                  console.log('\n🔥 === END TURN CLICKED (ActionsMenu) ===')
+                  console.log('  socket exists:', !!socket)
+                  console.log('  socket.id:', socket?.id)
+                  console.log('  socket.connected:', socket?.connected)
+                  console.log('  roomId:', roomId)
+                  console.log('  isMyTurn:', isMyTurn)
+                  console.log('  actionsDisabled:', actionsDisabled)
+                  
                   if (socket && roomId && roomId !== 'solo-mode') {
+                    console.log('✅ Emitting turn:end to room:', roomId)
                     socket.emit('turn:end', { roomCode: roomId })
+                    console.log('✅ turn:end emitted successfully')
+                  } else {
+                    console.error('❌ Cannot emit turn:end!')
+                    console.error('  socket:', !!socket)
+                    console.error('  roomId:', roomId)
                   }
+                  console.log('🔥 === END TURN COMPLETE ===\n')
                   navigateToScreen('main-menu')
                 }}
                 onNavigate={(screen) => {
