@@ -115,6 +115,8 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
   const [currentScenario, setCurrentScenario] = useState<ScanEffect | null>(null)
   const [isVisible, setIsVisible] = useState(false)
   const initializedRef = useRef(false)
+  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const hasClosedRef = useRef(false)
 
   const buildScenarioFromTemplate = (template: ScanScenarioTemplate): ScanEffect => {
     let percentage: number | undefined = undefined
@@ -239,12 +241,25 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
 
   // Separate effect for auto-close timer that depends on currentScenario being set
   useEffect(() => {
-    if (!currentScenario) return
+    if (!currentScenario || hasClosedRef.current) return
     
-    console.log('Starting auto-close timer for scenario:', currentScenario.message)
-    const timer = setTimeout(() => {
+    console.log('🕒 Starting auto-close timer for scenario:', currentScenario.message)
+    
+    // Clear any existing timer
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current)
+    }
+    
+    autoCloseTimerRef.current = setTimeout(() => {
+      if (hasClosedRef.current) {
+        console.log('⚠️ Already closed, skipping')
+        return
+      }
+      
       console.log('🔥 FORCE CLOSING scan result NOW')
+      hasClosedRef.current = true
       setIsVisible(false)
+      
       setTimeout(() => {
         console.log('🔥 APPLYING EFFECT and closing')
         onApplyEffect(currentScenario)
@@ -252,11 +267,15 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
       }, 300)
     }, 3100) // 100ms fade-in + 3000ms display time
 
+    // Cleanup: only clear timer on unmount, not on re-render
     return () => {
-      console.log('🧹 Cleaning up auto-close timer')
-      clearTimeout(timer)
+      console.log('🧹 Component unmounting, clearing timer')
+      if (autoCloseTimerRef.current) {
+        clearTimeout(autoCloseTimerRef.current)
+        autoCloseTimerRef.current = null
+      }
     }
-  }, [currentScenario, onApplyEffect, onClose])
+  }, [currentScenario])
 
   if (!currentScenario) return null
 
