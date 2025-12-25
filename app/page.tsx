@@ -75,17 +75,29 @@ export default function Home() {
 
   // Find my socket ID in the room players
   const mySocketId = useMemo(() => {
-    if (!room || !room.players) return null
+    if (!room || !room.players || !socket) return null
     
-    // Find the socket ID that matches my name and avatar
+    // First: try to use current socket.id if it exists in room.players
+    if (socket.id && room.players[socket.id]) {
+      const player = room.players[socket.id]
+      if (!player.isHost) {
+        console.log('✅ Using current socket.id:', socket.id)
+        return socket.id
+      }
+    }
+    
+    // Fallback: Find the socket ID that matches my name and avatar
+    // (This is needed for initial join before socket.id is in room)
     for (const [socketId, player] of Object.entries(room.players)) {
       if (!player.isHost && player.name === playerName && player.avatar === playerAvatar) {
+        console.log('🔍 Found socket ID by name/avatar:', socketId)
         return socketId
       }
     }
 
+    console.warn('⚠️ Could not find mySocketId')
     return null
-  }, [room, playerName, playerAvatar])
+  }, [room, socket, playerName, playerAvatar])
 
   // Session recovery events will be added after state declarations
 
