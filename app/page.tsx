@@ -1478,7 +1478,14 @@ export default function Home() {
       console.log('💬 Message:', message)
       console.log('📦 Room:', recoveredRoom)
       
+      // CRITICAL: Restore roomId from recovered room
+      if (recoveredRoom && recoveredRoom.code) {
+        console.log('🏠 Restoring roomId:', recoveredRoom.code)
+        setRoomId(recoveredRoom.code)
+      }
+      
       // Find my player data in the recovered room
+      let restoredPlayerName = playerName
       if (recoveredRoom && recoveredRoom.players) {
         // Find player by socket ID (current socket)
         const myPlayerData = recoveredRoom.players[socket?.id || '']
@@ -1488,7 +1495,11 @@ export default function Home() {
           // Restore player name and avatar from server
           setPlayerName(myPlayerData.name)
           setPlayerAvatar(myPlayerData.avatar)
+          restoredPlayerName = myPlayerData.name
           console.log('✅ Player identity restored:', myPlayerData.name, myPlayerData.avatar)
+          
+          // Restore isHost status
+          setIsHost(false)
         } else {
           console.warn('⚠️ Could not find player data in recovered room')
         }
@@ -1505,6 +1516,8 @@ export default function Home() {
       if (currentScreen === 'login' || currentScreen === 'waiting-room') {
         navigateToScreen('main-menu')
       }
+      
+      console.log('✅ Session recovery complete - roomId:', recoveredRoom?.code, 'playerName:', restoredPlayerName)
     }
 
     const handleSessionRecoveryFailed = ({ message }: any) => {
