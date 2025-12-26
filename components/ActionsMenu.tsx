@@ -44,7 +44,7 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
   const actionButtons = [
     {
       id: 'kans',
-      title: 'Kans',
+      title: 'Event',
       icon: Dice5,
       // Donker tile met blauwe accent-glow (matcht Markt-tegel vibe)
       tileClasses:

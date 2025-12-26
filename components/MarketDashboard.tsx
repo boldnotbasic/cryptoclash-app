@@ -655,7 +655,7 @@ export default function MarketDashboard({
                     {/* Timer Toggle - NOW ON THE LEFT */}
                     <button
                       onClick={handleTimerToggle}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all ${
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all active:scale-95 ${
                         timerEnabled 
                           ? 'bg-green-500/20 border-green-500/50 hover:bg-green-500/30' 
                           : 'bg-red-500/20 border-red-500/50 hover:bg-red-500/30'

@@ -2159,7 +2159,7 @@ export default function Home() {
         id: Date.now().toString(),
         timestamp: Date.now(),
         player: playerName,
-        action: 'QR Scan',
+        action: 'Event',
         effect: effectText,
         avatar: playerAvatar,
         cryptoSymbol: effect.cryptoSymbol,
@@ -3195,8 +3195,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Global Turn Timer - visible on all screens when it's player's turn */}
-      {roomId && roomId !== 'solo-mode' && !isHost && (
+      {/* Global Turn Timer - visible on all screens when it's player's turn, hidden during turn notifications */}
+      {roomId && roomId !== 'solo-mode' && !isHost && !turnNotification && (
         <TurnTimer 
           isMyTurn={isMyTurn && !isGameFinishedForPlayer}
           onTimeExpired={() => {
