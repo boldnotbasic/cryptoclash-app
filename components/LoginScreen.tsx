@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Zap, Coins, TrendingUp, RefreshCw } from 'lucide-react'
+import { Zap, Coins, TrendingUp, RefreshCw, ArrowLeft } from 'lucide-react'
 
 // List of 20 random avatars
 const avatars = [
@@ -11,9 +11,10 @@ const avatars = [
 
 interface LoginScreenProps {
   onLogin: (name: string, avatar: string) => void
+  onBack?: () => void
 }
 
-export default function LoginScreen({ onLogin }: LoginScreenProps) {
+export default function LoginScreen({ onLogin, onBack }: LoginScreenProps) {
   const [playerName, setPlayerName] = useState('')
   const [selectedAvatar, setSelectedAvatar] = useState(avatars[0])
 
@@ -37,6 +38,17 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             />
           </div>
         </div>
+
+        {/* Back Button */}
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mb-4 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Terug</span>
+          </button>
+        )}
 
         {/* Login Form */}
         <div className="crypto-card">

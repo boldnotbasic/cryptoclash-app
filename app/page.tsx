@@ -2482,7 +2482,7 @@ export default function Home() {
             )
             
           case 'login':
-            return <LoginScreen onLogin={handleLogin} />
+            return <LoginScreen onLogin={handleLogin} onBack={() => setCurrentScreen('start-screen')} />
             
           case 'game-setup':
             return (

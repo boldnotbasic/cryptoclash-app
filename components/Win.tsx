@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Gift, Coins } from 'lucide-react'
 import Header from './Header'
+import SpinWheel from './SpinWheel'
 
 interface CryptoCurrency {
   id: string
@@ -49,10 +50,11 @@ export default function Win({
   onWinGoldHen
 }: WinProps) {
   const topCryptos = cryptos.slice(0, 6)
-  const [selectedType, setSelectedType] = useState<'crypto' | 'cash' | null>(null)
+  const [selectedType, setSelectedType] = useState<'crypto' | 'cash' | 'wheel' | null>(null)
   const [selectedCryptoSymbol, setSelectedCryptoSymbol] = useState<string | null>(null)
   const [selectedCashOption, setSelectedCashOption] = useState<'500' | 'gold' | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [showWheel, setShowWheel] = useState(false)
 
   const handleSelectCrypto = (symbol: string) => {
     setSelectedType('crypto')
@@ -227,6 +229,28 @@ export default function Win({
               </button>
             </div>
           </div>
+
+          {/* Spin the Wheel - Full width below cash options */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedType('wheel')
+              setSelectedCryptoSymbol(null)
+              setSelectedCashOption(null)
+              setShowWheel(true)
+            }}
+            className={`w-full p-4 rounded-xl transition shadow-sm bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-left flex items-center justify-center gap-3 ${
+              selectedType === 'wheel'
+                ? 'border-4 border-neon-purple shadow-[0_0_32px_rgba(168,85,247,1)] ring-2 ring-neon-purple/50'
+                : 'border-2 border-purple-500/30 hover:border-purple-500/50'
+            }`}
+          >
+            <div className="text-6xl">🎡</div>
+            <div className="text-center">
+              <div className="text-white font-bold text-xl mb-1">Spin the Wheel!</div>
+              <div className="text-purple-300 text-sm">Win een willekeurige crypto</div>
+            </div>
+          </button>
         </div>
 
         {/* Overzicht + Valideren */}
@@ -315,15 +339,15 @@ export default function Win({
             </button>
             <button
               type="button"
-              disabled={!selectedType}
+              disabled={!selectedType || selectedType === 'wheel'}
               onClick={handleValidateWin}
               className={`flex-1 py-2 rounded-lg font-semibold ${
-                !selectedType
+                !selectedType || selectedType === 'wheel'
                   ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
                   : 'bg-neon-gold text-black hover:opacity-90'
               }`}
             >
-              Valideren
+              {selectedType === 'wheel' ? 'Draai het rad!' : 'Valideren'}
             </button>
           </div>
         </div>
@@ -346,6 +370,22 @@ export default function Win({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Spin Wheel Modal */}
+      {showWheel && (
+        <SpinWheel
+          cryptos={cryptos}
+          onClose={() => {
+            setShowWheel(false)
+            setSelectedType(null)
+          }}
+          onWinCrypto={(symbol) => {
+            onWinCrypto(symbol)
+            setShowWheel(false)
+            setSuccessMessage(`Je hebt 1 ${cryptos.find(c => c.symbol === symbol)?.name || symbol} gewonnen!`)
+          }}
+        />
       )}
     </div>
   )
