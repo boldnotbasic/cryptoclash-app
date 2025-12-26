@@ -73,7 +73,7 @@ export default function TurnTimer({
   const strokeDashoffset = circumference * (1 - percentage / 100)
 
   return (
-    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[100]">
+    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-30">
       {/* Blurred background */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-md rounded-full transform scale-110" />
       

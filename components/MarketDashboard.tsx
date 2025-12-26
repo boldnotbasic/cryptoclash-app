@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
-import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks, Power, SkipForward } from 'lucide-react'
+import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks, Power, SkipForward, Clock } from 'lucide-react'
 import Header from './Header'
 
 interface CryptoCurrency {
@@ -284,19 +284,35 @@ export default function MarketDashboard({
   // Handle timer toggle
   const handleTimerToggle = () => {
     const newTimerState = !timerEnabled
-    setTimerEnabled(newTimerState)
     
-    console.log(`\n⏱️ === TIMER TOGGLE ===`)
+    console.log(`\n⏱️ === TIMER TOGGLE CLICKED ===`)
+    console.log(`  Current state: ${timerEnabled ? 'ENABLED' : 'DISABLED'}`)
     console.log(`  New state: ${newTimerState ? 'ENABLED' : 'DISABLED'}`)
     console.log(`  Room ID: ${roomId}`)
+    console.log(`  Socket exists: ${!!socket}`)
+    console.log(`  Socket connected: ${socket?.connected}`)
     
-    if (socket && roomId) {
-      socket.emit('room:toggleTimer', { 
-        roomCode: roomId, 
-        enabled: newTimerState 
-      })
-      console.log(`✅ Timer toggle sent to server`)
+    if (!socket) {
+      console.error(`❌ No socket available!`)
+      return
     }
+    
+    if (!roomId) {
+      console.error(`❌ No roomId available!`)
+      return
+    }
+    
+    // Update local state first
+    setTimerEnabled(newTimerState)
+    console.log(`✅ Local state updated to: ${newTimerState ? 'ENABLED' : 'DISABLED'}`)
+    
+    // Emit to server
+    console.log(`📡 Emitting room:toggleTimer to server...`)
+    socket.emit('room:toggleTimer', { 
+      roomCode: roomId, 
+      enabled: newTimerState 
+    })
+    console.log(`✅ Timer toggle sent to server`)
     console.log(`⏱️ === TIMER TOGGLE COMPLETE ===\n`)
   }
 
@@ -636,24 +652,24 @@ export default function MarketDashboard({
                 )}
                 {roomId && playerName === 'Market Dashboard' && (
                   <div className="flex items-center gap-2">
-                    <div className="bg-neon-purple/20 px-3 py-1 rounded-full border border-neon-purple/50">
-                      <span className="text-neon-purple text-xs font-bold">Room: {roomId}</span>
-                    </div>
-                    {/* Timer Toggle */}
+                    {/* Timer Toggle - NOW ON THE LEFT */}
                     <button
                       onClick={handleTimerToggle}
-                      className={`flex items-center gap-2 px-3 py-1 rounded-full border transition-all ${
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all ${
                         timerEnabled 
                           ? 'bg-green-500/20 border-green-500/50 hover:bg-green-500/30' 
                           : 'bg-red-500/20 border-red-500/50 hover:bg-red-500/30'
                       }`}
                       title={timerEnabled ? 'Timer ingeschakeld (60s auto turn)' : 'Timer uitgeschakeld (manueel einde beurt)'}
                     >
-                      <Zap className={`w-3 h-3 ${timerEnabled ? 'text-green-400' : 'text-red-400'}`} />
+                      <Clock className={`w-3 h-3 ${timerEnabled ? 'text-green-400' : 'text-red-400'}`} />
                       <span className={`text-xs font-bold ${timerEnabled ? 'text-green-400' : 'text-red-400'}`}>
-                        Timer {timerEnabled ? 'AAN' : 'UIT'}
+                        {timerEnabled ? 'AAN' : 'UIT'}
                       </span>
                     </button>
+                    <div className="bg-neon-purple/20 px-3 py-1 rounded-full border border-neon-purple/50">
+                      <span className="text-neon-purple text-xs font-bold">Room: {roomId}</span>
+                    </div>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
