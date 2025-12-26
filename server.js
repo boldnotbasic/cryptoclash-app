@@ -536,7 +536,7 @@ app.prepare().then(() => {
       
       // Create room if doesn't exist
       if (!rooms[roomCode]) {
-        rooms[roomCode] = { players: {}, started: false, settings: settings || {}, playerOrder: [], currentTurnPlayerId: null }
+        rooms[roomCode] = { code: roomCode, players: {}, started: false, settings: settings || {}, playerOrder: [], currentTurnPlayerId: null }
       }
       
       // Cancel any pending cleanup for this room
@@ -861,9 +861,9 @@ app.prepare().then(() => {
         socket.join(roomCode)
         console.log(`✅ Socket ${socket.id} joined Socket.IO room ${roomCode}`)
         
-        // Send success with full room state
+        // Send success with full room state (ensure code is included)
         socket.emit('player:sessionRecovered', { 
-          room, 
+          room: { ...room, code: roomCode }, 
           message: `Welkom terug, ${playerName}! Je sessie is hersteld.` 
         })
         
@@ -1262,6 +1262,7 @@ app.prepare().then(() => {
     socket.on('debug:createRoom123', () => {
       if (!rooms['123']) {
         rooms['123'] = {
+          code: '123',
           hostId: 'debug-host',
           hostName: 'Debug Host',
           hostAvatar: '🛠️',
