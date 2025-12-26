@@ -98,6 +98,14 @@ function cancelRoomCleanup(roomCode) {
 
 // Turn timer functions
 function startTurnTimer(roomCode, io) {
+  const room = rooms[roomCode]
+  
+  // Check if timer is enabled for this room
+  if (room && room.timerEnabled === false) {
+    console.log(`⏰ Timer disabled for room ${roomCode} - skipping auto turn`)
+    return
+  }
+  
   // Clear existing timer if any
   if (turnTimers.has(roomCode)) {
     clearTimeout(turnTimers.get(roomCode))
@@ -536,7 +544,7 @@ app.prepare().then(() => {
       
       // Create room if doesn't exist
       if (!rooms[roomCode]) {
-        rooms[roomCode] = { code: roomCode, players: {}, started: false, settings: settings || {}, playerOrder: [], currentTurnPlayerId: null }
+        rooms[roomCode] = { code: roomCode, players: {}, started: false, settings: settings || {}, playerOrder: [], currentTurnPlayerId: null, timerEnabled: true }
       }
       
       // Cancel any pending cleanup for this room
@@ -1043,6 +1051,38 @@ app.prepare().then(() => {
       } catch (e) {
         console.warn('⚠️ Failed to handle turn:end', e)
       }
+    })
+
+    // Toggle turn timer on/off
+    socket.on('room:toggleTimer', ({ roomCode, enabled }) => {
+      console.log(`\n⏱️ === TIMER TOGGLE REQUEST ===`)
+      console.log(`🏠 Room Code: ${roomCode}`)
+      console.log(`🔄 New state: ${enabled ? 'ENABLED' : 'DISABLED'}`)
+      
+      const room = rooms[roomCode]
+      if (!room) {
+        console.log(`❌ Room ${roomCode} not found`)
+        return
+      }
+      
+      // Update room timer state
+      room.timerEnabled = enabled
+      console.log(`✅ Timer ${enabled ? 'enabled' : 'disabled'} for room ${roomCode}`)
+      
+      if (enabled) {
+        // Timer was turned ON - start the timer
+        console.log(`▶️ Starting turn timer`)
+        startTurnTimer(roomCode, io)
+      } else {
+        // Timer was turned OFF - cancel any running timer
+        console.log(`⏸️ Cancelling turn timer`)
+        cancelTurnTimer(roomCode)
+      }
+      
+      // Broadcast timer state to all players
+      io.to(roomCode).emit('room:timerStateChanged', { enabled })
+      console.log(`📡 Timer state broadcasted to all players`)
+      console.log(`⏱️ === TIMER TOGGLE COMPLETE ===\n`)
     })
 
     // Host ends the game completely for all players

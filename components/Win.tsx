@@ -122,10 +122,10 @@ export default function Win({
                     key={crypto.id}
                     type="button"
                     onClick={() => handleSelectCrypto(crypto.symbol)}
-                    className={`p-3 rounded-xl border transition shadow-sm bg-dark-bg/40 text-left hover:border-white/20 ${
+                    className={`p-3 rounded-xl transition shadow-sm bg-dark-bg/40 text-left hover:border-white/20 ${
                       isSelected
-                        ? 'border-neon-blue shadow-[0_0_24px_rgba(56,189,248,0.85)]'
-                        : 'border-white/10'
+                        ? 'border-4 border-neon-blue shadow-[0_0_32px_rgba(56,189,248,1)] ring-2 ring-neon-blue/50'
+                        : 'border-2 border-white/10'
                     }`}
                   >
                     <div className="flex flex-col items-center">
@@ -178,10 +178,10 @@ export default function Win({
               <button
                 type="button"
                 onClick={() => handleSelectCash('500')}
-                className={`p-3 rounded-xl border transition shadow-sm bg-dark-bg/40 text-left flex flex-col items-center ${
+                className={`p-3 rounded-xl transition shadow-sm bg-dark-bg/40 text-left flex flex-col items-center ${
                   selectedType === 'cash' && selectedCashOption === '500'
-                    ? 'border-neon-blue shadow-[0_0_20px_rgba(56,189,248,0.8)]'
-                    : 'border-white/10 hover:border-white/20'
+                    ? 'border-4 border-neon-blue shadow-[0_0_32px_rgba(56,189,248,1)] ring-2 ring-neon-blue/50'
+                    : 'border-2 border-white/10 hover:border-white/20'
                 }`}
               >
                 <div className="w-20 h-20 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden mb-2">
@@ -204,10 +204,10 @@ export default function Win({
               <button
                 type="button"
                 onClick={() => handleSelectCash('gold')}
-                className={`p-3 rounded-xl border transition shadow-sm bg-dark-bg/40 text-left flex flex-col items-center ${
+                className={`p-3 rounded-xl transition shadow-sm bg-dark-bg/40 text-left flex flex-col items-center ${
                   selectedType === 'cash' && selectedCashOption === 'gold'
-                    ? 'border-neon-blue shadow-[0_0_20px_rgba(56,189,248,0.8)]'
-                    : 'border-white/10 hover:border-white/20'
+                    ? 'border-4 border-neon-blue shadow-[0_0_32px_rgba(56,189,248,1)] ring-2 ring-neon-blue/50'
+                    : 'border-2 border-white/10 hover:border-white/20'
                 }`}
               >
                 <div className="w-20 h-20 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden mb-2">

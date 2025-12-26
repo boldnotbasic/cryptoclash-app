@@ -72,6 +72,7 @@ export default function MarketDashboard({
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [showEndGameModal, setShowEndGameModal] = useState(false)
+  const [timerEnabled, setTimerEnabled] = useState(true)
   const [showKansEvent, setShowKansEvent] = useState(false)
   const [currentKansEvent, setCurrentKansEvent] = useState<{
     id: string
@@ -280,6 +281,25 @@ export default function MarketDashboard({
     }, 2000)
   }
 
+  // Handle timer toggle
+  const handleTimerToggle = () => {
+    const newTimerState = !timerEnabled
+    setTimerEnabled(newTimerState)
+    
+    console.log(`\n⏱️ === TIMER TOGGLE ===`)
+    console.log(`  New state: ${newTimerState ? 'ENABLED' : 'DISABLED'}`)
+    console.log(`  Room ID: ${roomId}`)
+    
+    if (socket && roomId) {
+      socket.emit('room:toggleTimer', { 
+        roomCode: roomId, 
+        enabled: newTimerState 
+      })
+      console.log(`✅ Timer toggle sent to server`)
+    }
+    console.log(`⏱️ === TIMER TOGGLE COMPLETE ===\n`)
+  }
+
   // Update time every second
   useEffect(() => {
     const interval = setInterval(() => {
@@ -299,6 +319,22 @@ export default function MarketDashboard({
       console.warn('Failed to auto request refresh on mount', e)
     }
   }, [socket, roomId, playerName])
+
+  // Listen for timer state changes from server
+  useEffect(() => {
+    if (!socket) return
+
+    const handleTimerStateChanged = ({ enabled }: { enabled: boolean }) => {
+      console.log(`⏱️ Timer state changed from server: ${enabled ? 'ENABLED' : 'DISABLED'}`)
+      setTimerEnabled(enabled)
+    }
+
+    socket.on('room:timerStateChanged', handleTimerStateChanged)
+
+    return () => {
+      socket.off('room:timerStateChanged', handleTimerStateChanged)
+    }
+  }, [socket])
 
   // Helper function to sanitize effects
   const sanitizeEffect = (effect: string) => {
@@ -599,8 +635,25 @@ export default function MarketDashboard({
                   </div>
                 )}
                 {roomId && playerName === 'Market Dashboard' && (
-                  <div className="bg-neon-purple/20 px-3 py-1 rounded-full border border-neon-purple/50">
-                    <span className="text-neon-purple text-xs font-bold">Room: {roomId}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="bg-neon-purple/20 px-3 py-1 rounded-full border border-neon-purple/50">
+                      <span className="text-neon-purple text-xs font-bold">Room: {roomId}</span>
+                    </div>
+                    {/* Timer Toggle */}
+                    <button
+                      onClick={handleTimerToggle}
+                      className={`flex items-center gap-2 px-3 py-1 rounded-full border transition-all ${
+                        timerEnabled 
+                          ? 'bg-green-500/20 border-green-500/50 hover:bg-green-500/30' 
+                          : 'bg-red-500/20 border-red-500/50 hover:bg-red-500/30'
+                      }`}
+                      title={timerEnabled ? 'Timer ingeschakeld (60s auto turn)' : 'Timer uitgeschakeld (manueel einde beurt)'}
+                    >
+                      <Zap className={`w-3 h-3 ${timerEnabled ? 'text-green-400' : 'text-red-400'}`} />
+                      <span className={`text-xs font-bold ${timerEnabled ? 'text-green-400' : 'text-red-400'}`}>
+                        Timer {timerEnabled ? 'AAN' : 'UIT'}
+                      </span>
+                    </button>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
@@ -1157,7 +1210,7 @@ export default function MarketDashboard({
               <div className="flex items-start space-x-3">
                 <div className="flex-shrink-0 mt-1">
                   <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-2xl">
-                    💬
+                    {toast.sender === 'Systeem' ? '👤' : '💬'}
                   </div>
                 </div>
                 <div className="flex-1">
