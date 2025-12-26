@@ -129,10 +129,12 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
     const x = 200 + distance * Math.cos(rad)
     const y = 200 + distance * Math.sin(rad)
     
-    // NO ROTATION - images stay upright so feet naturally point toward center
-    // When positioned radially, upright images automatically have feet pointing inward
+    // Rotate image to point toward center
+    // angle gives us the direction FROM center TO image position
+    // We want image to face TOWARD center, so rotate by angle + 180
+    const imageRotation = angle + 180
     
-    return { x, y, angle }
+    return { x, y, angle, imageRotation }
   }
 
   return (
@@ -208,13 +210,16 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
               opacity="0.5"
             />
 
-            {/* Place crypto images - upright so feet point toward center */}
+            {/* Place crypto images - rotated to face toward center */}
             {topCryptos.map((crypto, index) => {
               const pos = getImagePosition(index)
               const imagePath = getCryptoImagePath(crypto.symbol)
               
               return (
-                <g key={`img-${crypto.symbol}`}>
+                <g 
+                  key={`img-${crypto.symbol}`}
+                  transform={`rotate(${pos.imageRotation} ${pos.x} ${pos.y})`}
+                >
                   {imagePath ? (
                     <image
                       href={imagePath}
