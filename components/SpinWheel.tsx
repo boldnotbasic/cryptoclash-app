@@ -49,19 +49,26 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
     setIsSpinning(true)
     setWonCrypto(null)
 
-    // Random number of full rotations (5-8) + random segment
-    const fullRotations = 5 + Math.floor(Math.random() * 4)
+    // Pick a random winning segment first
     const randomSegment = Math.floor(Math.random() * topCryptos.length)
-    const finalAngle = fullRotations * 360 + randomSegment * segmentAngle + segmentAngle / 2
+    const winner = topCryptos[randomSegment]
+    
+    // Calculate angle to land on that segment
+    // Pointer is at top (0°), segments start from top and go clockwise
+    const fullRotations = 5 + Math.floor(Math.random() * 4)
+    const targetAngle = randomSegment * segmentAngle
+    const finalAngle = fullRotations * 360 + targetAngle
+
+    console.log('🎯 Spin Debug:')
+    console.log('  Random segment index:', randomSegment)
+    console.log('  Winner:', winner.symbol, winner.name)
+    console.log('  Target angle:', targetAngle)
+    console.log('  Final angle:', finalAngle)
 
     setRotation(finalAngle)
 
-    // After spin completes, determine winner
+    // After spin completes, show winner
     setTimeout(() => {
-      const normalizedAngle = finalAngle % 360
-      const winningIndex = Math.floor((360 - normalizedAngle + segmentAngle / 2) / segmentAngle) % topCryptos.length
-      const winner = topCryptos[winningIndex]
-      
       setWonCrypto(winner)
       setIsSpinning(false)
 
@@ -73,13 +80,14 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
     }, 4000) // 4 second spin duration
   }
 
+  // Project-themed gradient colors (darker, more subtle)
   const colors = [
-    'from-red-500 to-red-600',
-    'from-blue-500 to-blue-600',
-    'from-green-500 to-green-600',
-    'from-yellow-500 to-yellow-600',
-    'from-purple-500 to-purple-600',
-    'from-pink-500 to-pink-600',
+    'from-purple-900/80 via-purple-700/60 to-purple-900/80',
+    'from-blue-900/80 via-blue-700/60 to-blue-900/80',
+    'from-cyan-900/80 via-cyan-700/60 to-cyan-900/80',
+    'from-pink-900/80 via-pink-700/60 to-pink-900/80',
+    'from-indigo-900/80 via-indigo-700/60 to-indigo-900/80',
+    'from-violet-900/80 via-violet-700/60 to-violet-900/80',
   ]
 
   return (
@@ -107,10 +115,10 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
             <div className="w-0 h-0 border-l-[20px] border-l-transparent border-r-[20px] border-r-transparent border-t-[30px] border-t-neon-gold drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]" />
           </div>
 
-          {/* Wheel */}
+          {/* Wheel - perfectly circular with overflow hidden */}
           <div
             ref={wheelRef}
-            className="relative w-full h-full rounded-full shadow-2xl transition-transform duration-[4000ms] ease-out"
+            className="relative w-full h-full rounded-full shadow-2xl transition-transform duration-[4000ms] ease-out overflow-hidden border-4 border-neon-gold/30"
             style={{
               transform: `rotate(${rotation}deg)`,
               transitionTimingFunction: isSpinning ? 'cubic-bezier(0.17, 0.67, 0.12, 0.99)' : 'ease-out'
@@ -130,10 +138,15 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
                     clipPath: `polygon(50% 50%, 50% 0%, ${50 + 50 * Math.sin((segmentAngle * Math.PI) / 180)}% ${50 - 50 * Math.cos((segmentAngle * Math.PI) / 180)}%)`
                   }}
                 >
-                  <div className={`w-full h-full bg-gradient-to-br ${colors[index % colors.length]} flex items-start justify-center pt-8`}>
+                  <div className={`w-full h-full bg-gradient-to-br ${colors[index % colors.length]} flex items-center justify-center`}>
                     <div 
-                      className="flex flex-col items-center"
-                      style={{ transform: `rotate(${segmentAngle / 2}deg)` }}
+                      className="flex flex-col items-center absolute"
+                      style={{ 
+                        transform: `rotate(${segmentAngle / 2}deg)`,
+                        top: '25%',
+                        left: '50%',
+                        marginLeft: '-24px'
+                      }}
                     >
                       {imagePath ? (
                         <img
