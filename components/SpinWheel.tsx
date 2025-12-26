@@ -89,15 +89,15 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
     }, 4000)
   }
 
-  // SVG gradient definitions matching project theme
-  // Project uses: from-gray-900/95 via-purple-500/5 to-gray-900/95
+  // SVG gradient definitions matching "Spin the Wheel" tile style
+  // Tile uses: from-purple-600/20 to-pink-600/20
   const gradients = [
-    { id: 'grad1', from: '#1a1625', via: '#7c3aed', to: '#0f0a1a' }, // purple (darker base)
-    { id: 'grad2', from: '#0a1628', via: '#3b82f6', to: '#050a15' }, // blue (darker base)
-    { id: 'grad3', from: '#0a1a1a', via: '#06b6d4', to: '#051010' }, // cyan (darker base)
-    { id: 'grad4', from: '#1a0a14', via: '#ec4899', to: '#0f050a' }, // pink (darker base)
-    { id: 'grad5', from: '#0f0a1a', via: '#6366f1', to: '#080510' }, // indigo (darker base)
-    { id: 'grad6', from: '#150a1a', via: '#8b5cf6', to: '#0a0510' }, // violet (darker base)
+    { id: 'grad1', from: '#7c3aed', via: '#a855f7', to: '#6b21a8' }, // purple gradient
+    { id: 'grad2', from: '#3b82f6', via: '#60a5fa', to: '#1e40af' }, // blue gradient
+    { id: 'grad3', from: '#06b6d4', via: '#22d3ee', to: '#0e7490' }, // cyan gradient
+    { id: 'grad4', from: '#ec4899', via: '#f472b6', to: '#be185d' }, // pink gradient
+    { id: 'grad5', from: '#6366f1', via: '#818cf8', to: '#4338ca' }, // indigo gradient
+    { id: 'grad6', from: '#8b5cf6', via: '#a78bfa', to: '#6d28d9' }, // violet gradient
   ]
 
   // Calculate path for each segment
@@ -129,12 +129,10 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
     const x = 200 + distance * Math.cos(rad)
     const y = 200 + distance * Math.sin(rad)
     
-    // Calculate rotation so image points toward center (feet toward center)
-    // We need to rotate the image so it faces the center
-    // angle - 90 makes the image point toward center (feet inward)
-    const imageRotation = angle - 90
+    // NO ROTATION - images stay upright so feet naturally point toward center
+    // When positioned radially, upright images automatically have feet pointing inward
     
-    return { x, y, angle, imageRotation }
+    return { x, y, angle }
   }
 
   return (
@@ -174,11 +172,11 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
             {/* Define gradients */}
             <defs>
               {gradients.map((grad) => (
-                <radialGradient key={grad.id} id={grad.id}>
-                  <stop offset="0%" stopColor={grad.via} />
+                <linearGradient key={grad.id} id={grad.id} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={grad.from} />
                   <stop offset="50%" stopColor={grad.via} />
-                  <stop offset="100%" stopColor={grad.from} />
-                </radialGradient>
+                  <stop offset="100%" stopColor={grad.to} />
+                </linearGradient>
               ))}
             </defs>
 
@@ -210,16 +208,13 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
               opacity="0.5"
             />
 
-            {/* Place crypto images - rotated to point toward center */}
+            {/* Place crypto images - upright so feet point toward center */}
             {topCryptos.map((crypto, index) => {
               const pos = getImagePosition(index)
               const imagePath = getCryptoImagePath(crypto.symbol)
               
               return (
-                <g 
-                  key={`img-${crypto.symbol}`}
-                  transform={`rotate(${pos.imageRotation} ${pos.x} ${pos.y})`}
-                >
+                <g key={`img-${crypto.symbol}`}>
                   {imagePath ? (
                     <image
                       href={imagePath}
