@@ -53,20 +53,23 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
     const randomSegment = Math.floor(Math.random() * topCryptos.length)
     const winner = topCryptos[randomSegment]
     
-    // Calculate angle to land in CENTER of that segment
-    // Pointer is at top (270° in our coordinate system)
-    // We want the CENTER of the segment to align with the pointer
+    // Pointer is at TOP (0° in our SVG, which is -90° in standard math)
+    // Segments start at 0° (right side in standard math, top in our SVG because we offset by -90)
+    // To land in CENTER of segment: rotate wheel so segment center points UP
     const fullRotations = 5 + Math.floor(Math.random() * 4)
     
-    // Each segment center is at: segmentAngle * index + segmentAngle/2
-    // We need to rotate so this center aligns with 270°
+    // Segment center angle in our coordinate system (starting from top, going clockwise)
     const segmentCenterAngle = randomSegment * segmentAngle + segmentAngle / 2
-    const targetRotation = 270 - segmentCenterAngle
+    
+    // We need to rotate the wheel so this angle points to 0° (top/pointer)
+    // Negative because wheel rotates clockwise
+    const targetRotation = -segmentCenterAngle
     const finalAngle = fullRotations * 360 + targetRotation
 
     console.log('🎯 Spin Debug:')
     console.log('  Random segment index:', randomSegment)
     console.log('  Winner:', winner.symbol, winner.name)
+    console.log('  Segment angle:', segmentAngle)
     console.log('  Segment center angle:', segmentCenterAngle)
     console.log('  Target rotation:', targetRotation)
     console.log('  Final angle:', finalAngle)
@@ -116,14 +119,20 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
 
   // Calculate position for crypto image in segment
   const getImagePosition = (index: number) => {
+    // Angle of segment center (starting from top, going clockwise)
     const angle = index * segmentAngle + segmentAngle / 2
+    // Convert to radians (subtract 90 to start from top instead of right)
     const rad = (angle - 90) * Math.PI / 180
     const distance = 120 // Distance from center
     
     const x = 200 + distance * Math.cos(rad)
     const y = 200 + distance * Math.sin(rad)
     
-    return { x, y, angle }
+    // Calculate rotation so image points toward center (feet toward center)
+    // Image should be rotated to point inward
+    const imageRotation = angle + 90 // +90 to point feet toward center
+    
+    return { x, y, angle, imageRotation }
   }
 
   return (
@@ -199,13 +208,16 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
               opacity="0.5"
             />
 
-            {/* Place crypto images */}
+            {/* Place crypto images - rotated to point toward center */}
             {topCryptos.map((crypto, index) => {
               const pos = getImagePosition(index)
               const imagePath = getCryptoImagePath(crypto.symbol)
               
               return (
-                <g key={`img-${crypto.symbol}`}>
+                <g 
+                  key={`img-${crypto.symbol}`}
+                  transform={`rotate(${pos.imageRotation} ${pos.x} ${pos.y})`}
+                >
                   {imagePath ? (
                     <image
                       href={imagePath}
@@ -226,17 +238,6 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
                       {crypto.icon}
                     </text>
                   )}
-                  <text
-                    x={pos.x}
-                    y={pos.y + 40}
-                    textAnchor="middle"
-                    fill="white"
-                    fontSize="12"
-                    fontWeight="bold"
-                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))' }}
-                  >
-                    {crypto.symbol}
-                  </text>
                 </g>
               )
             })}
