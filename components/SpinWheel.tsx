@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { X } from 'lucide-react'
+import Image from 'next/image'
 
 interface CryptoCurrency {
   id: string
@@ -38,7 +39,6 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
   const [isSpinning, setIsSpinning] = useState(false)
   const [rotation, setRotation] = useState(0)
   const [wonCrypto, setWonCrypto] = useState<CryptoCurrency | null>(null)
-  const wheelRef = useRef<HTMLDivElement>(null)
 
   const topCryptos = cryptos.slice(0, 6)
   const segmentAngle = 360 / topCryptos.length
@@ -49,20 +49,26 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
     setIsSpinning(true)
     setWonCrypto(null)
 
-    // Pick a random winning segment first
+    // Pick a random winning segment
     const randomSegment = Math.floor(Math.random() * topCryptos.length)
     const winner = topCryptos[randomSegment]
     
-    // Calculate angle to land on that segment
-    // Pointer is at top (0°), segments start from top and go clockwise
+    // Calculate angle to land in CENTER of that segment
+    // Pointer is at top (270° in our coordinate system)
+    // We want the CENTER of the segment to align with the pointer
     const fullRotations = 5 + Math.floor(Math.random() * 4)
-    const targetAngle = randomSegment * segmentAngle
-    const finalAngle = fullRotations * 360 + targetAngle
+    
+    // Each segment center is at: segmentAngle * index + segmentAngle/2
+    // We need to rotate so this center aligns with 270°
+    const segmentCenterAngle = randomSegment * segmentAngle + segmentAngle / 2
+    const targetRotation = 270 - segmentCenterAngle
+    const finalAngle = fullRotations * 360 + targetRotation
 
     console.log('🎯 Spin Debug:')
     console.log('  Random segment index:', randomSegment)
     console.log('  Winner:', winner.symbol, winner.name)
-    console.log('  Target angle:', targetAngle)
+    console.log('  Segment center angle:', segmentCenterAngle)
+    console.log('  Target rotation:', targetRotation)
     console.log('  Final angle:', finalAngle)
 
     setRotation(finalAngle)
@@ -77,18 +83,48 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
         onWinCrypto(winner.symbol)
         onClose()
       }, 2000)
-    }, 4000) // 4 second spin duration
+    }, 4000)
   }
 
-  // Project-themed gradient colors (darker, more subtle)
-  const colors = [
-    'from-purple-900/80 via-purple-700/60 to-purple-900/80',
-    'from-blue-900/80 via-blue-700/60 to-blue-900/80',
-    'from-cyan-900/80 via-cyan-700/60 to-cyan-900/80',
-    'from-pink-900/80 via-pink-700/60 to-pink-900/80',
-    'from-indigo-900/80 via-indigo-700/60 to-indigo-900/80',
-    'from-violet-900/80 via-violet-700/60 to-violet-900/80',
+  // SVG gradient definitions with project theme colors
+  const gradients = [
+    { id: 'grad1', from: '#581c87', via: '#7c3aed', to: '#581c87' }, // purple
+    { id: 'grad2', from: '#1e3a8a', via: '#3b82f6', to: '#1e3a8a' }, // blue  
+    { id: 'grad3', from: '#164e63', via: '#06b6d4', to: '#164e63' }, // cyan
+    { id: 'grad4', from: '#831843', via: '#ec4899', to: '#831843' }, // pink
+    { id: 'grad5', from: '#3730a3', via: '#6366f1', to: '#3730a3' }, // indigo
+    { id: 'grad6', from: '#5b21b6', via: '#8b5cf6', to: '#5b21b6' }, // violet
   ]
+
+  // Calculate path for each segment
+  const getSegmentPath = (index: number) => {
+    const startAngle = index * segmentAngle
+    const endAngle = startAngle + segmentAngle
+    
+    const startRad = (startAngle - 90) * Math.PI / 180
+    const endRad = (endAngle - 90) * Math.PI / 180
+    
+    const x1 = 200 + 200 * Math.cos(startRad)
+    const y1 = 200 + 200 * Math.sin(startRad)
+    const x2 = 200 + 200 * Math.cos(endRad)
+    const y2 = 200 + 200 * Math.sin(endRad)
+    
+    const largeArc = segmentAngle > 180 ? 1 : 0
+    
+    return `M 200 200 L ${x1} ${y1} A 200 200 0 ${largeArc} 1 ${x2} ${y2} Z`
+  }
+
+  // Calculate position for crypto image in segment
+  const getImagePosition = (index: number) => {
+    const angle = index * segmentAngle + segmentAngle / 2
+    const rad = (angle - 90) * Math.PI / 180
+    const distance = 120 // Distance from center
+    
+    const x = 200 + distance * Math.cos(rad)
+    const y = 200 + distance * Math.sin(rad)
+    
+    return { x, y, angle }
+  }
 
   return (
     <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
@@ -115,60 +151,96 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
             <div className="w-0 h-0 border-l-[20px] border-l-transparent border-r-[20px] border-r-transparent border-t-[30px] border-t-neon-gold drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]" />
           </div>
 
-          {/* Wheel - perfectly circular with overflow hidden */}
-          <div
-            ref={wheelRef}
-            className="relative w-full h-full rounded-full shadow-2xl transition-transform duration-[4000ms] ease-out overflow-hidden border-4 border-neon-gold/30"
+          {/* SVG Wheel - TRUE CIRCLE */}
+          <svg
+            viewBox="0 0 400 400"
+            className="w-full h-full transition-transform duration-[4000ms] ease-out drop-shadow-2xl"
             style={{
               transform: `rotate(${rotation}deg)`,
               transitionTimingFunction: isSpinning ? 'cubic-bezier(0.17, 0.67, 0.12, 0.99)' : 'ease-out'
             }}
           >
-            {/* Wheel segments */}
+            {/* Define gradients */}
+            <defs>
+              {gradients.map((grad) => (
+                <radialGradient key={grad.id} id={grad.id}>
+                  <stop offset="0%" stopColor={grad.via} />
+                  <stop offset="50%" stopColor={grad.via} />
+                  <stop offset="100%" stopColor={grad.from} />
+                </radialGradient>
+              ))}
+            </defs>
+
+            {/* Draw segments */}
             {topCryptos.map((crypto, index) => {
-              const angle = index * segmentAngle
-              const imagePath = getCryptoImagePath(crypto.symbol)
+              const path = getSegmentPath(index)
+              const gradient = gradients[index % gradients.length]
               
               return (
-                <div
+                <path
                   key={crypto.symbol}
-                  className="absolute inset-0"
-                  style={{
-                    transform: `rotate(${angle}deg)`,
-                    clipPath: `polygon(50% 50%, 50% 0%, ${50 + 50 * Math.sin((segmentAngle * Math.PI) / 180)}% ${50 - 50 * Math.cos((segmentAngle * Math.PI) / 180)}%)`
-                  }}
-                >
-                  <div className={`w-full h-full bg-gradient-to-br ${colors[index % colors.length]} flex items-center justify-center`}>
-                    <div 
-                      className="flex flex-col items-center absolute"
-                      style={{ 
-                        transform: `rotate(${segmentAngle / 2}deg)`,
-                        top: '25%',
-                        left: '50%',
-                        marginLeft: '-24px'
-                      }}
-                    >
-                      {imagePath ? (
-                        <img
-                          src={imagePath}
-                          alt={crypto.name}
-                          className="w-12 h-12 object-contain drop-shadow-lg"
-                        />
-                      ) : (
-                        <span className="text-3xl">{crypto.icon}</span>
-                      )}
-                      <span className="text-white font-bold text-xs mt-1 drop-shadow-lg">{crypto.symbol}</span>
-                    </div>
-                  </div>
-                </div>
+                  d={path}
+                  fill={`url(#${gradient.id})`}
+                  stroke="#d4af37"
+                  strokeWidth="2"
+                  opacity="0.95"
+                />
               )
             })}
 
-            {/* Center circle */}
-            <div className="absolute inset-0 m-auto w-16 h-16 bg-gradient-to-br from-gray-800 to-gray-900 rounded-full border-4 border-neon-gold shadow-lg flex items-center justify-center">
-              <span className="text-2xl">🎯</span>
-            </div>
-          </div>
+            {/* Outer circle border */}
+            <circle
+              cx="200"
+              cy="200"
+              r="200"
+              fill="none"
+              stroke="#d4af37"
+              strokeWidth="4"
+              opacity="0.5"
+            />
+
+            {/* Place crypto images */}
+            {topCryptos.map((crypto, index) => {
+              const pos = getImagePosition(index)
+              const imagePath = getCryptoImagePath(crypto.symbol)
+              
+              return (
+                <g key={`img-${crypto.symbol}`}>
+                  {imagePath ? (
+                    <image
+                      href={imagePath}
+                      x={pos.x - 30}
+                      y={pos.y - 30}
+                      width="60"
+                      height="60"
+                      style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' }}
+                    />
+                  ) : (
+                    <text
+                      x={pos.x}
+                      y={pos.y}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize="40"
+                    >
+                      {crypto.icon}
+                    </text>
+                  )}
+                  <text
+                    x={pos.x}
+                    y={pos.y + 40}
+                    textAnchor="middle"
+                    fill="white"
+                    fontSize="12"
+                    fontWeight="bold"
+                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))' }}
+                  >
+                    {crypto.symbol}
+                  </text>
+                </g>
+              )
+            })}
+          </svg>
         </div>
 
         {/* Spin Button */}
