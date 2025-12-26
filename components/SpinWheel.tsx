@@ -89,14 +89,15 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
     }, 4000)
   }
 
-  // SVG gradient definitions with project theme colors
+  // SVG gradient definitions matching project theme
+  // Project uses: from-gray-900/95 via-purple-500/5 to-gray-900/95
   const gradients = [
-    { id: 'grad1', from: '#581c87', via: '#7c3aed', to: '#581c87' }, // purple
-    { id: 'grad2', from: '#1e3a8a', via: '#3b82f6', to: '#1e3a8a' }, // blue  
-    { id: 'grad3', from: '#164e63', via: '#06b6d4', to: '#164e63' }, // cyan
-    { id: 'grad4', from: '#831843', via: '#ec4899', to: '#831843' }, // pink
-    { id: 'grad5', from: '#3730a3', via: '#6366f1', to: '#3730a3' }, // indigo
-    { id: 'grad6', from: '#5b21b6', via: '#8b5cf6', to: '#5b21b6' }, // violet
+    { id: 'grad1', from: '#1a1625', via: '#7c3aed', to: '#0f0a1a' }, // purple (darker base)
+    { id: 'grad2', from: '#0a1628', via: '#3b82f6', to: '#050a15' }, // blue (darker base)
+    { id: 'grad3', from: '#0a1a1a', via: '#06b6d4', to: '#051010' }, // cyan (darker base)
+    { id: 'grad4', from: '#1a0a14', via: '#ec4899', to: '#0f050a' }, // pink (darker base)
+    { id: 'grad5', from: '#0f0a1a', via: '#6366f1', to: '#080510' }, // indigo (darker base)
+    { id: 'grad6', from: '#150a1a', via: '#8b5cf6', to: '#0a0510' }, // violet (darker base)
   ]
 
   // Calculate path for each segment
@@ -129,8 +130,9 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
     const y = 200 + distance * Math.sin(rad)
     
     // Calculate rotation so image points toward center (feet toward center)
-    // Image should be rotated to point inward
-    const imageRotation = angle + 90 // +90 to point feet toward center
+    // We need to rotate the image so it faces the center
+    // angle - 90 makes the image point toward center (feet inward)
+    const imageRotation = angle - 90
     
     return { x, y, angle, imageRotation }
   }
