@@ -22,7 +22,7 @@ import ActionsMenu from '@/components/ActionsMenu'
 import BuyCrypto from '@/components/BuyCrypto'
 import Win from '../components/Win'
 import SwapScreen from '@/components/SwapScreen'
-import { ScanEffect } from '@/components/ScanResult'
+import ScanResult, { ScanEffect } from '@/components/ScanResult'
 import { useSocket } from '@/hooks/useSocket'
 import TurnTimer from '@/components/TurnTimer'
 
@@ -66,6 +66,8 @@ export default function Home() {
   const [joinNotification, setJoinNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, isRejoining: boolean } | null>(null)
   const [turnNotification, setTurnNotification] = useState<{ id: string, message: string, playerName: string } | null>(null)
   const [swapNotification, setSwapNotification] = useState<{ id: string, message: string, fromPlayerName: string, fromPlayerAvatar: string, receivedCrypto: string, lostCrypto: string } | null>(null)
+  const [showOtherPlayerEvent, setShowOtherPlayerEvent] = useState<boolean>(false)
+  const [otherPlayerEventData, setOtherPlayerEventData] = useState<ScanEffect | null>(null)
   const [currentYear, setCurrentYear] = useState<number>(2024)
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
@@ -1795,8 +1797,38 @@ export default function Home() {
       setAutoScanActions(normAuto)
       setPlayerScanActions(normPlayer)
 
-      // Event notifications are shown via the colored ScanResult tiles on market dashboard
-      // No need to show separate notifications here
+      // Show event from other players (not forecast, not from self)
+      if (latestScan && latestScan.player && latestScan.player !== playerName && latestScan.effect) {
+        if (!latestScan.effect.includes('Market Forecast')) {
+          console.log('🔔 Event from other player detected:', latestScan.player, latestScan.effect)
+          
+          // Convert scan data to ScanEffect format
+          const scanEffect: ScanEffect = {
+            type: latestScan.effect.includes('Bull Run') || latestScan.effect.includes('Market Crash') || latestScan.effect.includes('Whale Alert') ? 'event' :
+                  latestScan.effect.includes('daalt') ? 'crash' : 'boost',
+            cryptoSymbol: latestScan.cryptoSymbol || undefined,
+            percentage: latestScan.percentageValue || undefined,
+            message: latestScan.effect,
+            icon: latestScan.effect.includes('Bull Run') ? '🚀' :
+                  latestScan.effect.includes('Market Crash') ? '📉' :
+                  latestScan.effect.includes('Whale Alert') ? '🐋' :
+                  latestScan.cryptoSymbol || '🎲',
+            color: latestScan.effect.includes('Bull Run') ? 'neon-gold' :
+                   latestScan.effect.includes('Market Crash') ? 'red-500' :
+                   latestScan.effect.includes('Whale Alert') ? 'neon-turquoise' :
+                   latestScan.effect.includes('daalt') ? 'red-500' : 'neon-purple'
+          }
+          
+          setOtherPlayerEventData(scanEffect)
+          setShowOtherPlayerEvent(true)
+          
+          // Auto-close after component handles it
+          setTimeout(() => {
+            setShowOtherPlayerEvent(false)
+            setOtherPlayerEventData(null)
+          }, 4000)
+        }
+      }
 
       console.log('✅ Scan data normalized and sorted from server')
       console.log('📊 === SERVER SCAN DATA UPDATE END ===\n')
@@ -3170,6 +3202,25 @@ export default function Home() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Event from other player - show colored ScanResult tile */}
+      {showOtherPlayerEvent && otherPlayerEventData && (
+        <div className="fixed inset-0 z-50">
+          <ScanResult
+            externalScenario={otherPlayerEventData}
+            onClose={() => {
+              setShowOtherPlayerEvent(false)
+              setOtherPlayerEventData(null)
+            }}
+            onApplyEffect={(effect) => {
+              console.log('Event from other player applied:', effect)
+              // Effect is already applied by server, just close
+              setShowOtherPlayerEvent(false)
+              setOtherPlayerEventData(null)
+            }}
+          />
         </div>
       )}
 

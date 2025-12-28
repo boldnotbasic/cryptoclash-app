@@ -7,6 +7,7 @@ import { CheckCircle, TrendingUp, TrendingDown, Zap, AlertTriangle, Gift } from 
 interface ScanResultProps {
   onClose: () => void
   onApplyEffect: (effect: ScanEffect) => void
+  externalScenario?: ScanEffect  // Optional: use external scenario instead of random
 }
 
 export interface ScanEffect {
@@ -138,7 +139,7 @@ const scanScenarios: ScanScenarioTemplate[] = [
   }
 ]
 
-export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) {
+export default function ScanResult({ onClose, onApplyEffect, externalScenario }: ScanResultProps) {
   const [currentScenario, setCurrentScenario] = useState<ScanEffect | null>(null)
   const [isVisible, setIsVisible] = useState(false)
   const initializedRef = useRef(false)
@@ -266,8 +267,13 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
     if (initializedRef.current) return
     initializedRef.current = true
     console.log('ScanResult component mounted')
-    const randomTemplate = scanScenarios[Math.floor(Math.random() * scanScenarios.length)]
-    const scenario = buildScenarioFromTemplate(randomTemplate)
+    
+    // Use external scenario if provided, otherwise generate random
+    const scenario = externalScenario || (() => {
+      const randomTemplate = scanScenarios[Math.floor(Math.random() * scanScenarios.length)]
+      return buildScenarioFromTemplate(randomTemplate)
+    })()
+    
     console.log('Selected scenario:', scenario)
     setCurrentScenario(scenario)
 
