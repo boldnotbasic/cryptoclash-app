@@ -3198,25 +3198,34 @@ export default function Home() {
         </div>
       )}
 
-      {/* Event notification overlay */}
+      {/* Event notification - same style as market dashboard cards */}
       {eventNotification && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-md">
-          <div className="relative w-full max-w-xl mx-4 rounded-2xl bg-dark-bg/95 border border-neon-blue/50 shadow-[0_0_40px_rgba(59,130,246,0.35)] overflow-hidden">
-            {/* Top accent bar */}
-            <div className="h-1.5 w-full bg-gradient-to-r from-neon-blue via-neon-turquoise to-neon-blue" />
-
-            <div className="px-6 pt-5 pb-6 flex items-start space-x-4">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-neon-blue/15 border border-neon-blue/60 shadow-inner">
-                <span className="text-2xl">{eventNotification.icon}</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="relative w-80 rounded-2xl bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 border-4 border-neon-gold shadow-[0_0_50px_rgba(212,175,55,0.6)] overflow-hidden pointer-events-auto animate-[scale-in_0.3s_ease-out]">
+            {/* Crypto icon/image at top */}
+            <div className="flex items-center justify-center pt-8 pb-4">
+              <div className="text-8xl">
+                {eventNotification.icon}
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-neon-blue tracking-wide uppercase mb-1">Event getriggerd</p>
-                <p className="text-xl font-extrabold text-white mb-2">
-                  <span className="text-neon-gold">{eventNotification.playerName}</span> {eventNotification.playerAvatar}
-                </p>
-                <p className="text-sm text-gray-300">
-                  <span className="text-neon-turquoise font-semibold">{eventNotification.effect}</span>
-                </p>
+            </div>
+
+            {/* Event effect message */}
+            <div className="px-6 pb-6 text-center">
+              <h3 className="text-2xl font-bold text-neon-gold mb-2">
+                {eventNotification.effect.split(' ')[0]}
+              </h3>
+              <p className="text-xl font-semibold text-white mb-3">
+                {eventNotification.effect}
+              </p>
+              <p className="text-sm text-gray-400 mb-4">
+                Wordt automatisch toegepast...
+              </p>
+              
+              {/* Player info at bottom */}
+              <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
+                <span>Event van</span>
+                <span className="text-neon-gold font-semibold">{eventNotification.playerName}</span>
+                <span className="text-xl">{eventNotification.playerAvatar}</span>
               </div>
             </div>
           </div>
