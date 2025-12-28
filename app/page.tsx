@@ -67,6 +67,7 @@ export default function Home() {
   const [turnNotification, setTurnNotification] = useState<{ id: string, message: string, playerName: string } | null>(null)
   const [swapNotification, setSwapNotification] = useState<{ id: string, message: string, fromPlayerName: string, fromPlayerAvatar: string, receivedCrypto: string, lostCrypto: string } | null>(null)
   const [eventNotification, setEventNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, effect: string, icon: string, cryptoSymbol?: string, percentage?: number } | null>(null)
+  const [lastShownEventId, setLastShownEventId] = useState<string>('')
   const [currentYear, setCurrentYear] = useState<number>(2024)
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
@@ -1798,11 +1799,12 @@ export default function Home() {
 
       // Show event notification for latest player scan (if not from current player)
       if (latestScan && latestScan.player && latestScan.player !== playerName && latestScan.effect) {
-        console.log('🔔 Showing event notification from other player:', latestScan.player)
+        // Create unique ID for this event to prevent duplicates
+        const eventId = `${latestScan.player}-${latestScan.effect}-${latestScan.timestamp}`
         
-        // Don't show forecast events (they're informational only)
-        if (!latestScan.effect.includes('Market Forecast')) {
-          const notificationId = `event-${Date.now()}`
+        // Only show if this is a new event (not already shown)
+        if (eventId !== lastShownEventId && !latestScan.effect.includes('Market Forecast')) {
+          console.log('🔔 Showing event notification from other player:', latestScan.player)
           
           // Extract crypto symbol and percentage from scan data
           const cryptoSymbol = latestScan.cryptoSymbol || null
@@ -1812,11 +1814,15 @@ export default function Home() {
             effect: latestScan.effect,
             cryptoSymbol,
             percentage,
-            player: latestScan.player
+            player: latestScan.player,
+            eventId
           })
           
+          // Mark this event as shown
+          setLastShownEventId(eventId)
+          
           setEventNotification({
-            id: notificationId,
+            id: eventId,
             message: latestScan.effect,
             playerName: latestScan.player,
             playerAvatar: latestScan.avatar || '👤',
@@ -1834,6 +1840,8 @@ export default function Home() {
           setTimeout(() => {
             setEventNotification(null)
           }, 4000)
+        } else {
+          console.log('⏭️ Skipping duplicate event notification:', eventId)
         }
       }
 
