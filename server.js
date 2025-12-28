@@ -7,6 +7,8 @@ const dev = process.env.NODE_ENV !== 'production'
 const hostname = '0.0.0.0'
 const port = parseInt(process.env.PORT || '3000', 10)
 
+console.log('🚀 CryptoClash Server v1.1 - Timer: 120s, Market Forecast enabled')
+
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
 
