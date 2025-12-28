@@ -66,7 +66,7 @@ export default function Home() {
   const [joinNotification, setJoinNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, isRejoining: boolean } | null>(null)
   const [turnNotification, setTurnNotification] = useState<{ id: string, message: string, playerName: string } | null>(null)
   const [swapNotification, setSwapNotification] = useState<{ id: string, message: string, fromPlayerName: string, fromPlayerAvatar: string, receivedCrypto: string, lostCrypto: string } | null>(null)
-  const [eventNotification, setEventNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, effect: string, icon: string } | null>(null)
+  const [eventNotification, setEventNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, effect: string, icon: string, cryptoSymbol?: string, percentage?: number } | null>(null)
   const [currentYear, setCurrentYear] = useState<number>(2024)
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
@@ -1803,12 +1803,26 @@ export default function Home() {
         // Don't show forecast events (they're informational only)
         if (!latestScan.effect.includes('Market Forecast')) {
           const notificationId = `event-${Date.now()}`
+          
+          // Extract crypto symbol and percentage from scan data
+          const cryptoSymbol = latestScan.cryptoSymbol || null
+          const percentage = latestScan.percentageValue || null
+          
+          console.log('🔍 Event notification data:', {
+            effect: latestScan.effect,
+            cryptoSymbol,
+            percentage,
+            player: latestScan.player
+          })
+          
           setEventNotification({
             id: notificationId,
             message: latestScan.effect,
             playerName: latestScan.player,
             playerAvatar: latestScan.avatar || '👤',
             effect: latestScan.effect,
+            cryptoSymbol: cryptoSymbol,
+            percentage: percentage,
             icon: latestScan.effect.includes('Bull Run') ? '🚀' :
                   latestScan.effect.includes('Market Crash') ? '📉' :
                   latestScan.effect.includes('Whale Alert') ? '🐋' :
@@ -3202,21 +3216,47 @@ export default function Home() {
       {eventNotification && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
           <div className="relative w-80 rounded-2xl bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 border-4 border-neon-gold shadow-[0_0_50px_rgba(212,175,55,0.6)] overflow-hidden pointer-events-auto animate-[scale-in_0.3s_ease-out]">
-            {/* Crypto icon/image at top */}
+            {/* Crypto figure/image at top */}
             <div className="flex items-center justify-center pt-8 pb-4">
-              <div className="text-8xl">
-                {eventNotification.icon}
-              </div>
+              {eventNotification.cryptoSymbol ? (
+                // Show crypto figure based on symbol
+                <div className="text-8xl">
+                  {eventNotification.cryptoSymbol === 'DSHEEP' ? '🐑' :
+                   eventNotification.cryptoSymbol === 'NGT' ? '🐔' :
+                   eventNotification.cryptoSymbol === 'LNTR' ? '🛸' :
+                   eventNotification.cryptoSymbol === 'OMLT' ? '🥚' :
+                   eventNotification.cryptoSymbol === 'REX' ? '🦖' :
+                   eventNotification.cryptoSymbol === 'ORLO' ? '🔮' :
+                   eventNotification.icon}
+                </div>
+              ) : (
+                // Fallback to event icon for market-wide events
+                <div className="text-8xl">
+                  {eventNotification.icon}
+                </div>
+              )}
             </div>
 
-            {/* Event effect message */}
+            {/* Crypto symbol and percentage */}
             <div className="px-6 pb-6 text-center">
-              <h3 className="text-2xl font-bold text-neon-gold mb-2">
-                {eventNotification.effect.split(' ')[0]}
-              </h3>
-              <p className="text-xl font-semibold text-white mb-3">
-                {eventNotification.effect}
-              </p>
+              {eventNotification.cryptoSymbol && (
+                <h3 className="text-2xl font-bold text-neon-gold mb-2">
+                  {eventNotification.cryptoSymbol}
+                </h3>
+              )}
+              
+              {eventNotification.cryptoSymbol && eventNotification.percentage !== null && eventNotification.percentage !== undefined ? (
+                // Show crypto-specific change
+                <p className="text-xl font-semibold text-white mb-3">
+                  {eventNotification.cryptoSymbol} {eventNotification.percentage > 0 ? '+' : ''}{eventNotification.percentage.toFixed(1)}%
+                </p>
+              ) : (
+                // Show general event message
+                <p className="text-xl font-semibold text-white mb-3">
+                  {eventNotification.effect}
+                </p>
+              )}
+              
               <p className="text-sm text-gray-400 mb-4">
                 Wordt automatisch toegepast...
               </p>
