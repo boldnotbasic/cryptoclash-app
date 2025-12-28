@@ -3219,18 +3219,43 @@ export default function Home() {
             {/* Crypto figure/image at top */}
             <div className="flex items-center justify-center pt-8 pb-4">
               {eventNotification.cryptoSymbol ? (
-                // Show crypto figure based on symbol
-                <div className="text-8xl">
-                  {eventNotification.cryptoSymbol === 'DSHEEP' ? '🐑' :
-                   eventNotification.cryptoSymbol === 'NGT' ? '🐔' :
-                   eventNotification.cryptoSymbol === 'LNTR' ? '🛸' :
-                   eventNotification.cryptoSymbol === 'OMLT' ? '🥚' :
-                   eventNotification.cryptoSymbol === 'REX' ? '🦖' :
-                   eventNotification.cryptoSymbol === 'ORLO' ? '🔮' :
-                   eventNotification.icon}
-                </div>
+                // Show real crypto image based on symbol
+                <img
+                  src={
+                    eventNotification.cryptoSymbol === 'DSHEEP' ? '/dsheep.png' :
+                    eventNotification.cryptoSymbol === 'NGT' ? '/Nugget.png' :
+                    eventNotification.cryptoSymbol === 'LNTR' ? '/lentra.png' :
+                    eventNotification.cryptoSymbol === 'OMLT' ? '/omlt.png' :
+                    eventNotification.cryptoSymbol === 'REX' ? '/rex.png' :
+                    eventNotification.cryptoSymbol === 'ORLO' ? '/orlo.png' :
+                    '/dsheep.png' // fallback
+                  }
+                  alt={eventNotification.cryptoSymbol}
+                  className="w-32 h-32 object-contain"
+                />
+              ) : eventNotification.effect.includes('Bull Run') ? (
+                // Show bull run image
+                <img
+                  src="/Bull-run.png"
+                  alt="Bull Run"
+                  className="w-32 h-32 object-contain"
+                />
+              ) : eventNotification.effect.includes('Market Crash') ? (
+                // Show market crash image
+                <img
+                  src="/Beurscrash.png"
+                  alt="Market Crash"
+                  className="w-32 h-32 object-contain"
+                />
+              ) : eventNotification.effect.includes('Whale Alert') ? (
+                // Show whale alert image
+                <img
+                  src="/Whala-alert.png"
+                  alt="Whale Alert"
+                  className="w-32 h-32 object-contain"
+                />
               ) : (
-                // Fallback to event icon for market-wide events
+                // Fallback to icon for other events
                 <div className="text-8xl">
                   {eventNotification.icon}
                 </div>
