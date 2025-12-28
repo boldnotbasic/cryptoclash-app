@@ -66,6 +66,7 @@ export default function Home() {
   const [joinNotification, setJoinNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, isRejoining: boolean } | null>(null)
   const [turnNotification, setTurnNotification] = useState<{ id: string, message: string, playerName: string } | null>(null)
   const [swapNotification, setSwapNotification] = useState<{ id: string, message: string, fromPlayerName: string, fromPlayerAvatar: string, receivedCrypto: string, lostCrypto: string } | null>(null)
+  const [eventNotification, setEventNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, effect: string, icon: string } | null>(null)
   const [currentYear, setCurrentYear] = useState<number>(2024)
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
@@ -1795,6 +1796,33 @@ export default function Home() {
       setAutoScanActions(normAuto)
       setPlayerScanActions(normPlayer)
 
+      // Show event notification for latest player scan (if not from current player)
+      if (latestScan && latestScan.player && latestScan.player !== playerName && latestScan.effect) {
+        console.log('🔔 Showing event notification from other player:', latestScan.player)
+        
+        // Don't show forecast events (they're informational only)
+        if (!latestScan.effect.includes('Market Forecast')) {
+          const notificationId = `event-${Date.now()}`
+          setEventNotification({
+            id: notificationId,
+            message: latestScan.effect,
+            playerName: latestScan.player,
+            playerAvatar: latestScan.avatar || '👤',
+            effect: latestScan.effect,
+            icon: latestScan.effect.includes('Bull Run') ? '🚀' :
+                  latestScan.effect.includes('Market Crash') ? '📉' :
+                  latestScan.effect.includes('Whale Alert') ? '🐋' :
+                  latestScan.effect.includes('stijgt') ? '📈' :
+                  latestScan.effect.includes('daalt') ? '📉' : '🎲'
+          })
+          
+          // Auto-dismiss after 4 seconds
+          setTimeout(() => {
+            setEventNotification(null)
+          }, 4000)
+        }
+      }
+
       console.log('✅ Scan data normalized and sorted from server')
       console.log('📊 === SERVER SCAN DATA UPDATE END ===\n')
     }
@@ -3163,6 +3191,31 @@ export default function Home() {
                 </p>
                 <p className="text-sm text-gray-300">
                   Wacht even op de acties van deze speler. Zodra hij zijn beurt beëindigt, ben jij weer aan zet.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Event notification overlay */}
+      {eventNotification && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-md">
+          <div className="relative w-full max-w-xl mx-4 rounded-2xl bg-dark-bg/95 border border-neon-blue/50 shadow-[0_0_40px_rgba(59,130,246,0.35)] overflow-hidden">
+            {/* Top accent bar */}
+            <div className="h-1.5 w-full bg-gradient-to-r from-neon-blue via-neon-turquoise to-neon-blue" />
+
+            <div className="px-6 pt-5 pb-6 flex items-start space-x-4">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-neon-blue/15 border border-neon-blue/60 shadow-inner">
+                <span className="text-2xl">{eventNotification.icon}</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-neon-blue tracking-wide uppercase mb-1">Event getriggerd</p>
+                <p className="text-xl font-extrabold text-white mb-2">
+                  <span className="text-neon-gold">{eventNotification.playerName}</span> {eventNotification.playerAvatar}
+                </p>
+                <p className="text-sm text-gray-300">
+                  <span className="text-neon-turquoise font-semibold">{eventNotification.effect}</span>
                 </p>
               </div>
             </div>
