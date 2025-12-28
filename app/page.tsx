@@ -3212,14 +3212,14 @@ export default function Home() {
         </div>
       )}
 
-      {/* Event notification - same style as market dashboard cards */}
+      {/* Event notification - simple card like market dashboard */}
       {eventNotification && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-          <div className="relative w-80 rounded-2xl bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 border-4 border-neon-gold shadow-[0_0_50px_rgba(212,175,55,0.6)] overflow-hidden pointer-events-auto animate-[scale-in_0.3s_ease-out]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="relative w-80 rounded-2xl bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 border-4 border-neon-gold shadow-[0_0_50px_rgba(212,175,55,0.6)] overflow-hidden">
             {/* Crypto figure/image at top */}
             <div className="flex items-center justify-center pt-8 pb-4">
               {eventNotification.cryptoSymbol ? (
-                // Show real crypto image based on symbol
+                // Show real crypto image
                 <img
                   src={
                     eventNotification.cryptoSymbol === 'DSHEEP' ? '/dsheep.png' :
@@ -3228,38 +3228,18 @@ export default function Home() {
                     eventNotification.cryptoSymbol === 'OMLT' ? '/omlt.png' :
                     eventNotification.cryptoSymbol === 'REX' ? '/rex.png' :
                     eventNotification.cryptoSymbol === 'ORLO' ? '/orlo.png' :
-                    '/dsheep.png' // fallback
+                    '/dsheep.png'
                   }
                   alt={eventNotification.cryptoSymbol}
                   className="w-32 h-32 object-contain"
                 />
               ) : eventNotification.effect.includes('Bull Run') ? (
-                // Show bull run image
-                <img
-                  src="/Bull-run.png"
-                  alt="Bull Run"
-                  className="w-32 h-32 object-contain"
-                />
+                <img src="/Bull-run.png" alt="Bull Run" className="w-32 h-32 object-contain" />
               ) : eventNotification.effect.includes('Market Crash') ? (
-                // Show market crash image
-                <img
-                  src="/Beurscrash.png"
-                  alt="Market Crash"
-                  className="w-32 h-32 object-contain"
-                />
+                <img src="/Beurscrash.png" alt="Market Crash" className="w-32 h-32 object-contain" />
               ) : eventNotification.effect.includes('Whale Alert') ? (
-                // Show whale alert image
-                <img
-                  src="/Whala-alert.png"
-                  alt="Whale Alert"
-                  className="w-32 h-32 object-contain"
-                />
-              ) : (
-                // Fallback to icon for other events
-                <div className="text-8xl">
-                  {eventNotification.icon}
-                </div>
-              )}
+                <img src="/Whala-alert.png" alt="Whale Alert" className="w-32 h-32 object-contain" />
+              ) : null}
             </div>
 
             {/* Crypto symbol and percentage */}
@@ -3271,12 +3251,10 @@ export default function Home() {
               )}
               
               {eventNotification.cryptoSymbol && eventNotification.percentage !== null && eventNotification.percentage !== undefined ? (
-                // Show crypto-specific change
                 <p className="text-xl font-semibold text-white mb-3">
                   {eventNotification.cryptoSymbol} {eventNotification.percentage > 0 ? '+' : ''}{eventNotification.percentage.toFixed(1)}%
                 </p>
               ) : (
-                // Show general event message
                 <p className="text-xl font-semibold text-white mb-3">
                   {eventNotification.effect}
                 </p>
@@ -3286,7 +3264,6 @@ export default function Home() {
                 Wordt automatisch toegepast...
               </p>
               
-              {/* Player info at bottom */}
               <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
                 <span>Event van</span>
                 <span className="text-neon-gold font-semibold">{eventNotification.playerName}</span>
