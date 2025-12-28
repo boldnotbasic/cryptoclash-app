@@ -1801,23 +1801,37 @@ export default function Home() {
       if (latestScan && latestScan.player && latestScan.player !== playerName && latestScan.effect) {
         if (!latestScan.effect.includes('Market Forecast')) {
           console.log('🔔 Event from other player detected:', latestScan.player, latestScan.effect)
+          console.log('📊 Scan data:', {
+            effect: latestScan.effect,
+            cryptoSymbol: latestScan.cryptoSymbol,
+            percentageValue: latestScan.percentageValue,
+            player: latestScan.player
+          })
+          
+          // Determine type based on effect message
+          let eventType: 'boost' | 'crash' | 'event' | 'forecast' = 'boost'
+          if (latestScan.effect.includes('Bull Run') || latestScan.effect.includes('Market Crash') || latestScan.effect.includes('Whale Alert')) {
+            eventType = 'event'
+          } else if (latestScan.effect.includes('daalt') || latestScan.effect.includes('crash') || (latestScan.percentageValue && latestScan.percentageValue < 0)) {
+            eventType = 'crash'
+          } else {
+            eventType = 'boost'
+          }
           
           // Convert scan data to ScanEffect format
           const scanEffect: ScanEffect = {
-            type: latestScan.effect.includes('Bull Run') || latestScan.effect.includes('Market Crash') || latestScan.effect.includes('Whale Alert') ? 'event' :
-                  latestScan.effect.includes('daalt') ? 'crash' : 'boost',
-            cryptoSymbol: latestScan.cryptoSymbol || undefined,
-            percentage: latestScan.percentageValue || undefined,
+            type: eventType,
+            cryptoSymbol: latestScan.cryptoSymbol,
+            percentage: latestScan.percentageValue,
             message: latestScan.effect,
-            icon: latestScan.effect.includes('Bull Run') ? '🚀' :
-                  latestScan.effect.includes('Market Crash') ? '📉' :
-                  latestScan.effect.includes('Whale Alert') ? '🐋' :
-                  latestScan.cryptoSymbol || '🎲',
-            color: latestScan.effect.includes('Bull Run') ? 'neon-gold' :
-                   latestScan.effect.includes('Market Crash') ? 'red-500' :
-                   latestScan.effect.includes('Whale Alert') ? 'neon-turquoise' :
-                   latestScan.effect.includes('daalt') ? 'red-500' : 'neon-purple'
+            icon: latestScan.cryptoSymbol || '🎲',
+            color: eventType === 'event' ? 
+                   (latestScan.effect.includes('Bull Run') ? 'neon-gold' :
+                    latestScan.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
+                   eventType === 'crash' ? 'red-500' : 'neon-purple'
           }
+          
+          console.log('✅ Created ScanEffect:', scanEffect)
           
           setOtherPlayerEventData(scanEffect)
           setShowOtherPlayerEvent(true)

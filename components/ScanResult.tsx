@@ -267,9 +267,11 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
     if (initializedRef.current) return
     initializedRef.current = true
     console.log('ScanResult component mounted')
+    console.log('External scenario provided:', externalScenario)
     
     // Use external scenario if provided, otherwise generate random
     const scenario = externalScenario || (() => {
+      console.log('⚠️ No external scenario - generating random')
       const randomTemplate = scanScenarios[Math.floor(Math.random() * scanScenarios.length)]
       return buildScenarioFromTemplate(randomTemplate)
     })()
