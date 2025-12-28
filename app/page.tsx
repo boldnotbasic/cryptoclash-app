@@ -66,8 +66,6 @@ export default function Home() {
   const [joinNotification, setJoinNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, isRejoining: boolean } | null>(null)
   const [turnNotification, setTurnNotification] = useState<{ id: string, message: string, playerName: string } | null>(null)
   const [swapNotification, setSwapNotification] = useState<{ id: string, message: string, fromPlayerName: string, fromPlayerAvatar: string, receivedCrypto: string, lostCrypto: string } | null>(null)
-  const [eventNotification, setEventNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, effect: string, icon: string, cryptoSymbol?: string, percentage?: number } | null>(null)
-  const [lastShownEventId, setLastShownEventId] = useState<string>('')
   const [currentYear, setCurrentYear] = useState<number>(2024)
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
@@ -1797,53 +1795,8 @@ export default function Home() {
       setAutoScanActions(normAuto)
       setPlayerScanActions(normPlayer)
 
-      // Show event notification for latest player scan (if not from current player)
-      if (latestScan && latestScan.player && latestScan.player !== playerName && latestScan.effect) {
-        // Create unique ID for this event to prevent duplicates
-        const eventId = `${latestScan.player}-${latestScan.effect}-${latestScan.timestamp}`
-        
-        // Only show if this is a new event (not already shown)
-        if (eventId !== lastShownEventId && !latestScan.effect.includes('Market Forecast')) {
-          console.log('🔔 Showing event notification from other player:', latestScan.player)
-          
-          // Extract crypto symbol and percentage from scan data
-          const cryptoSymbol = latestScan.cryptoSymbol || null
-          const percentage = latestScan.percentageValue || null
-          
-          console.log('🔍 Event notification data:', {
-            effect: latestScan.effect,
-            cryptoSymbol,
-            percentage,
-            player: latestScan.player,
-            eventId
-          })
-          
-          // Mark this event as shown
-          setLastShownEventId(eventId)
-          
-          setEventNotification({
-            id: eventId,
-            message: latestScan.effect,
-            playerName: latestScan.player,
-            playerAvatar: latestScan.avatar || '👤',
-            effect: latestScan.effect,
-            cryptoSymbol: cryptoSymbol,
-            percentage: percentage,
-            icon: latestScan.effect.includes('Bull Run') ? '🚀' :
-                  latestScan.effect.includes('Market Crash') ? '📉' :
-                  latestScan.effect.includes('Whale Alert') ? '🐋' :
-                  latestScan.effect.includes('stijgt') ? '📈' :
-                  latestScan.effect.includes('daalt') ? '📉' : '🎲'
-          })
-          
-          // Auto-dismiss after 4 seconds
-          setTimeout(() => {
-            setEventNotification(null)
-          }, 4000)
-        } else {
-          console.log('⏭️ Skipping duplicate event notification:', eventId)
-        }
-      }
+      // Event notifications are shown via the colored ScanResult tiles on market dashboard
+      // No need to show separate notifications here
 
       console.log('✅ Scan data normalized and sorted from server')
       console.log('📊 === SERVER SCAN DATA UPDATE END ===\n')
@@ -3214,68 +3167,6 @@ export default function Home() {
                 <p className="text-sm text-gray-300">
                   Wacht even op de acties van deze speler. Zodra hij zijn beurt beëindigt, ben jij weer aan zet.
                 </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Event notification - simple card like market dashboard */}
-      {eventNotification && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="relative w-80 rounded-2xl bg-gradient-to-br from-gray-900/95 via-gray-800/95 to-gray-900/95 border-4 border-neon-gold shadow-[0_0_50px_rgba(212,175,55,0.6)] overflow-hidden">
-            {/* Crypto figure/image at top */}
-            <div className="flex items-center justify-center pt-8 pb-4">
-              {eventNotification.cryptoSymbol ? (
-                // Show real crypto image
-                <img
-                  src={
-                    eventNotification.cryptoSymbol === 'DSHEEP' ? '/dsheep.png' :
-                    eventNotification.cryptoSymbol === 'NGT' ? '/Nugget.png' :
-                    eventNotification.cryptoSymbol === 'LNTR' ? '/lentra.png' :
-                    eventNotification.cryptoSymbol === 'OMLT' ? '/omlt.png' :
-                    eventNotification.cryptoSymbol === 'REX' ? '/rex.png' :
-                    eventNotification.cryptoSymbol === 'ORLO' ? '/orlo.png' :
-                    '/dsheep.png'
-                  }
-                  alt={eventNotification.cryptoSymbol}
-                  className="w-32 h-32 object-contain"
-                />
-              ) : eventNotification.effect.includes('Bull Run') ? (
-                <img src="/Bull-run.png" alt="Bull Run" className="w-32 h-32 object-contain" />
-              ) : eventNotification.effect.includes('Market Crash') ? (
-                <img src="/Beurscrash.png" alt="Market Crash" className="w-32 h-32 object-contain" />
-              ) : eventNotification.effect.includes('Whale Alert') ? (
-                <img src="/Whala-alert.png" alt="Whale Alert" className="w-32 h-32 object-contain" />
-              ) : null}
-            </div>
-
-            {/* Crypto symbol and percentage */}
-            <div className="px-6 pb-6 text-center">
-              {eventNotification.cryptoSymbol && (
-                <h3 className="text-2xl font-bold text-neon-gold mb-2">
-                  {eventNotification.cryptoSymbol}
-                </h3>
-              )}
-              
-              {eventNotification.cryptoSymbol && eventNotification.percentage !== null && eventNotification.percentage !== undefined ? (
-                <p className="text-xl font-semibold text-white mb-3">
-                  {eventNotification.cryptoSymbol} {eventNotification.percentage > 0 ? '+' : ''}{eventNotification.percentage.toFixed(1)}%
-                </p>
-              ) : (
-                <p className="text-xl font-semibold text-white mb-3">
-                  {eventNotification.effect}
-                </p>
-              )}
-              
-              <p className="text-sm text-gray-400 mb-4">
-                Wordt automatisch toegepast...
-              </p>
-              
-              <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
-                <span>Event van</span>
-                <span className="text-neon-gold font-semibold">{eventNotification.playerName}</span>
-                <span className="text-xl">{eventNotification.playerAvatar}</span>
               </div>
             </div>
           </div>
