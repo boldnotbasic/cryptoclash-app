@@ -68,7 +68,7 @@ export default function Home() {
   const [swapNotification, setSwapNotification] = useState<{ id: string, message: string, fromPlayerName: string, fromPlayerAvatar: string, receivedCrypto: string, lostCrypto: string } | null>(null)
   const [currentYear, setCurrentYear] = useState<number>(2024)
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
-  const [turnTimeLeft, setTurnTimeLeft] = useState<number>(60)
+  const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
   
   // Get socket connection for game events (room state only; we don't rely on socket.id for turn logic)
   const { socket, room } = useSocket()
@@ -3212,7 +3212,7 @@ export default function Home() {
           onTimeUpdate={(timeLeft) => {
             setTurnTimeLeft(timeLeft)
           }}
-          turnDuration={60}
+          turnDuration={120}
           gameStartTime={gameState?.gameStartTime}
         />
       )}

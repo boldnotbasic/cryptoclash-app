@@ -26,7 +26,7 @@ interface ActionsMenuProps {
   turnTimeLeft?: number
 }
 
-export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onApplyScanEffect, onEndTurnConfirm, actionsDisabled, playerScanActions = [], autoScanActions = [], turnTimeLeft = 60 }: ActionsMenuProps) {
+export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onApplyScanEffect, onEndTurnConfirm, actionsDisabled, playerScanActions = [], autoScanActions = [], turnTimeLeft = 120 }: ActionsMenuProps) {
   const [showScan, setShowScan] = useState(false)
   const [actionsEnabled, setActionsEnabled] = useState(true)
   
