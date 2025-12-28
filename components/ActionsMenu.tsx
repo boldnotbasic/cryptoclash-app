@@ -33,6 +33,13 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
   // Memoize the handler to prevent re-creating on every render
   const handleKansEffect = useCallback((effect: ScanEffect) => {
     console.log('🎲 Kans effect applied:', effect)
+    
+    // Forecast events are informational only - don't apply to market
+    if (effect.type === 'forecast') {
+      console.log('🔮 Forecast event - informational only, no market changes')
+      return
+    }
+    
     // Kans-effecten mogen enkel de markt beïnvloeden, niet de portfolio
     // Tag met marketOnly zodat client-side portfolio logica dit overslaat
     if (onApplyScanEffect) {

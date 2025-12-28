@@ -10,12 +10,14 @@ interface ScanResultProps {
 }
 
 export interface ScanEffect {
-  type: 'boost' | 'crash' | 'event'
+  type: 'boost' | 'crash' | 'event' | 'forecast'
   cryptoSymbol?: string
   percentage?: number
   message: string
   icon: string
   color: string
+  topGainer?: { symbol: string; percentage: number }
+  topLoser?: { symbol: string; percentage: number }
 }
 
 interface ScanScenarioTemplate {
@@ -108,6 +110,14 @@ const scanScenarios: ScanScenarioTemplate[] = [
     baseMessage: 'Whale Alert! {SYMBOL} {PERCENTAGE}!',
     icon: '🐋',
     color: 'neon-turquoise'
+  },
+  {
+    type: 'forecast',
+    minPercentage: 0,
+    maxPercentage: 0,
+    baseMessage: 'Market Forecast',
+    icon: '🔮',
+    color: 'neon-purple'
   }
 ]
 
@@ -118,6 +128,58 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null)
   const hasClosedRef = useRef(false)
 
+  // Simulate next 10 events to calculate top gainer and loser
+  const simulateFutureEvents = (numEvents: number = 10): { topGainer: { symbol: string; percentage: number }; topLoser: { symbol: string; percentage: number } } => {
+    const cryptoChanges: Record<string, number> = {
+      DSHEEP: 0,
+      NGT: 0,
+      LNTR: 0,
+      OMLT: 0,
+      REX: 0,
+      ORLO: 0
+    }
+
+    // Simulate 10 future events
+    for (let i = 0; i < numEvents; i++) {
+      // Pick random scenario (excluding forecast itself)
+      const availableScenarios = scanScenarios.filter(s => s.type !== 'forecast')
+      const randomTemplate = availableScenarios[Math.floor(Math.random() * availableScenarios.length)]
+      
+      // Calculate percentage
+      let percentage = 0
+      if (typeof randomTemplate.minPercentage === 'number' && typeof randomTemplate.maxPercentage === 'number') {
+        const raw = randomTemplate.minPercentage + Math.random() * (randomTemplate.maxPercentage - randomTemplate.minPercentage)
+        percentage = Math.round(raw * 10) / 10
+      }
+
+      // Apply to crypto(s)
+      if (randomTemplate.type === 'event') {
+        // Apply to all cryptos
+        Object.keys(cryptoChanges).forEach(symbol => {
+          cryptoChanges[symbol] += percentage
+        })
+      } else if (randomTemplate.cryptoSymbol) {
+        // Apply to specific crypto
+        cryptoChanges[randomTemplate.cryptoSymbol] += percentage
+      }
+    }
+
+    // Find top gainer and loser
+    let topGainer = { symbol: 'DSHEEP', percentage: cryptoChanges.DSHEEP }
+    let topLoser = { symbol: 'DSHEEP', percentage: cryptoChanges.DSHEEP }
+
+    Object.entries(cryptoChanges).forEach(([symbol, change]) => {
+      if (change > topGainer.percentage) {
+        topGainer = { symbol, percentage: change }
+      }
+      if (change < topLoser.percentage) {
+        topLoser = { symbol, percentage: change }
+      }
+    })
+
+    return { topGainer, topLoser }
+  }
+
   const buildScenarioFromTemplate = (template: ScanScenarioTemplate): ScanEffect => {
     let percentage: number | undefined = undefined
     if (typeof template.minPercentage === 'number' && typeof template.maxPercentage === 'number') {
@@ -126,7 +188,16 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
     }
 
     let message = template.baseMessage
-    if (template.type === 'event') {
+    let topGainer: { symbol: string; percentage: number } | undefined
+    let topLoser: { symbol: string; percentage: number } | undefined
+
+    // Handle forecast type
+    if (template.type === 'forecast') {
+      const forecast = simulateFutureEvents(10)
+      topGainer = forecast.topGainer
+      topLoser = forecast.topLoser
+      message = 'Market Forecast'
+    } else if (template.type === 'event') {
       // Events blijven hun percentage in de titel tonen
       if (message.includes('{PERCENTAGE}')) {
         message = message
@@ -166,7 +237,9 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
       percentage,
       message,
       icon: template.icon,
-      color: template.color
+      color: template.color,
+      topGainer,
+      topLoser
     }
   }
 
@@ -188,7 +261,10 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
         const msg = (scenario.message || '').toLowerCase()
         let isPositive = false
 
-        if (typeof scenario.percentage === 'number') {
+        if (scenario.type === 'forecast') {
+          // Forecast is always positive (informative)
+          isPositive = true
+        } else if (typeof scenario.percentage === 'number') {
           // Percentage bekend: >0 = stijging, <0 = daling
           isPositive = scenario.percentage > 0
         } else {
@@ -350,6 +426,11 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
           <div className="mb-6">
             <div className="text-8xl mb-4 flex items-center justify-center">
               {(() => {
+                // Special handling for forecast: show crystal ball icon
+                if (currentScenario.type === 'forecast') {
+                  return <span>{currentScenario.icon}</span>
+                }
+
                 // Eerst: custom event image (Bull Run / Market Crash / Whale Alert)
                 const eventImage = getEventImagePath()
                 if (eventImage) {
@@ -382,7 +463,7 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
                 return <span>{currentScenario.icon}</span>
               })()}
             </div>
-            {currentScenario.cryptoSymbol && (
+            {currentScenario.cryptoSymbol && currentScenario.type !== 'forecast' && (
               <div className="text-lg text-gray-400 mb-2">{currentScenario.cryptoSymbol}</div>
             )}
           </div>
@@ -393,7 +474,77 @@ export default function ScanResult({ onClose, onApplyEffect }: ScanResultProps) 
               {currentScenario.message}
             </h3>
             
-            {currentScenario.percentage && (
+            {/* Forecast: Show top gainer and loser */}
+            {currentScenario.type === 'forecast' && currentScenario.topGainer && currentScenario.topLoser && (
+              <div className="mt-4 space-y-3">
+                {/* Top Gainer */}
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {(() => {
+                        const imagePath = getCryptoImagePath(currentScenario.topGainer!.symbol)
+                        return imagePath ? (
+                          <Image
+                            src={imagePath}
+                            alt={currentScenario.topGainer!.symbol}
+                            width={40}
+                            height={40}
+                            className="object-contain"
+                          />
+                        ) : (
+                          <span className="text-2xl">📈</span>
+                        )
+                      })()}
+                      <div className="text-left">
+                        <div className="text-white font-bold">{currentScenario.topGainer.symbol}</div>
+                        <div className="text-xs text-gray-400">Sterkste Stijger</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <TrendingUp className="w-5 h-5 text-green-400" />
+                      <span className="text-xl font-bold text-green-400">
+                        +{currentScenario.topGainer.percentage.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top Loser */}
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {(() => {
+                        const imagePath = getCryptoImagePath(currentScenario.topLoser!.symbol)
+                        return imagePath ? (
+                          <Image
+                            src={imagePath}
+                            alt={currentScenario.topLoser!.symbol}
+                            width={40}
+                            height={40}
+                            className="object-contain"
+                          />
+                        ) : (
+                          <span className="text-2xl">📉</span>
+                        )
+                      })()}
+                      <div className="text-left">
+                        <div className="text-white font-bold">{currentScenario.topLoser.symbol}</div>
+                        <div className="text-xs text-gray-400">Sterkste Daler</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <TrendingDown className="w-5 h-5 text-red-400" />
+                      <span className="text-xl font-bold text-red-400">
+                        {currentScenario.topLoser.percentage.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Regular percentage display for non-forecast events */}
+            {currentScenario.type !== 'forecast' && currentScenario.percentage && (
               <div className="flex items-center justify-center space-x-2">
                 {currentScenario.percentage > 0 ? (
                   <TrendingUp className="w-6 h-6 text-green-400" />

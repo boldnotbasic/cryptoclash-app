@@ -22,9 +22,9 @@ const activityIntervals = {}
 // Track per-player cleanup timers for disconnected players
 const playerCleanupTimers = new Map()
 
-// Track turn timers per room (auto-end turn after 60 seconds)
+// Track turn timers per room (auto-end turn after 120 seconds)
 const turnTimers = new Map()
-const TURN_DURATION = 60 * 1000 // 60 seconds
+const TURN_DURATION = 120 * 1000 // 120 seconds
 
 // 🚨 CRITICAL: Global crypto prices - SINGLE SOURCE OF TRUTH
 const globalCryptoPrices = {
