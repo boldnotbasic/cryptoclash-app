@@ -111,6 +111,23 @@ const scanScenarios: ScanScenarioTemplate[] = [
     icon: '🐋',
     color: 'neon-turquoise'
   },
+  // Forecast event 3x voor hogere kans (3/12 = 25%)
+  {
+    type: 'forecast',
+    minPercentage: 0,
+    maxPercentage: 0,
+    baseMessage: 'Market Forecast',
+    icon: '🔮',
+    color: 'neon-purple'
+  },
+  {
+    type: 'forecast',
+    minPercentage: 0,
+    maxPercentage: 0,
+    baseMessage: 'Market Forecast',
+    icon: '🔮',
+    color: 'neon-purple'
+  },
   {
     type: 'forecast',
     minPercentage: 0,
