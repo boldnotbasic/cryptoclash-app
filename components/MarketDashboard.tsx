@@ -106,35 +106,48 @@ export default function MarketDashboard({
     return null
   }
 
+  // Check if event is positive (for color coding)
+  const isPositiveEvent = (effect: string) => {
+    // Bull Run and Whale Alert are always positive
+    if (effect.includes('Bull Run') || effect.includes('Whale Alert')) return true
+    // Market Crash is always negative
+    if (effect.includes('Market Crash')) return false
+    // Otherwise check for + or -
+    return effect.includes('+') || effect.includes('stijgt') || effect.includes('rally') || effect.includes('move')
+  }
+
   const getBackgroundColor = (color: string) => {
     switch (color) {
+      case 'green-500': return 'from-green-600/20 to-green-800/20'
+      case 'red-500': return 'from-red-600/20 to-red-800/20'
       case 'neon-purple': return 'from-purple-600/20 to-purple-800/20'
       case 'neon-blue': return 'from-blue-600/20 to-blue-800/20'
       case 'neon-turquoise': return 'from-cyan-600/20 to-cyan-800/20'
       case 'neon-gold': return 'from-yellow-600/20 to-yellow-800/20'
-      case 'red-500': return 'from-red-600/20 to-red-800/20'
       default: return 'from-purple-600/20 to-blue-600/20'
     }
   }
 
   const getTextColor = (color: string) => {
     switch (color) {
+      case 'green-500': return 'text-green-400'
+      case 'red-500': return 'text-red-400'
       case 'neon-purple': return 'text-neon-purple'
       case 'neon-blue': return 'text-neon-blue'
       case 'neon-turquoise': return 'text-neon-turquoise'
       case 'neon-gold': return 'text-neon-gold'
-      case 'red-500': return 'text-red-400'
       default: return 'text-neon-purple'
     }
   }
 
   const getBorderColor = (color: string) => {
     switch (color) {
+      case 'green-500': return 'border-green-500 shadow-green-500'
+      case 'red-500': return 'border-red-500 shadow-red-500'
       case 'neon-purple': return 'border-neon-purple shadow-neon-purple'
       case 'neon-blue': return 'border-neon-blue shadow-neon-blue'
       case 'neon-turquoise': return 'border-neon-turquoise shadow-neon-turquoise'
       case 'neon-gold': return 'border-neon-gold shadow-neon-gold'
-      case 'red-500': return 'border-red-500 shadow-red-500'
       default: return 'border-neon-purple shadow-neon-purple'
     }
   }
@@ -364,22 +377,22 @@ export default function MarketDashboard({
     }
   }
 
-  // Watch for new events and show event cards (ONLY player kans events, NOT auto beurs events or win actions)
+  // Watch for new events and show event cards (both player AND auto events)
   useEffect(() => {
-    // Only use player scan actions (kans events), exclude auto scan actions (beurs events) and win actions
-    const playerEvents = [...(playerScanActions || [])]
+    // Combine both player and auto scan actions, excluding win actions
+    const allEvents = [...(playerScanActions || []), ...(autoScanActions || [])]
       .filter((action: any) => !action.isWinAction) // Filter out win actions
       .sort((a, b) => b.timestamp - a.timestamp)
 
-    console.log('🎯 DASHBOARD EVENT DETECTION (PLAYER KANS EVENTS ONLY):')
-    console.log('📊 Auto scan actions (EXCLUDED):', autoScanActions?.length || 0)
+    console.log('🎯 DASHBOARD EVENT DETECTION (PLAYER + AUTO EVENTS):')
+    console.log('📊 Auto scan actions (INCLUDED):', autoScanActions?.length || 0)
     console.log('👤 Player scan actions (INCLUDED):', playerScanActions?.length || 0)
     console.log('🏆 Win actions (EXCLUDED):', (playerScanActions || []).filter((a: any) => a.isWinAction).length)
-    console.log('🎲 Player kans events to check:', playerEvents.length)
+    console.log('🎲 All events to check:', allEvents.length)
 
-    if (playerEvents.length === 0) return
+    if (allEvents.length === 0) return
 
-    const latestEvent = playerEvents[0] // Most recent player kans event is first
+    const latestEvent = allEvents[0] // Most recent event is first
     if (!latestEvent) return
 
     const effect = sanitizeEffect(latestEvent.effect)
@@ -420,19 +433,19 @@ export default function MarketDashboard({
       if (effect.includes('Bull Run')) {
         message = 'Bull Run! Alle munten!'
         icon = '🚀'
-        color = 'neon-gold'
+        color = 'green-500'  // Positive event = GREEN
         eventType = 'event'
         percentage = 5
       } else if (effect.includes('Market Crash')) {
         message = 'Market Crash! Alle munten!'
         icon = '📉'
-        color = 'red-500'
+        color = 'red-500'  // Negative event = RED
         eventType = 'event'
         percentage = -10
       } else if (effect.includes('Whale Alert')) {
         message = 'Whale Alert!'
         icon = '🐋'
-        color = 'neon-turquoise'
+        color = 'green-500'  // Positive event = GREEN (+50%)
         eventType = 'event'
         percentage = 50
         // Extract crypto symbol from effect if available
@@ -485,27 +498,19 @@ export default function MarketDashboard({
           message = `${cryptoName} ${isPositive ? 'stijgt' : 'daalt'}!`
         }
         
-        // Set crypto-specific colors and icons EXACTLY as in ScanResult scenarios
-        const cryptoColors: { [key: string]: string } = {
-          'DSHEEP': 'neon-purple',     // From ScanResult line 41
-          'NGT': 'neon-gold',         // From ScanResult line 50  
-          'LNTR': 'neon-blue',        // From ScanResult line 59
-          'OMLT': 'neon-turquoise',   // From ScanResult line 68
-          'REX': 'neon-purple',       // From ScanResult line 77
-          'ORLO': 'neon-gold'         // From ScanResult line 86
-        }
-        
+        // Use percentage-based colors: GREEN for positive, RED for negative (consistent with ScanResult)
         const cryptoIcons: { [key: string]: string } = {
-          'DSHEEP': '🐑',             // From ScanResult line 40
-          'NGT': '🐔',               // From ScanResult line 49
-          'LNTR': '🌟',              // From ScanResult line 58
-          'OMLT': '🥚',              // From ScanResult line 67
-          'REX': '💫',               // From ScanResult line 76
-          'ORLO': '🎵'               // From ScanResult line 85
+          'DSHEEP': '🐑',
+          'NGT': '🐔',
+          'LNTR': '🌟',
+          'OMLT': '🥚',
+          'REX': '💫',
+          'ORLO': '🎵'
         }
         
         icon = cryptoIcons[cryptoSymbol] || (isPositive ? '📈' : '📉')
-        color = cryptoColors[cryptoSymbol] || (isPositive ? 'neon-purple' : 'red-500')
+        // Color based on percentage sign: green for +, red for -
+        color = isPositive ? 'green-500' : 'red-500'
         eventType = isPositive ? 'boost' : 'crash'
         percentage = percentageValue // Keep original percentage value with correct sign
         
@@ -1038,7 +1043,7 @@ export default function MarketDashboard({
                     
                     <div className="flex items-center space-x-2">
                       <span className={`text-sm font-bold ${
-                        action.effect.includes('+') ? 'text-green-400' : 'text-red-400'
+                        isPositiveEvent(action.effect) ? 'text-green-400' : 'text-red-400'
                       }`}>
                         {sanitizeEffect(action.effect)}
                       </span>
@@ -1129,7 +1134,7 @@ export default function MarketDashboard({
                       
                       <div className="text-right">
                         <p className={`text-sm font-bold ${
-                          action.effect.includes('+') ? 'text-green-400' : 'text-red-400'
+                          isPositiveEvent(action.effect) ? 'text-green-400' : 'text-red-400'
                         }`}>
                           {action.effect}
                         </p>
