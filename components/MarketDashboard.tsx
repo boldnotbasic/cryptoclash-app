@@ -325,22 +325,23 @@ export default function MarketDashboard({
     }
   }
 
-  // Watch for new events and show event cards (both player AND auto events)
+  // Watch for new events and show event cards (ONLY player events, same as player screens)
   useEffect(() => {
-    // Combine both player and auto scan actions, excluding win actions
-    const allEvents = [...(playerScanActions || []), ...(autoScanActions || [])]
+    // Only use player scan actions (triggered by Event button), NOT auto bot activities
+    // This ensures dashboard shows SAME events as player screens
+    const playerEvents = [...(playerScanActions || [])]
       .filter((action: any) => !action.isWinAction) // Filter out win actions
       .sort((a, b) => b.timestamp - a.timestamp)
 
-    console.log('🎯 DASHBOARD EVENT DETECTION (PLAYER + AUTO EVENTS):')
-    console.log('📊 Auto scan actions (INCLUDED):', autoScanActions?.length || 0)
+    console.log('🎯 DASHBOARD EVENT DETECTION (PLAYER EVENTS ONLY):')
+    console.log('📊 Auto scan actions (EXCLUDED):', autoScanActions?.length || 0)
     console.log('👤 Player scan actions (INCLUDED):', playerScanActions?.length || 0)
     console.log('🏆 Win actions (EXCLUDED):', (playerScanActions || []).filter((a: any) => a.isWinAction).length)
-    console.log('🎲 All events to check:', allEvents.length)
+    console.log('🎲 Player events to check:', playerEvents.length)
 
-    if (allEvents.length === 0) return
+    if (playerEvents.length === 0) return
 
-    const latestEvent = allEvents[0] // Most recent event is first
+    const latestEvent = playerEvents[0] // Most recent player event is first
     if (!latestEvent) return
 
     const effect = sanitizeEffect(latestEvent.effect)
