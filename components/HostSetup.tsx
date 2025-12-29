@@ -121,7 +121,7 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
     e.preventDefault()
     if (gameDuration >= 1 && gameDuration <= 10 && roomId) {
       const hostName = playerName || 'Host'
-      const hostAvatar = playerAvatar || '👑'
+      const hostAvatar = playerAvatar || '🤡'
       console.log('🏠 Creating room:', roomId, 'with host:', hostName)
       setIsCreatingRoom(true)
       

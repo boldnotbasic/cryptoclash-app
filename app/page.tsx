@@ -50,7 +50,7 @@ interface GameState {
 
 export default function Home() {
   const [playerName, setPlayerName] = useState<string>('')
-  const [playerAvatar, setPlayerAvatar] = useState<string>('👑')
+  const [playerAvatar, setPlayerAvatar] = useState<string>('🤡')
   const [currentScreen, setCurrentScreen] = useState<Screen>('start-screen')
   const [previousScreen, setPreviousScreen] = useState<Screen>('main-menu')
   const [gameState, setGameState] = useState<GameState | null>(null)
@@ -872,7 +872,7 @@ export default function Home() {
           // Check if session is less than 24 hours old
           if (now - sessionData.lastSaveTime < 24 * 60 * 60 * 1000) {
             setPlayerName(sessionData.playerName || '')
-            setPlayerAvatar(sessionData.playerAvatar || '👑')
+            setPlayerAvatar(sessionData.playerAvatar || '🤡')
             setGameState(sessionData.gameState || null)
             setCashBalance(sessionData.cashBalance || 1000)
             if (sessionData.cryptos) {
@@ -1984,7 +1984,7 @@ export default function Home() {
     if (role === 'host') {
       // Hosts get default name/avatar and go directly to host-setup
       setPlayerName('Host')
-      setPlayerAvatar('👑')
+      setPlayerAvatar('🤡')
       navigateToScreen('host-setup')
     } else {
       // Players need to choose name/avatar first

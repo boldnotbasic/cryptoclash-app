@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks, Power, SkipForward, Clock } from 'lucide-react'
 import Header from './Header'
+import ScanResult, { ScanEffect } from './ScanResult'
 
 interface CryptoCurrency {
   id: string
@@ -74,16 +75,7 @@ export default function MarketDashboard({
   const [showEndGameModal, setShowEndGameModal] = useState(false)
   const [timerEnabled, setTimerEnabled] = useState(true)
   const [showKansEvent, setShowKansEvent] = useState(false)
-  const [currentKansEvent, setCurrentKansEvent] = useState<{
-    id: string
-    type: 'boost' | 'crash' | 'event'
-    cryptoSymbol?: string
-    percentage?: number
-    message: string
-    icon: string
-    color: string
-    timestamp: number
-  } | null>(null)
+  const [currentKansEvent, setCurrentKansEvent] = useState<ScanEffect | null>(null)
   const lastShownEventId = useRef<string | null>(null)
 
   const getCryptoImagePath = (symbol: string) => {
@@ -98,15 +90,7 @@ export default function MarketDashboard({
     }
   }
 
-  // Custom images for event-scenario's (Bull Run, Market Crash, Whale Alert)
-  const getEventImagePath = (message: string) => {
-    if (message.includes('Bull Run')) return '/Bull-run.png'
-    if (message.includes('Market Crash')) return '/Beurscrash.png'
-    if (message.includes('Whale Alert')) return '/Whala-alert.png'
-    return null
-  }
-
-  // Check if event is positive (for color coding)
+  // Check if event is positive (for color coding in action logs)
   const isPositiveEvent = (effect: string) => {
     // Bull Run and Whale Alert are always positive
     if (effect.includes('Bull Run') || effect.includes('Whale Alert')) return true
@@ -114,42 +98,6 @@ export default function MarketDashboard({
     if (effect.includes('Market Crash')) return false
     // Otherwise check for + or -
     return effect.includes('+') || effect.includes('stijgt') || effect.includes('rally') || effect.includes('move')
-  }
-
-  const getBackgroundColor = (color: string) => {
-    switch (color) {
-      case 'green-500': return 'from-green-600/20 to-green-800/20'
-      case 'red-500': return 'from-red-600/20 to-red-800/20'
-      case 'neon-purple': return 'from-purple-600/20 to-purple-800/20'
-      case 'neon-blue': return 'from-blue-600/20 to-blue-800/20'
-      case 'neon-turquoise': return 'from-cyan-600/20 to-cyan-800/20'
-      case 'neon-gold': return 'from-yellow-600/20 to-yellow-800/20'
-      default: return 'from-purple-600/20 to-blue-600/20'
-    }
-  }
-
-  const getTextColor = (color: string) => {
-    switch (color) {
-      case 'green-500': return 'text-green-400'
-      case 'red-500': return 'text-red-400'
-      case 'neon-purple': return 'text-neon-purple'
-      case 'neon-blue': return 'text-neon-blue'
-      case 'neon-turquoise': return 'text-neon-turquoise'
-      case 'neon-gold': return 'text-neon-gold'
-      default: return 'text-neon-purple'
-    }
-  }
-
-  const getBorderColor = (color: string) => {
-    switch (color) {
-      case 'green-500': return 'border-green-500 shadow-green-500'
-      case 'red-500': return 'border-red-500 shadow-red-500'
-      case 'neon-purple': return 'border-neon-purple shadow-neon-purple'
-      case 'neon-blue': return 'border-neon-blue shadow-neon-blue'
-      case 'neon-turquoise': return 'border-neon-turquoise shadow-neon-turquoise'
-      case 'neon-gold': return 'border-neon-gold shadow-neon-gold'
-      default: return 'border-neon-purple shadow-neon-purple'
-    }
   }
 
   // Simple test scan function triggered from dashboard Scans widget
@@ -521,16 +469,14 @@ export default function MarketDashboard({
         console.log('  🔄 Is positive check:', isPositive)
       }
 
-      // Show kans event with ScanResult styling
+      // Show kans event with ScanResult component
       setCurrentKansEvent({
-        id: latestEvent.id,
         type: eventType,
         cryptoSymbol,
         percentage,
         message,
         icon,
-        color,
-        timestamp: latestEvent.timestamp
+        color
       })
       
       setShowKansEvent(true)
@@ -1416,90 +1362,20 @@ export default function MarketDashboard({
         </div>
       )}
 
-      {/* Kans Event Overlay - shows kans events with ScanResult styling */}
+      {/* Event Overlay - uses ScanResult component for consistency */}
       {showKansEvent && currentKansEvent && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className={`transform transition-all duration-500 ${
-            showKansEvent ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
-          }`}>
-            <div className={`crypto-card ${getBorderColor(currentKansEvent.color)} bg-gradient-to-br ${getBackgroundColor(currentKansEvent.color)} max-w-md w-full text-center p-8`}>
-
-              {/* Crypto Icon */}
-              <div className="mb-6">
-                <div className="text-8xl mb-4 flex items-center justify-center">
-                  {(() => {
-                    // Eerst: custom event image (Bull Run / Market Crash / Whale Alert)
-                    const eventImage = getEventImagePath(currentKansEvent.message)
-                    if (eventImage) {
-                      return (
-                        <Image
-                          src={eventImage}
-                          alt={currentKansEvent.message}
-                          width={180}
-                          height={180}
-                          className="object-contain"
-                        />
-                      )
-                    }
-
-                    // Anders: normale crypto image op basis van symbool
-                    const imagePath = getCryptoImagePath(currentKansEvent.cryptoSymbol || '')
-                    if (imagePath) {
-                      return (
-                        <Image
-                          src={imagePath}
-                          alt={currentKansEvent.cryptoSymbol || 'Crypto'}
-                          width={180}
-                          height={180}
-                          className="object-contain"
-                        />
-                      )
-                    }
-
-                    // Fallback: emoji/icon uit scenario
-                    return <span>{currentKansEvent.icon}</span>
-                  })()} 
-                </div>
-                {currentKansEvent.cryptoSymbol && (
-                  <div className="text-lg text-gray-400 mb-2">{currentKansEvent.cryptoSymbol}</div>
-                )}
-              </div>
-
-              {/* Effect Message */}
-              <div className="mb-6">
-                <h3 className={`text-3xl font-bold ${getTextColor(currentKansEvent.color)} mb-2`}>
-                  {currentKansEvent.message}
-                </h3>
-                
-                {currentKansEvent.percentage && (
-                  <div className="flex items-center justify-center space-x-2">
-                    {currentKansEvent.percentage > 0 ? (
-                      <TrendingUp className="w-6 h-6 text-green-400" />
-                    ) : (
-                      <TrendingDown className="w-6 h-6 text-red-400" />
-                    )}
-                    <span className={`text-2xl font-bold ${
-                      currentKansEvent.percentage > 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {currentKansEvent.percentage > 0 ? '+' : ''}{currentKansEvent.percentage}%
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Auto-close indicator */}
-              <div className="text-gray-400 text-sm">
-                <div className="w-full bg-gray-700 rounded-full h-1 mb-2">
-                  <div 
-                    className="bg-neon-gold h-1 rounded-full transition-all duration-3100 ease-linear"
-                    style={{ width: showKansEvent ? '0%' : '100%' }}
-                  ></div>
-                </div>
-                Wordt automatisch toegepast...
-              </div>
-            </div>
-          </div>
-        </div>
+        <ScanResult
+          externalScenario={currentKansEvent}
+          onClose={() => {
+            setShowKansEvent(false)
+            setCurrentKansEvent(null)
+          }}
+          onApplyEffect={(effect) => {
+            console.log('Event applied on dashboard:', effect)
+            setShowKansEvent(false)
+            setCurrentKansEvent(null)
+          }}
+        />
       )}
     </div>
   )
