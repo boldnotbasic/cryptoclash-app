@@ -516,11 +516,14 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
             )}
           </div>
 
-          {/* Effect Message */}
+          {/* Effect Message - Only for special events (Bull Run, Market Crash, Whale Alert, Forecast) */}
           <div className="mb-6">
-            <h3 className={`text-3xl font-bold ${getTextColor()} mb-2`}>
-              {currentScenario.message}
-            </h3>
+            {/* Show message only for market-wide events and forecast */}
+            {(currentScenario.type === 'event' || currentScenario.type === 'forecast') && (
+              <h3 className={`text-3xl font-bold ${getTextColor()} mb-2`}>
+                {currentScenario.message}
+              </h3>
+            )}
             
             {/* Forecast: Show top gainer and loser */}
             {currentScenario.type === 'forecast' && currentScenario.topGainer && currentScenario.topLoser && (
@@ -593,13 +596,13 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
 
             {/* Regular percentage display for non-forecast events */}
             {currentScenario.type !== 'forecast' && currentScenario.percentage && (
-              <div className="flex items-center justify-center space-x-2">
+              <div className="flex items-center justify-center space-x-3 mt-2">
                 {currentScenario.percentage > 0 ? (
-                  <TrendingUp className="w-6 h-6 text-green-400" />
+                  <TrendingUp className="w-8 h-8 text-green-400" />
                 ) : (
-                  <TrendingDown className="w-6 h-6 text-red-400" />
+                  <TrendingDown className="w-8 h-8 text-red-400" />
                 )}
-                <span className={`text-2xl font-bold ${
+                <span className={`text-4xl font-bold ${
                   currentScenario.percentage > 0 ? 'text-green-400' : 'text-red-400'
                 }`}>
                   {currentScenario.percentage > 0 ? '+' : ''}{currentScenario.percentage}%
