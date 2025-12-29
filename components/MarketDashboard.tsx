@@ -379,19 +379,19 @@ export default function MarketDashboard({
       let color = ''
 
       if (effect.includes('Bull Run')) {
-        message = 'Bull Run! Alle munten!'
+        message = effect  // Use original effect: "Bull Run! Alle munten +5%!"
         icon = '🚀'
         color = 'green-500'  // Positive event = GREEN
         eventType = 'event'
         percentage = 5
       } else if (effect.includes('Market Crash')) {
-        message = 'Market Crash! Alle munten!'
+        message = effect  // Use original effect: "Market Crash! Alle munten -10%!"
         icon = '📉'
         color = 'red-500'  // Negative event = RED
         eventType = 'event'
         percentage = -10
       } else if (effect.includes('Whale Alert')) {
-        message = 'Whale Alert!'
+        message = effect  // Use original effect
         icon = '🐋'
         color = 'green-500'  // Positive event = GREEN (+50%)
         eventType = 'event'
@@ -400,7 +400,6 @@ export default function MarketDashboard({
         const symbolMatch = effect.match(/\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/)
         if (symbolMatch) {
           cryptoSymbol = symbolMatch[0]
-          message = `Whale Alert! ${cryptoSymbol}!`
         }
       } else if (isIndividualEvent) {
         // Parse individual crypto events - support multiple formats
@@ -435,16 +434,8 @@ export default function MarketDashboard({
         const symbolMatch = effect.match(/\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/)
         cryptoSymbol = symbolMatch ? symbolMatch[0] : (nameToSymbol[cryptoName] || cryptoName)
         
-        // Create appropriate message based on the original effect
-        if (effect.includes('beweegt')) {
-          message = `${cryptoName} beweegt!`
-        } else if (effect.includes('move')) {
-          message = `${cryptoName} move!`
-        } else if (effect.includes('dip')) {
-          message = `${cryptoName} dip!`
-        } else {
-          message = `${cryptoName} ${isPositive ? 'stijgt' : 'daalt'}!`
-        }
+        // Use the ORIGINAL effect as message for consistency with player screens
+        message = effect
         
         // Use percentage-based colors: GREEN for positive, RED for negative (consistent with ScanResult)
         const cryptoIcons: { [key: string]: string } = {
