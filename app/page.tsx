@@ -50,7 +50,7 @@ interface GameState {
 
 export default function Home() {
   const [playerName, setPlayerName] = useState<string>('')
-  const [playerAvatar, setPlayerAvatar] = useState<string>('🤡')
+  const [playerAvatar, setPlayerAvatar] = useState<string>('👑')
   const [currentScreen, setCurrentScreen] = useState<Screen>('start-screen')
   const [previousScreen, setPreviousScreen] = useState<Screen>('main-menu')
   const [gameState, setGameState] = useState<GameState | null>(null)
@@ -872,7 +872,7 @@ export default function Home() {
           // Check if session is less than 24 hours old
           if (now - sessionData.lastSaveTime < 24 * 60 * 60 * 1000) {
             setPlayerName(sessionData.playerName || '')
-            setPlayerAvatar(sessionData.playerAvatar || '🤡')
+            setPlayerAvatar(sessionData.playerAvatar || '👑')
             setGameState(sessionData.gameState || null)
             setCashBalance(sessionData.cashBalance || 1000)
             if (sessionData.cryptos) {
@@ -1905,7 +1905,7 @@ export default function Home() {
       }
 
       const generateActivity = () => {
-        const cryptoSymbols = ['DSHEEP', 'NUGGET', 'LNTR', 'OMLT', 'REX', 'ORLO']
+        const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
         const randomCrypto = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
         
         // Generate random percentage within selected volatility bound
@@ -1918,12 +1918,35 @@ export default function Home() {
         const actions = ['Market Move', 'Price Alert', 'Trading Signal', 'Volume Spike']
         const randomActionType = actions[Math.floor(Math.random() * actions.length)]
         
+        // Create consistent message format matching server events
+        const cryptoNames: { [key: string]: string } = {
+          'DSHEEP': 'DigiSheep',
+          'NGT': 'Nugget',
+          'LNTR': 'Lentra',
+          'OMLT': 'Omlet',
+          'REX': 'Rex',
+          'ORLO': 'Orlo'
+        }
+        const cryptoName = cryptoNames[randomCrypto] || randomCrypto
+        
+        // Use same format as server events: "Nugget rally +2.5%" or "Rex dip -1.8%"
+        let effectMessage = ''
+        if (isPositive) {
+          const actionWords = ['stijgt', 'rally', 'move']
+          const action = actionWords[Math.floor(Math.random() * actionWords.length)]
+          effectMessage = `${cryptoName} ${action} ${sign}${percentage}%`
+        } else {
+          const actionWords = ['daalt', 'crash', 'dip']
+          const action = actionWords[Math.floor(Math.random() * actionWords.length)]
+          effectMessage = `${cryptoName} ${action} ${sign}${percentage}%`
+        }
+        
         const newScanAction = {
           id: Date.now().toString(),
           timestamp: Date.now(),
           player: 'Bot',
           action: randomActionType,
-          effect: `${randomCrypto} ${sign}${percentage}%`,
+          effect: effectMessage,
           cryptoSymbol: randomCrypto,
           percentageValue: percentageValue
         }
@@ -1984,7 +2007,7 @@ export default function Home() {
     if (role === 'host') {
       // Hosts get default name/avatar and go directly to host-setup
       setPlayerName('Host')
-      setPlayerAvatar('🤡')
+      setPlayerAvatar('👑')
       navigateToScreen('host-setup')
     } else {
       // Players need to choose name/avatar first
@@ -2197,15 +2220,20 @@ export default function Home() {
       // die in handleScanDataUpdate de nieuwe prijzen doorvoert voor alle spelers.
     }
     
-    // STEP 2: Build effect text for display
-    let effectText = ''
-    if (effect.type === 'boost' || effect.type === 'crash') {
-      if (effect.cryptoSymbol && effect.percentage) {
-        const sign = effect.percentage > 0 ? '+' : ''
-        effectText = `${effect.cryptoSymbol} ${sign}${effect.percentage}%`
+    // STEP 2: Build effect text for display - USE ORIGINAL MESSAGE FROM SCANRESULT
+    // This ensures consistency with server-generated events
+    let effectText = effect.message || ''
+    
+    // Fallback: if no message, build one (should not happen with ScanResult)
+    if (!effectText) {
+      if (effect.type === 'boost' || effect.type === 'crash') {
+        if (effect.cryptoSymbol && effect.percentage) {
+          const sign = effect.percentage > 0 ? '+' : ''
+          effectText = `${effect.cryptoSymbol} ${sign}${effect.percentage}%`
+        }
+      } else if (effect.type === 'event') {
+        effectText = effect.message
       }
-    } else if (effect.type === 'event') {
-      effectText = effect.message
     }
     
     setLastScanEffect(effectText)

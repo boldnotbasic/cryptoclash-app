@@ -234,12 +234,35 @@ function startActivityInterval(roomCode, socketIo) {
     const actions = ['Market Move', 'Price Alert', 'Trading Signal', 'Volume Spike']
     const randomActionType = actions[Math.floor(Math.random() * actions.length)]
 
+    // Create consistent message format matching player events
+    const cryptoNames = {
+      'DSHEEP': 'DigiSheep',
+      'NGT': 'Nugget',
+      'LNTR': 'Lentra',
+      'OMLT': 'Omlet',
+      'REX': 'Rex',
+      'ORLO': 'Orlo'
+    }
+    const cryptoName = cryptoNames[randomCrypto] || randomCrypto
+    
+    // Use same format as player events: "Nugget rally +28%" or "Rex dip -25%"
+    let effectMessage = ''
+    if (percentage > 0) {
+      const actions = ['stijgt', 'rally', 'move']
+      const action = actions[Math.floor(Math.random() * actions.length)]
+      effectMessage = `${cryptoName} ${action} ${sign}${percentage}%`
+    } else {
+      const actions = ['daalt', 'crash', 'dip']
+      const action = actions[Math.floor(Math.random() * actions.length)]
+      effectMessage = `${cryptoName} ${action} ${sign}${percentage}%`
+    }
+
     const activity = {
       id: Date.now().toString(),
       timestamp: Date.now(),
       player: 'Bot',
       action: randomActionType,
-      effect: sanitizeEffect(`${randomCrypto} ${sign}${percentage}%`),
+      effect: sanitizeEffect(effectMessage),
       cryptoSymbol: randomCrypto,
       percentageValue: percentage
     }
