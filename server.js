@@ -1461,40 +1461,65 @@ app.prepare().then(() => {
         }
       }
       
-      // Generate random event on server
-      const eventTypes = [
-        // Crypto specific events
-        { type: 'boost', symbol: 'DSHEEP', min: -30, max: 30, msg: (pct) => `DigiSheep ${pct > 0 ? 'stijgt' : 'daalt'} ${pct > 0 ? '+' : ''}${pct}%` },
-        { type: 'boost', symbol: 'NGT', min: -30, max: 30, msg: (pct) => `Nugget ${pct > 0 ? 'rally' : 'crash'} ${pct > 0 ? '+' : ''}${pct}%` },
-        { type: 'boost', symbol: 'LNTR', min: -30, max: 30, msg: (pct) => `Lentra ${pct > 0 ? 'stijgt' : 'crash'} ${pct > 0 ? '+' : ''}${pct}%` },
-        { type: 'boost', symbol: 'OMLT', min: -30, max: 30, msg: (pct) => `Omlet ${pct > 0 ? 'stijgt' : 'daalt'} ${pct > 0 ? '+' : ''}${pct}%` },
-        { type: 'boost', symbol: 'REX', min: -30, max: 30, msg: (pct) => `Rex ${pct > 0 ? 'move' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
-        { type: 'boost', symbol: 'ORLO', min: -30, max: 30, msg: (pct) => `Orlo ${pct > 0 ? 'stijgt' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
-        // Market-wide events
-        { type: 'event', symbol: null, min: 5, max: 5, msg: () => 'Bull Run! Alle munten +5%!' },
-        { type: 'event', symbol: null, min: -10, max: -10, msg: () => 'Market Crash! Alle munten -10%!' },
-      ]
+      // Generate random event on server with weighted probabilities
+      // 20% chance for forecast, 80% for regular events
+      const shouldGenerateForecast = Math.random() < 0.2
       
-      const randomEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)]
-      const percentage = randomEvent.min === randomEvent.max ? randomEvent.min : 
-                        Math.floor(Math.random() * (randomEvent.max - randomEvent.min + 1)) + randomEvent.min
+      let randomEvent
+      let percentage
+      let scanAction
       
-      const scanAction = {
-        id: Date.now().toString(),
-        timestamp: Date.now(),
-        player: playerName,
-        action: 'Event',
-        effect: randomEvent.msg(percentage),
-        avatar: playerAvatar,
-        cryptoSymbol: randomEvent.symbol,
-        percentageValue: percentage
+      if (shouldGenerateForecast) {
+        // Generate forecast event
+        scanAction = {
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          player: playerName,
+          action: 'Forecast',
+          effect: 'Market Forecast',
+          avatar: playerAvatar,
+          cryptoSymbol: null,
+          percentageValue: 0,
+          isForecast: true
+        }
+        
+        console.log(`🔮 Generated forecast event`)
+      } else {
+        // Generate regular event
+        const eventTypes = [
+          // Crypto specific events
+          { type: 'boost', symbol: 'DSHEEP', min: -30, max: 30, msg: (pct) => `DigiSheep ${pct > 0 ? 'stijgt' : 'daalt'} ${pct > 0 ? '+' : ''}${pct}%` },
+          { type: 'boost', symbol: 'NGT', min: -30, max: 30, msg: (pct) => `Nugget ${pct > 0 ? 'rally' : 'crash'} ${pct > 0 ? '+' : ''}${pct}%` },
+          { type: 'boost', symbol: 'LNTR', min: -30, max: 30, msg: (pct) => `Lentra ${pct > 0 ? 'stijgt' : 'crash'} ${pct > 0 ? '+' : ''}${pct}%` },
+          { type: 'boost', symbol: 'OMLT', min: -30, max: 30, msg: (pct) => `Omlet ${pct > 0 ? 'stijgt' : 'daalt'} ${pct > 0 ? '+' : ''}${pct}%` },
+          { type: 'boost', symbol: 'REX', min: -30, max: 30, msg: (pct) => `Rex ${pct > 0 ? 'move' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
+          { type: 'boost', symbol: 'ORLO', min: -30, max: 30, msg: (pct) => `Orlo ${pct > 0 ? 'stijgt' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
+          // Market-wide events
+          { type: 'event', symbol: null, min: 5, max: 5, msg: () => 'Bull Run! Alle munten +5%!' },
+          { type: 'event', symbol: null, min: -10, max: -10, msg: () => 'Market Crash! Alle munten -10%!' },
+        ]
+        
+        randomEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)]
+        percentage = randomEvent.min === randomEvent.max ? randomEvent.min : 
+                          Math.floor(Math.random() * (randomEvent.max - randomEvent.min + 1)) + randomEvent.min
+        
+        scanAction = {
+          id: Date.now().toString(),
+          timestamp: Date.now(),
+          player: playerName,
+          action: 'Event',
+          effect: randomEvent.msg(percentage),
+          avatar: playerAvatar,
+          cryptoSymbol: randomEvent.symbol,
+          percentageValue: percentage
+        }
+        
+        console.log(`🎲 Generated event: ${scanAction.effect}`)
+        console.log(`📊 Symbol: ${scanAction.cryptoSymbol}, Percentage: ${scanAction.percentageValue}`)
       }
       
-      console.log(`🎲 Generated event: ${scanAction.effect}`)
-      console.log(`📊 Symbol: ${scanAction.cryptoSymbol}, Percentage: ${scanAction.percentageValue}`)
-      
-      // Apply price changes
-      if (randomEvent.type === 'event') {
+      // Apply price changes (skip for forecast)
+      if (!shouldGenerateForecast && randomEvent.type === 'event') {
         // Market-wide events
         if (scanAction.effect.includes('Bull Run')) {
           Object.keys(globalCryptoPrices).forEach(symbol => {
@@ -1507,8 +1532,8 @@ app.prepare().then(() => {
           })
           console.log(`📉 Market Crash applied: All cryptos -10%`)
         }
-      } else if (scanAction.cryptoSymbol && scanAction.percentageValue !== undefined) {
-        // Single crypto event
+      } else if (!shouldGenerateForecast && scanAction.cryptoSymbol && scanAction.percentageValue !== undefined) {
+        // Single crypto event (skip for forecast)
         const symbol = scanAction.cryptoSymbol
         const oldPrice = globalCryptoPrices[symbol]
         const newPrice = oldPrice * (1 + scanAction.percentageValue / 100)

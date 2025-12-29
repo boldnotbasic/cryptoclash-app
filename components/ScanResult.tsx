@@ -516,10 +516,10 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
             )}
           </div>
 
-          {/* Effect Message - Only for special events (Bull Run, Market Crash, Whale Alert, Forecast) */}
+          {/* Effect Message - Only for Forecast events */}
           <div className="mb-6">
-            {/* Show message only for market-wide events and forecast */}
-            {(currentScenario.type === 'event' || currentScenario.type === 'forecast') && (
+            {/* Show message only for forecast (hide for Bull Run, Market Crash, Whale Alert) */}
+            {currentScenario.type === 'forecast' && (
               <h3 className={`text-3xl font-bold ${getTextColor()} mb-2`}>
                 {currentScenario.message}
               </h3>
