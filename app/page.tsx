@@ -3227,8 +3227,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Event from other player - show colored ScanResult tile */}
-      {showOtherPlayerEvent && otherPlayerEventData && (
+      {/* Event from other player - show colored ScanResult tile (NOT on market-dashboard, it has its own) */}
+      {showOtherPlayerEvent && otherPlayerEventData && currentScreen !== 'market-dashboard' && (
         <div className="fixed inset-0 z-50">
           <ScanResult
             externalScenario={otherPlayerEventData}
