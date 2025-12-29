@@ -351,6 +351,9 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
       clearTimeout(autoCloseTimerRef.current)
     }
     
+    // Forecast events stay longer (5 seconds), others 3 seconds
+    const displayTime = currentScenario.type === 'forecast' ? 5000 : 3000
+    
     autoCloseTimerRef.current = setTimeout(() => {
       if (hasClosedRef.current) {
         console.log('⚠️ Already closed, skipping')
@@ -366,7 +369,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
         onApplyEffect(currentScenario)
         onClose()
       }, 300)
-    }, 3100) // 100ms fade-in + 3000ms display time
+    }, displayTime + 100) // 100ms fade-in + display time
 
     // Cleanup: only clear timer on unmount, not on re-render
     return () => {
@@ -408,6 +411,16 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
   }
 
   const getBackgroundColor = () => {
+    // Use percentage to determine color: green for positive, red for negative
+    if (currentScenario.percentage !== undefined && currentScenario.percentage !== null) {
+      if (currentScenario.percentage > 0) {
+        return 'from-green-600/20 to-green-800/20'
+      } else if (currentScenario.percentage < 0) {
+        return 'from-red-600/20 to-red-800/20'
+      }
+    }
+    
+    // Fallback to scenario color for events without percentage
     switch (currentScenario.color) {
       case 'neon-purple': return 'from-purple-600/20 to-purple-800/20'
       case 'neon-blue': return 'from-blue-600/20 to-blue-800/20'
@@ -430,6 +443,16 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
   }
 
   const getBorderColor = () => {
+    // Use percentage to determine color: green for positive, red for negative
+    if (currentScenario.percentage !== undefined && currentScenario.percentage !== null) {
+      if (currentScenario.percentage > 0) {
+        return 'border-green-500 shadow-green-500'
+      } else if (currentScenario.percentage < 0) {
+        return 'border-red-500 shadow-red-500'
+      }
+    }
+    
+    // Fallback to scenario color for events without percentage
     switch (currentScenario.color) {
       case 'neon-purple': return 'border-neon-purple shadow-neon-purple'
       case 'neon-blue': return 'border-neon-blue shadow-neon-blue'

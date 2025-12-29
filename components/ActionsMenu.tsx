@@ -17,16 +17,17 @@ interface ScanAction {
 interface ActionsMenuProps {
   playerName: string
   playerAvatar: string
-  onNavigate: (screen: 'main-menu' | 'buy' | 'sell' | 'market-activity' | 'win' | 'swap' | 'activity') => void
-  onApplyScanEffect?: (effect: ScanEffect) => void
+  onNavigate: (screen: string) => void
+  onApplyScanEffect?: (effect: any) => void
+  onTriggerEvent?: () => void
   onEndTurnConfirm?: () => void
   actionsDisabled?: boolean
-  playerScanActions?: ScanAction[]
-  autoScanActions?: ScanAction[]
+  playerScanActions?: any[]
+  autoScanActions?: any[]
   turnTimeLeft?: number
 }
 
-export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onApplyScanEffect, onEndTurnConfirm, actionsDisabled, playerScanActions = [], autoScanActions = [], turnTimeLeft = 120 }: ActionsMenuProps) {
+export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onApplyScanEffect, onEndTurnConfirm, onTriggerEvent, actionsDisabled, playerScanActions = [], autoScanActions = [], turnTimeLeft = 120 }: ActionsMenuProps) {
   const [showScan, setShowScan] = useState(false)
   const [actionsEnabled, setActionsEnabled] = useState(true)
   
@@ -58,7 +59,16 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
         'from-gray-900/95 via-blue-500/5 to-gray-900/95 border-2 border-blue-500/70 ring-1 ring-blue-500/40 shadow-lg shadow-blue-500/30',
       iconClasses:
         'from-blue-500/25 to-cyan-500/25 border border-blue-400/70 ring-1 ring-blue-400/60',
-      action: () => setShowScan(true)
+      action: () => {
+        // Trigger event via server instead of showing local ScanResult
+        if (onTriggerEvent) {
+          console.log('🎲 Triggering event via server')
+          onTriggerEvent()
+        } else {
+          // Fallback to old behavior
+          setShowScan(true)
+        }
+      }
     },
     {
       id: 'buy',

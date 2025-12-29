@@ -2803,6 +2803,18 @@ export default function Home() {
                   }
                 }}
                 onApplyScanEffect={handleQRScan}
+                onTriggerEvent={() => {
+                  console.log('🎲 Trigger event via server')
+                  if (socket && roomId) {
+                    socket.emit('player:triggerEvent', {
+                      roomCode: roomId,
+                      playerName: playerName,
+                      playerAvatar: playerAvatar
+                    })
+                    console.log('✅ player:triggerEvent emitted')
+                    navigateToScreen('main-menu')
+                  }
+                }}
                 playerScanActions={playerScanActions}
                 autoScanActions={autoScanActions}
                 actionsDisabled={actionsDisabled}

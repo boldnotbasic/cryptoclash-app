@@ -1419,6 +1419,98 @@ app.prepare().then(() => {
       console.log(`💰 === PRICE UPDATE END ===\n`)
     })
 
+    // Player triggers event - server generates and broadcasts to ALL players
+    socket.on('player:triggerEvent', ({ roomCode, playerName, playerAvatar }) => {
+      console.log(`\n🎲 === PLAYER TRIGGERED EVENT ===`)
+      console.log(`🏠 Room: ${roomCode}`)
+      console.log(`👤 Player: ${playerName}`)
+      
+      if (!rooms[roomCode]) {
+        console.log(`❌ Room ${roomCode} not found`)
+        return
+      }
+      
+      // Initialize room scan data if not exists
+      if (!roomScanData[roomCode]) {
+        roomScanData[roomCode] = {
+          autoScanActions: [],
+          playerScanActions: []
+        }
+      }
+      
+      // Generate random event on server
+      const eventTypes = [
+        // Crypto specific events
+        { type: 'boost', symbol: 'DSHEEP', min: -30, max: 30, msg: (pct) => `DigiSheep ${pct > 0 ? 'stijgt' : 'daalt'} ${pct > 0 ? '+' : ''}${pct}%` },
+        { type: 'boost', symbol: 'NGT', min: -30, max: 30, msg: (pct) => `Nugget ${pct > 0 ? 'rally' : 'crash'} ${pct > 0 ? '+' : ''}${pct}%` },
+        { type: 'boost', symbol: 'LNTR', min: -30, max: 30, msg: (pct) => `Lentra ${pct > 0 ? 'stijgt' : 'crash'} ${pct > 0 ? '+' : ''}${pct}%` },
+        { type: 'boost', symbol: 'OMLT', min: -30, max: 30, msg: (pct) => `Omlet ${pct > 0 ? 'stijgt' : 'daalt'} ${pct > 0 ? '+' : ''}${pct}%` },
+        { type: 'boost', symbol: 'REX', min: -30, max: 30, msg: (pct) => `Rex ${pct > 0 ? 'move' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
+        { type: 'boost', symbol: 'ORLO', min: -30, max: 30, msg: (pct) => `Orlo ${pct > 0 ? 'stijgt' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
+        // Market-wide events
+        { type: 'event', symbol: null, min: 5, max: 5, msg: () => 'Bull Run! Alle munten +5%!' },
+        { type: 'event', symbol: null, min: -10, max: -10, msg: () => 'Market Crash! Alle munten -10%!' },
+      ]
+      
+      const randomEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)]
+      const percentage = randomEvent.min === randomEvent.max ? randomEvent.min : 
+                        Math.floor(Math.random() * (randomEvent.max - randomEvent.min + 1)) + randomEvent.min
+      
+      const scanAction = {
+        id: Date.now().toString(),
+        timestamp: Date.now(),
+        player: playerName,
+        action: 'Event',
+        effect: randomEvent.msg(percentage),
+        avatar: playerAvatar,
+        cryptoSymbol: randomEvent.symbol,
+        percentageValue: percentage
+      }
+      
+      console.log(`🎲 Generated event: ${scanAction.effect}`)
+      console.log(`📊 Symbol: ${scanAction.cryptoSymbol}, Percentage: ${scanAction.percentageValue}`)
+      
+      // Apply price changes
+      if (randomEvent.type === 'event') {
+        // Market-wide events
+        if (scanAction.effect.includes('Bull Run')) {
+          Object.keys(globalCryptoPrices).forEach(symbol => {
+            globalCryptoPrices[symbol] = Math.round(globalCryptoPrices[symbol] * 1.05 * 100) / 100
+          })
+          console.log(`🚀 Bull Run applied: All cryptos +5%`)
+        } else if (scanAction.effect.includes('Market Crash')) {
+          Object.keys(globalCryptoPrices).forEach(symbol => {
+            globalCryptoPrices[symbol] = Math.round(globalCryptoPrices[symbol] * 0.9 * 100) / 100
+          })
+          console.log(`📉 Market Crash applied: All cryptos -10%`)
+        }
+      } else if (scanAction.cryptoSymbol && scanAction.percentageValue !== undefined) {
+        // Single crypto event
+        const symbol = scanAction.cryptoSymbol
+        const oldPrice = globalCryptoPrices[symbol]
+        const newPrice = oldPrice * (1 + scanAction.percentageValue / 100)
+        globalCryptoPrices[symbol] = Math.max(0.01, Math.round(newPrice * 100) / 100)
+        console.log(`💰 ${symbol}: ${oldPrice.toFixed(2)} → ${globalCryptoPrices[symbol].toFixed(2)}`)
+      }
+      
+      // Add to room scan data
+      roomScanData[roomCode].playerScanActions.unshift(scanAction)
+      if (roomScanData[roomCode].playerScanActions.length > 10) {
+        roomScanData[roomCode].playerScanActions = roomScanData[roomCode].playerScanActions.slice(0, 10)
+      }
+      
+      // Broadcast to ALL players in room (including trigger)
+      io.to(roomCode).emit('scanData:update', {
+        autoScanActions: roomScanData[roomCode].autoScanActions,
+        playerScanActions: roomScanData[roomCode].playerScanActions
+      })
+      
+      // Broadcast price update
+      io.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
+      
+      console.log(`✅ Event broadcast to all players in room ${roomCode}`)
+    })
+
     // Player scan action - broadcast to all players in room (including Market Screen)
     socket.on('player:scanAction', ({ roomCode, scanAction }) => {
       console.log(`\n📱 === PLAYER SCAN ACTION ===`)
