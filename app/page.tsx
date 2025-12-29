@@ -71,6 +71,7 @@ export default function Home() {
   const [currentYear, setCurrentYear] = useState<number>(2024)
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
+  const [isFirstTurn, setIsFirstTurn] = useState<boolean>(true) // Track if this is the first turn
   
   // Get socket connection for game events (room state only; we don't rely on socket.id for turn logic)
   const { socket, room } = useSocket()
@@ -1025,6 +1026,12 @@ export default function Home() {
         console.log('  My socket ID:', mySocketId)
         console.log('  Is it my turn now?:', newTurnPlayerId === mySocketId)
         
+        // First turn has ended - enable timer from now on
+        if (isFirstTurn) {
+          console.log('⏰ First turn ended - timer will now be active for future turns')
+          setIsFirstTurn(false)
+        }
+        
         // Show notification popup
         const notificationId = `turn-${Date.now()}`
         setTurnNotification({
@@ -1680,8 +1687,9 @@ export default function Home() {
       const normPlayer = normalizeAndSort(playerScanActions)
 
       // DETECT AND APPLY MARKET EVENTS IMMEDIATELY (before state update)
-      const allScans = [...normAuto, ...normPlayer]
-      const latestScan = allScans[0] // Most recent scan
+      // Player scans have priority over auto scans - put player scans first
+      const allScans = [...normPlayer, ...normAuto]
+      const latestScan = allScans[0] // Most recent scan (player events take priority)
       
       if (latestScan && latestScan.effect) {
         console.log('\n🔍 === CHECKING LATEST SCAN FOR MARKET EVENTS ===')
@@ -3264,7 +3272,7 @@ export default function Home() {
       )}
 
       {/* Global Turn Timer - visible on all screens when it's player's turn, hidden during turn notifications */}
-      {roomId && roomId !== 'solo-mode' && !isHost && !turnNotification && (
+      {roomId && roomId !== 'solo-mode' && !isHost && !turnNotification && !isFirstTurn && (
         <TurnTimer 
           isMyTurn={isMyTurn && !isGameFinishedForPlayer}
           onTimeExpired={() => {
