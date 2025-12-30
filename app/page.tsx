@@ -1805,9 +1805,9 @@ export default function Home() {
       setAutoScanActions(normAuto)
       setPlayerScanActions(normPlayer)
 
-      // Show event from other players (including forecast, not from self)
-      if (latestScan && latestScan.player && latestScan.player !== playerName && latestScan.effect) {
-        console.log('🔔 Event from other player detected:', latestScan.player, latestScan.effect)
+      // Show event from ALL players (including self and forecast)
+      if (latestScan && latestScan.player && latestScan.effect) {
+        console.log('🔔 Event detected:', latestScan.player, latestScan.effect)
         console.log('📊 Scan data:', {
           effect: latestScan.effect,
           cryptoSymbol: latestScan.cryptoSymbol,
