@@ -44,6 +44,23 @@ export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalan
   const totalCost = useMemo(() => selected ? Math.round(selected.price * quantity * 100) / 100 : 0, [selected, quantity])
   const canAfford = useMemo(() => selected ? cashBalance >= totalCost : false, [selected, totalCost, cashBalance])
 
+  // Bepaal beste stijger en hoogste waarde
+  const topGainer = useMemo(() => {
+    return cryptos.reduce<Crypto | null>((best, c) => {
+      if (!best) return c
+      if (typeof c.change24h !== 'number') return best
+      if (typeof best.change24h !== 'number') return c
+      return c.change24h > best.change24h ? c : best
+    }, null)
+  }, [cryptos])
+
+  const topValueCoin = useMemo(() => {
+    return cryptos.reduce<Crypto | null>((best, c) => {
+      if (!best) return c
+      return c.price > best.price ? c : best
+    }, null)
+  }, [cryptos])
+
   const handleValidateBuy = () => {
     if (!selected || !canAfford) return
     onConfirmBuy(selected.symbol, quantity)
@@ -71,11 +88,25 @@ export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalan
               const imagePath = getCryptoImagePath(c.symbol)
               const affordable = cashBalance >= (c.price * quantity)
               const isSelected = selectedSymbol === c.symbol
+              const isTopGainerTile = topGainer && c.symbol === topGainer.symbol
+              const isTopValueTile = topValueCoin && c.symbol === topValueCoin.symbol
+              const isBothHighlight = isTopGainerTile && isTopValueTile
+              
               return (
                 <button
                   key={c.symbol}
                   onClick={() => setSelectedSymbol(c.symbol)}
-                  className={`p-3 rounded-xl border transition shadow-sm hover:shadow-md bg-dark-bg/40 text-left ${isSelected ? 'border-neon-blue' : 'border-white/10 hover:border-white/20'} ${!affordable ? 'opacity-40' : ''}`}
+                  className={`p-3 rounded-xl border transition shadow-sm hover:shadow-md bg-dark-bg/40 text-left ${
+                    isSelected 
+                      ? 'border-2 border-neon-blue shadow-lg shadow-neon-blue/30' 
+                      : isBothHighlight
+                        ? 'border-2 border-neon-gold/80 animate-gold-purple-glow-breathe'
+                        : isTopGainerTile
+                          ? 'border-2 border-neon-gold/80 animate-gold-glow-breathe'
+                          : isTopValueTile
+                            ? 'border-2 border-neon-purple/80 animate-purple-glow-breathe'
+                            : 'border-white/10 hover:border-white/20'
+                  } ${!affordable ? 'opacity-40' : ''}`}
                 >
                   <div className="flex flex-col items-center">
                     {/* Crypto figure uit de tegel laten komen */}
