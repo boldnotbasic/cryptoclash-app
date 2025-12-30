@@ -758,7 +758,7 @@ export default function MarketDashboard({
                             ? 'border-2 border-neon-gold/80 animate-gold-glow-breathe'
                             : isTopValueTile
                               ? 'border-2 border-neon-purple/80 animate-purple-glow-breathe'
-                              : 'border border-white/10 hover:border-neon-blue/50 hover:shadow-neon-blue/20'
+                              : 'border border-white/10'
                       }`}
                     >
                       {/* Coin image boven, nog groter en extra uit de kaart laten steken */}
@@ -960,6 +960,11 @@ export default function MarketDashboard({
                 <span className="animate-pulse">🔔</span>
                 <span>Beurs</span>
               </h3>
+              <div className="bg-neon-purple/20 px-2 py-1 rounded-full border border-neon-purple/50">
+                <span className="text-neon-purple text-xs font-bold">{autoScanActions.length} acties</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-end mb-2">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             </div>
             
