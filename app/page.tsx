@@ -1838,7 +1838,10 @@ export default function Home() {
           color: eventType === 'event' ? 
                  (latestScan.effect.includes('Bull Run') ? 'neon-gold' :
                   latestScan.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
-                 eventType === 'crash' ? 'red-500' : 'neon-purple'
+                 eventType === 'crash' ? 'red-500' : 'neon-purple',
+          // Add forecast data if available
+          topGainer: (latestScan as any).forecastData?.topGainer,
+          topLoser: (latestScan as any).forecastData?.topLoser
         }
         
         console.log('✅ Created ScanEffect:', scanEffect)

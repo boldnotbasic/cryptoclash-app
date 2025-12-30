@@ -33,6 +33,16 @@ interface ScanScenarioTemplate {
 
 const whaleSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
 
+// Crypto symbol to full name mapping
+const cryptoNames: Record<string, string> = {
+  'DSHEEP': 'DigiSheep',
+  'NGT': 'Nugget',
+  'LNTR': 'Lentra',
+  'OMLT': 'Omlet',
+  'REX': 'Rex',
+  'ORLO': 'Orlo'
+}
+
 const scanScenarios: ScanScenarioTemplate[] = [
   {
     type: 'boost',
@@ -547,14 +557,14 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                         )
                       })()}
                       <div className="text-left">
-                        <div className="text-white font-bold">{currentScenario.topGainer.symbol}</div>
+                        <div className="text-white font-bold">{cryptoNames[currentScenario.topGainer.symbol] || currentScenario.topGainer.symbol}</div>
                         <div className="text-xs text-gray-400">Sterkste Stijger</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
                       <TrendingUp className="w-5 h-5 text-green-400" />
                       <span className="text-xl font-bold text-green-400">
-                        +{currentScenario.topGainer.percentage.toFixed(1)}%
+                        {currentScenario.topGainer.percentage > 0 ? '+' : ''}{currentScenario.topGainer.percentage.toFixed(1)}%
                       </span>
                     </div>
                   </div>
@@ -579,7 +589,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                         )
                       })()}
                       <div className="text-left">
-                        <div className="text-white font-bold">{currentScenario.topLoser.symbol}</div>
+                        <div className="text-white font-bold">{cryptoNames[currentScenario.topLoser.symbol] || currentScenario.topLoser.symbol}</div>
                         <div className="text-xs text-gray-400">Sterkste Daler</div>
                       </div>
                     </div>

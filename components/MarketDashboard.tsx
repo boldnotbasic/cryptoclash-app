@@ -477,7 +477,10 @@ export default function MarketDashboard({
         percentage,
         message,
         icon,
-        color
+        color,
+        // Add forecast data if available
+        topGainer: (latestEvent as any).forecastData?.topGainer,
+        topLoser: (latestEvent as any).forecastData?.topLoser
       })
       
       setShowKansEvent(true)
