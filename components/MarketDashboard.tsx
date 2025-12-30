@@ -367,9 +367,15 @@ export default function MarketDashboard({
     console.log('  🔮 Is forecast:', isForecast)
     console.log('  📈 Is market event:', isMarketEvent)
     console.log('  💰 Is individual event:', isIndividualEvent)
-    console.log('  🎯 Should show event:', isForecast || isMarketEvent || isIndividualEvent)
+    console.log('  🎯 Should show event:', isMarketEvent || isIndividualEvent)
     
-    if (isForecast || isMarketEvent || isIndividualEvent) {
+    // Don't show forecast on dashboard - it's only for the trigger player
+    if (isForecast) {
+      console.log('🔮 Forecast event - skipping on dashboard')
+      return
+    }
+    
+    if (isMarketEvent || isIndividualEvent) {
       // Check if we already showed this event (prevent duplicate cards)
       if (lastShownEventId.current === latestEvent.id) return
       
@@ -1050,8 +1056,13 @@ export default function MarketDashboard({
             
             <div className="space-y-3">
               {(() => {
-                // Sorteer op tijd (nieuwste eerst) en verwijder dubbele IDs
+                // Sorteer op tijd (nieuwste eerst), verwijder dubbele IDs, en filter forecasts
                 const uniqueScans = [...playerScanActions]
+                  .filter(scan => {
+                    // Filter out forecast events - they are only for trigger player
+                    const isForecast = scan.effect?.includes('Market Forecast') || scan.action === 'Forecast'
+                    return !isForecast
+                  })
                   .sort((a, b) => b.timestamp - a.timestamp)
                   .filter((scan, index, arr) =>
                     arr.findIndex(s => s.id === scan.id) === index

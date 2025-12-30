@@ -645,10 +645,18 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
               </button>
             </div>
             <div className="space-y-3">
-              {/* Always show 2 actions, only player scans */}
+              {/* Always show 2 actions, only player scans (exclude forecasts from other players) */}
               {Array.from({ length: 2 }).map((_, index) => {
-                // Only show player scans, sorted by timestamp
+                // Only show player scans, sorted by timestamp, filter out forecasts from other players
                 const playerScans = [...playerScanActions]
+                  .filter(scan => {
+                    const isForecast = scan.effect?.includes('Market Forecast') || scan.action === 'Forecast'
+                    // Show forecast only if it's from current player
+                    if (isForecast) {
+                      return scan.player === playerName
+                    }
+                    return true
+                  })
                   .sort((a, b) => b.timestamp - a.timestamp)
                 const action = playerScans[index]
                 

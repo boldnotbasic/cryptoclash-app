@@ -1805,8 +1805,15 @@ export default function Home() {
       setAutoScanActions(normAuto)
       setPlayerScanActions(normPlayer)
 
-      // Show event from ALL players (including self and forecast)
+      // Show event from ALL players (forecast only for trigger player)
       if (latestScan && latestScan.player && latestScan.effect) {
+        // Forecast events: only show to the player who triggered it
+        const isForecast = latestScan.effect.includes('Market Forecast') || latestScan.isForecast
+        if (isForecast && latestScan.player !== playerName) {
+          console.log('🔮 Forecast event - skipping for non-trigger player')
+          return // Don't show forecast to other players
+        }
+        
         console.log('🔔 Event detected:', latestScan.player, latestScan.effect)
         console.log('📊 Scan data:', {
           effect: latestScan.effect,
