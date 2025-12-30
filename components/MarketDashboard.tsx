@@ -349,7 +349,8 @@ export default function MarketDashboard({
     console.log('🆔 Latest event ID:', latestEvent.id)
     console.log('⏰ Latest event timestamp:', new Date(latestEvent.timestamp).toLocaleTimeString())
     
-    // Check if this is a market-wide event or individual crypto event
+    // Check if this is a forecast, market-wide event or individual crypto event
+    const isForecast = effect.includes('Market Forecast') || (latestEvent as any).isForecast
     const isMarketEvent = effect.includes('Bull Run') || effect.includes('Market Crash') || effect.includes('Whale Alert')
     
     // Expanded detection for individual crypto events - check for various formats
@@ -358,28 +359,36 @@ export default function MarketDashboard({
       effect.includes('beweegt') ||                            // Dutch: "beweegt" 
       effect.includes('move') ||                               // English: "move"
       effect.includes('dip') ||                                // English: "dip"
+      effect.includes('rally') ||                              // English: "rally" (Nugget!)
+      effect.includes('crash') && !effect.includes('Market Crash') ||  // English: "crash" (but not Market Crash)
       /\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/.test(effect)      // Any crypto symbol in effect
     
     console.log('🔍 Event detection:')
+    console.log('  🔮 Is forecast:', isForecast)
     console.log('  📈 Is market event:', isMarketEvent)
     console.log('  💰 Is individual event:', isIndividualEvent)
-    console.log('  🎯 Should show event:', isMarketEvent || isIndividualEvent)
+    console.log('  🎯 Should show event:', isForecast || isMarketEvent || isIndividualEvent)
     
-    if (isMarketEvent || isIndividualEvent) {
+    if (isForecast || isMarketEvent || isIndividualEvent) {
       // Check if we already showed this event (prevent duplicate cards)
       if (lastShownEventId.current === latestEvent.id) return
       
       // Mark this event as shown
       lastShownEventId.current = latestEvent.id
 
-      let eventType: 'boost' | 'crash' | 'event' = 'event'
+      let eventType: 'boost' | 'crash' | 'event' | 'forecast' = 'event'
       let cryptoSymbol: string | undefined = undefined
       let percentage: number | undefined = undefined
       let message = ''
       let icon = ''
       let color = ''
 
-      if (effect.includes('Bull Run')) {
+      if (isForecast) {
+        message = effect  // "Market Forecast"
+        icon = '🔮'
+        color = 'neon-purple'
+        eventType = 'forecast'
+      } else if (effect.includes('Bull Run')) {
         message = effect  // Use original effect: "Bull Run! Alle munten +5%!"
         icon = '🚀'
         color = 'green-500'  // Positive event = GREEN

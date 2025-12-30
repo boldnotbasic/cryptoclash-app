@@ -1805,51 +1805,52 @@ export default function Home() {
       setAutoScanActions(normAuto)
       setPlayerScanActions(normPlayer)
 
-      // Show event from other players (not forecast, not from self)
+      // Show event from other players (including forecast, not from self)
       if (latestScan && latestScan.player && latestScan.player !== playerName && latestScan.effect) {
-        if (!latestScan.effect.includes('Market Forecast')) {
-          console.log('🔔 Event from other player detected:', latestScan.player, latestScan.effect)
-          console.log('📊 Scan data:', {
-            effect: latestScan.effect,
-            cryptoSymbol: latestScan.cryptoSymbol,
-            percentageValue: latestScan.percentageValue,
-            player: latestScan.player
-          })
-          
-          // Determine type based on effect message
-          let eventType: 'boost' | 'crash' | 'event' | 'forecast' = 'boost'
-          if (latestScan.effect.includes('Bull Run') || latestScan.effect.includes('Market Crash') || latestScan.effect.includes('Whale Alert')) {
-            eventType = 'event'
-          } else if (latestScan.effect.includes('daalt') || latestScan.effect.includes('crash') || (latestScan.percentageValue && latestScan.percentageValue < 0)) {
-            eventType = 'crash'
-          } else {
-            eventType = 'boost'
-          }
-          
-          // Convert scan data to ScanEffect format
-          const scanEffect: ScanEffect = {
-            type: eventType,
-            cryptoSymbol: latestScan.cryptoSymbol,
-            percentage: latestScan.percentageValue,
-            message: latestScan.effect,
-            icon: latestScan.cryptoSymbol || '🎲',
-            color: eventType === 'event' ? 
-                   (latestScan.effect.includes('Bull Run') ? 'neon-gold' :
-                    latestScan.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
-                   eventType === 'crash' ? 'red-500' : 'neon-purple'
-          }
-          
-          console.log('✅ Created ScanEffect:', scanEffect)
-          
-          setOtherPlayerEventData(scanEffect)
-          setShowOtherPlayerEvent(true)
-          
-          // Auto-close after component handles it
-          setTimeout(() => {
-            setShowOtherPlayerEvent(false)
-            setOtherPlayerEventData(null)
-          }, 4000)
+        console.log('🔔 Event from other player detected:', latestScan.player, latestScan.effect)
+        console.log('📊 Scan data:', {
+          effect: latestScan.effect,
+          cryptoSymbol: latestScan.cryptoSymbol,
+          percentageValue: latestScan.percentageValue,
+          player: latestScan.player,
+          isForecast: latestScan.isForecast
+        })
+        
+        // Determine type based on effect message
+        let eventType: 'boost' | 'crash' | 'event' | 'forecast' = 'boost'
+        if (latestScan.effect.includes('Market Forecast') || latestScan.isForecast) {
+          eventType = 'forecast'
+        } else if (latestScan.effect.includes('Bull Run') || latestScan.effect.includes('Market Crash') || latestScan.effect.includes('Whale Alert')) {
+          eventType = 'event'
+        } else if (latestScan.effect.includes('daalt') || latestScan.effect.includes('crash') || (latestScan.percentageValue && latestScan.percentageValue < 0)) {
+          eventType = 'crash'
+        } else {
+          eventType = 'boost'
         }
+        
+        // Convert scan data to ScanEffect format
+        const scanEffect: ScanEffect = {
+          type: eventType,
+          cryptoSymbol: latestScan.cryptoSymbol,
+          percentage: latestScan.percentageValue,
+          message: latestScan.effect,
+          icon: latestScan.cryptoSymbol || '🎲',
+          color: eventType === 'event' ? 
+                 (latestScan.effect.includes('Bull Run') ? 'neon-gold' :
+                  latestScan.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
+                 eventType === 'crash' ? 'red-500' : 'neon-purple'
+        }
+        
+        console.log('✅ Created ScanEffect:', scanEffect)
+        
+        setOtherPlayerEventData(scanEffect)
+        setShowOtherPlayerEvent(true)
+        
+        // Auto-close after component handles it
+        setTimeout(() => {
+          setShowOtherPlayerEvent(false)
+          setOtherPlayerEventData(null)
+        }, 4000)
       }
 
       console.log('✅ Scan data normalized and sorted from server')
