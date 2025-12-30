@@ -40,6 +40,7 @@ export default function GameDashboard({
   const [totalValue, setTotalValue] = useState(0)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [sellPercentages, setSellPercentages] = useState<Record<string, number>>({})
   const [pendingSale, setPendingSale] = useState<{
     cryptoId: string
     amount: number
@@ -222,27 +223,61 @@ export default function GameDashboard({
                     </div>
                   </div>
 
-                  {/* Sell Buttons - alleen als controls actief zijn */}
+                  {/* Sell Slider - alleen als controls actief zijn */}
                   {showSellControls && crypto.amount > 0 && onSellCrypto && (
-                    <div className="grid grid-cols-3 gap-2 mt-3">
-                      <button
-                        onClick={() => handleSellClick(crypto.id, 25)}
-                        className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white text-[11px] font-bold py-1.5 px-2 rounded-lg transition-all duration-200 hover:scale-105"
-                      >
-                        25%
-                      </button>
-                      <button
-                        onClick={() => handleSellClick(crypto.id, 50)}
-                        className="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white text-[11px] font-bold py-1.5 px-2 rounded-lg transition-all duration-200 hover:scale-105"
-                      >
-                        50%
-                      </button>
-                      <button
-                        onClick={() => handleSellClick(crypto.id, 100)}
-                        className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white text-[11px] font-bold py-1.5 px-2 rounded-lg transition-all duration-200 hover:scale-105"
-                      >
-                        Alles
-                      </button>
+                    <div className="mt-3 space-y-2">
+                      {/* Slider */}
+                      <div className="relative w-full h-6">
+                        {/* Achtergrond-balk */}
+                        <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                          {/* Gevulde balk */}
+                          <div
+                            className="h-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 shadow-[0_0_12px_rgba(250,204,21,0.6)] transition-all duration-200"
+                            style={{ width: `${sellPercentages[crypto.id] || 0}%` }}
+                          />
+                        </div>
+
+                        {/* Bolletje / handle */}
+                        <div
+                          className="absolute top-1/2 -translate-y-1/2 w-7 h-7 rounded-full border-2 border-white bg-dark-bg shadow-[0_0_18px_rgba(255,255,255,0.8)] flex items-center justify-center"
+                          style={{
+                            left: `${sellPercentages[crypto.id] || 0}%`,
+                            transform: 'translate(-50%, -50%)',
+                          }}
+                        >
+                          <span className="w-3 h-3 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.9)]" />
+                        </div>
+
+                        {/* Onzichtbare native range voor interactie */}
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={sellPercentages[crypto.id] || 0}
+                          onChange={(e) => {
+                            const v = parseInt(e.target.value) || 0
+                            setSellPercentages(prev => ({ ...prev, [crypto.id]: v }))
+                          }}
+                          className="absolute inset-0 w-full opacity-0 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Labels en verkoop button */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400">0%</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-white">{sellPercentages[crypto.id] || 0}%</span>
+                          <button
+                            onClick={() => handleSellClick(crypto.id, sellPercentages[crypto.id] || 0)}
+                            disabled={!sellPercentages[crypto.id] || sellPercentages[crypto.id] === 0}
+                            className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:from-gray-600 disabled:to-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[11px] font-bold py-1.5 px-3 rounded-lg transition-all duration-200 hover:scale-105"
+                          >
+                            Verkoop
+                          </button>
+                        </div>
+                        <span className="text-xs text-gray-400">100%</span>
+                      </div>
                     </div>
                   )}
                 </div>

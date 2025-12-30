@@ -78,11 +78,12 @@ export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalan
                   className={`p-3 rounded-xl border transition shadow-sm hover:shadow-md bg-dark-bg/40 text-left ${isSelected ? 'border-neon-blue' : 'border-white/10 hover:border-white/20'} ${!affordable ? 'opacity-40' : ''}`}
                 >
                   <div className="flex flex-col items-center">
-                    <div className="w-24 h-24 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden mb-3">
+                    {/* Crypto figure uit de tegel laten komen */}
+                    <div className="relative w-28 h-28 md:w-32 md:h-32 rounded-xl bg-transparent flex items-center justify-center overflow-visible -mt-7 mb-1">
                       {imagePath ? (
-                        <img src={imagePath} alt={c.name} width={96} height={96} className="object-contain" loading="lazy" />
+                        <img src={imagePath} alt={c.name} width={140} height={140} className="object-contain drop-shadow-[0_0_32px_rgba(0,0,0,1)] scale-105" loading="lazy" />
                       ) : (
-                        <span className="text-3xl">{c.icon}</span>
+                        <span className="text-4xl">{c.icon}</span>
                       )}
                     </div>
                     <div className="w-full">
