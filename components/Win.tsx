@@ -56,6 +56,19 @@ export default function Win({
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [showWheel, setShowWheel] = useState(false)
 
+  // Bepaal beste stijger en hoogste waarde
+  const topGainer = cryptos.reduce<CryptoCurrency | null>((best, c) => {
+    if (!best) return c
+    if (typeof c.change24h !== 'number') return best
+    if (typeof best.change24h !== 'number') return c
+    return c.change24h > best.change24h ? c : best
+  }, null)
+
+  const topValueCoin = cryptos.reduce<CryptoCurrency | null>((best, c) => {
+    if (!best) return c
+    return c.price > best.price ? c : best
+  }, null)
+
   const handleSelectCrypto = (symbol: string) => {
     setSelectedType('crypto')
     setSelectedCryptoSymbol(symbol)
@@ -116,8 +129,10 @@ export default function Win({
             <div className="grid grid-cols-2 gap-3 mt-auto">
               {topCryptos.map((crypto) => {
                 const imagePath = getCryptoImagePath(crypto.symbol)
-
                 const isSelected = selectedType === 'crypto' && selectedCryptoSymbol === crypto.symbol
+                const isTopGainerTile = topGainer && crypto.symbol === topGainer.symbol
+                const isTopValueTile = topValueCoin && crypto.symbol === topValueCoin.symbol
+                const isBothHighlight = isTopGainerTile && isTopValueTile
 
                 return (
                   <button
@@ -127,7 +142,13 @@ export default function Win({
                     className={`p-3 rounded-xl transition shadow-sm bg-dark-bg/40 text-left hover:border-white/20 ${
                       isSelected
                         ? 'border-4 border-neon-blue shadow-[0_0_32px_rgba(56,189,248,1)] ring-2 ring-neon-blue/50'
-                        : 'border-2 border-white/10'
+                        : isBothHighlight
+                          ? 'border-2 border-neon-gold/80 animate-gold-purple-glow-breathe'
+                          : isTopGainerTile
+                            ? 'border-2 border-neon-gold/80 animate-gold-glow-breathe'
+                            : isTopValueTile
+                              ? 'border-2 border-neon-purple/80 animate-purple-glow-breathe'
+                              : 'border-2 border-white/10'
                     }`}
                   >
                     <div className="flex flex-col items-center">
