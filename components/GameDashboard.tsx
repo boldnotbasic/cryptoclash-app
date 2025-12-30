@@ -199,7 +199,7 @@ export default function GameDashboard({
                   })()}
                   {/* Aantal badge op de figuur */}
                   <div className="absolute top-1/2 right-0 translate-x-1 -translate-y-1/2 rounded-full bg-neon-purple/80 text-white border border-white/70 px-2.5 py-0.5 text-[11px] font-bold shadow-[0_0_14px_rgba(139,92,246,0.9)]">
-                    {crypto.amount.toFixed(2)}
+                    {Math.floor(crypto.amount)}
                   </div>
                 </div>
 
@@ -302,13 +302,13 @@ export default function GameDashboard({
               <div className="text-gray-300">
                 {selectedCrypto ? (
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-white/10 overflow-hidden flex items-center justify-center">
-                      <img src={getCryptoImagePath(selectedCrypto.symbol) || ''} alt={selectedCrypto.name} width={36} height={36} className="object-contain" />
+                    <div className="w-16 h-16 rounded-xl bg-white/5 overflow-hidden flex items-center justify-center">
+                      <img src={getCryptoImagePath(selectedCrypto.symbol) || ''} alt={selectedCrypto.name} width={64} height={64} className="object-contain" />
                     </div>
                     <div>
-                      <div><span className="text-white font-semibold">{selectedCrypto.name}</span> × {amountToSell.toFixed(2)}</div>
+                      <div><span className="text-white font-semibold">{selectedCrypto.name}</span> × {Math.floor(amountToSell)}</div>
                       <div className="text-sm text-gray-400">Prijs per stuk: €{selectedCrypto.price.toFixed(2)}</div>
-                      <div className="text-sm text-gray-400">Beschikbaar: {selectedCrypto.amount.toFixed(2)}</div>
+                      <div className="text-sm text-gray-400">Beschikbaar: {Math.floor(selectedCrypto.amount)}</div>
                     </div>
                   </div>
                 ) : (
@@ -360,7 +360,7 @@ export default function GameDashboard({
           <div className="crypto-card text-center">
             <h3 className="text-lg font-semibold text-neon-blue mb-2">Totaal Munten</h3>
             <p className="text-2xl font-bold text-white">
-              {cryptos.reduce((sum, crypto) => sum + crypto.amount, 0).toFixed(1)}
+              {Math.floor(cryptos.reduce((sum, crypto) => sum + crypto.amount, 0))}
             </p>
             <p className="text-neon-gold">Crypto's</p>
           </div>
