@@ -93,7 +93,7 @@ export default function GameDashboard({
   }, null)
 
   const selectedCrypto = cryptos.find(c => c.id === selectedCryptoId)
-  const maxQuantity = selectedCrypto ? Math.floor(selectedCrypto.amount) : 50
+  const maxQuantity = selectedCrypto ? Math.min(Math.floor(selectedCrypto.amount), 10) : 10
   const saleValue = selectedCrypto ? selectedCrypto.price * sellQuantity : 0
   const canSell = selectedCrypto && sellQuantity > 0 && selectedCrypto.amount > 0
 
