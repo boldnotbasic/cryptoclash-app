@@ -41,7 +41,7 @@ export default function GameDashboard({
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [selectedCryptoId, setSelectedCryptoId] = useState<string>('')
-  const [sellPercentage, setSellPercentage] = useState<number>(0)
+  const [sellQuantity, setSellQuantity] = useState<number>(1)
   const [pendingSale, setPendingSale] = useState<{
     cryptoId: string
     amount: number
@@ -93,17 +93,17 @@ export default function GameDashboard({
   }, null)
 
   const selectedCrypto = cryptos.find(c => c.id === selectedCryptoId)
-  const amountToSell = selectedCrypto ? selectedCrypto.amount * (sellPercentage / 100) : 0
-  const saleValue = selectedCrypto ? selectedCrypto.price * amountToSell : 0
-  const canSell = selectedCrypto && sellPercentage > 0 && selectedCrypto.amount > 0
+  const maxQuantity = selectedCrypto ? Math.floor(selectedCrypto.amount) : 50
+  const saleValue = selectedCrypto ? selectedCrypto.price * sellQuantity : 0
+  const canSell = selectedCrypto && sellQuantity > 0 && selectedCrypto.amount > 0
 
   const handleValidateSell = () => {
     if (!selectedCrypto || !canSell) return
 
     setPendingSale({
       cryptoId: selectedCrypto.id,
-      amount: amountToSell,
-      percentage: sellPercentage,
+      amount: sellQuantity,
+      percentage: Math.round((sellQuantity / selectedCrypto.amount) * 100),
       value: saleValue,
       cryptoName: selectedCrypto.name,
       cryptoSymbol: selectedCrypto.symbol
@@ -238,43 +238,43 @@ export default function GameDashboard({
           </div>
         </div>
 
-        {/* Percentage Slider - alleen als controls actief zijn */}
+        {/* Aantal Slider - alleen als controls actief zijn */}
         {showSellControls && onSellCrypto && (
           <div className="crypto-card mb-4">
-            <h2 className="text-lg font-semibold text-white mb-3">Percentage</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">Aantal</h2>
             <div className="space-y-3">
               {/* Custom slider met gevulde balk */}
               <div className="relative w-full h-7">
                 {/* Achtergrond-balk */}
                 <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-white/5 overflow-hidden">
-                  {/* Gevulde balk met gradient */}
+                  {/* Gevulde balk (effen oranje) */}
                   <div
-                    className="h-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 shadow-[0_0_12px_rgba(250,204,21,0.6)] transition-all duration-200"
-                    style={{ width: `${sellPercentage}%` }}
+                    className="h-full bg-neon-gold shadow-[0_0_12px_rgba(250,204,21,0.6)] transition-all duration-200"
+                    style={{ width: `${((sellQuantity - 1) / (maxQuantity - 1)) * 100}%` }}
                   />
                 </div>
 
                 {/* Bolletje / handle */}
                 <div
-                  className="absolute top-1/2 -translate-y-1/2 w-8 h-8 rounded-full border-2 border-white bg-dark-bg shadow-[0_0_22px_rgba(255,255,255,0.95)] flex items-center justify-center"
+                  className="absolute top-1/2 -translate-y-1/2 w-8 h-8 rounded-full border-2 border-neon-gold bg-dark-bg shadow-[0_0_22px_rgba(250,204,21,0.95)] flex items-center justify-center"
                   style={{
-                    left: `${sellPercentage}%`,
+                    left: `${((sellQuantity - 1) / (maxQuantity - 1)) * 100}%`,
                     transform: 'translate(-50%, -50%)',
                   }}
                 >
-                  <span className="w-4 h-4 rounded-full bg-white shadow-[0_0_14px_rgba(255,255,255,0.9)]" />
+                  <span className="w-4 h-4 rounded-full bg-neon-gold shadow-[0_0_14px_rgba(250,204,21,0.9)]" />
                 </div>
 
                 {/* Onzichtbare native range voor interactie */}
                 <input
                   type="range"
-                  min={0}
-                  max={100}
+                  min={1}
+                  max={maxQuantity}
                   step={1}
-                  value={sellPercentage}
+                  value={sellQuantity}
                   onChange={(e) => {
-                    const v = parseInt(e.target.value) || 0
-                    setSellPercentage(Math.min(Math.max(v, 0), 100))
+                    const v = parseInt(e.target.value) || 1
+                    setSellQuantity(Math.min(Math.max(v, 1), maxQuantity))
                   }}
                   className="absolute inset-0 w-full opacity-0 cursor-pointer"
                 />
@@ -282,14 +282,14 @@ export default function GameDashboard({
 
               {/* Labels onder slider */}
               <div className="flex items-center justify-between text-xs text-gray-400">
-                <span>0%</span>
+                <span>1</span>
                 <div className="flex flex-col items-center">
                   <span className="text-[10px] uppercase tracking-wide text-gray-500">Geselecteerd</span>
-                  <span className="mt-0.5 w-9 h-9 rounded-full bg-transparent border border-white/80 text-white font-bold text-base flex items-center justify-center shadow-[0_0_16px_rgba(255,255,255,0.7)]">
-                    {sellPercentage}
+                  <span className="mt-0.5 w-9 h-9 rounded-full bg-transparent border border-neon-gold/80 text-neon-gold font-bold text-base flex items-center justify-center shadow-[0_0_16px_rgba(250,204,21,0.7)]">
+                    {sellQuantity}
                   </span>
                 </div>
-                <span>100%</span>
+                <span>{maxQuantity}</span>
               </div>
             </div>
           </div>
@@ -306,9 +306,8 @@ export default function GameDashboard({
                       <img src={getCryptoImagePath(selectedCrypto.symbol) || ''} alt={selectedCrypto.name} width={64} height={64} className="object-contain" />
                     </div>
                     <div>
-                      <div><span className="text-white font-semibold">{selectedCrypto.name}</span> × {Math.floor(amountToSell)}</div>
+                      <div><span className="text-white font-semibold">{selectedCrypto.name}</span> × {sellQuantity}</div>
                       <div className="text-sm text-gray-400">Prijs per stuk: €{selectedCrypto.price.toFixed(2)}</div>
-                      <div className="text-sm text-gray-400">Beschikbaar: {Math.floor(selectedCrypto.amount)}</div>
                     </div>
                   </div>
                 ) : (
@@ -332,8 +331,8 @@ export default function GameDashboard({
               </button>
             </div>
 
-            {!canSell && selectedCrypto && sellPercentage === 0 && (
-              <div className="text-yellow-400 text-sm mt-2">Selecteer een percentage</div>
+            {!canSell && selectedCrypto && sellQuantity === 0 && (
+              <div className="text-yellow-400 text-sm mt-2">Selecteer een aantal</div>
             )}
             {!canSell && selectedCrypto && selectedCrypto.amount === 0 && (
               <div className="text-red-400 text-sm mt-2">Geen crypto beschikbaar</div>
