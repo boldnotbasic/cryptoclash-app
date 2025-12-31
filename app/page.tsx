@@ -1806,15 +1806,29 @@ export default function Home() {
       setPlayerScanActions(normPlayer)
 
       // Show event from ALL players (forecast only for trigger player)
+      // ONLY show pop-ups for MAJOR events (Bull Run, Market Crash, Whale Alert, Forecast)
+      // NOT for individual crypto fluctuations
       if (latestScan && latestScan.player && latestScan.effect) {
-        // Forecast events: only show to the player who triggered it
+        // Check if this is a MAJOR event that should show a pop-up
         const isForecast = latestScan.effect.includes('Market Forecast') || latestScan.isForecast
+        const isMajorEvent = latestScan.effect.includes('Bull Run') || 
+                            latestScan.effect.includes('Market Crash') || 
+                            latestScan.effect.includes('Whale Alert') ||
+                            isForecast
+        
+        // Skip pop-up for individual crypto fluctuations
+        if (!isMajorEvent) {
+          console.log('📊 Individual crypto fluctuation - no pop-up needed')
+          return
+        }
+        
+        // Forecast events: only show to the player who triggered it
         if (isForecast && latestScan.player !== playerName) {
           console.log('🔮 Forecast event - skipping for non-trigger player')
           return // Don't show forecast to other players
         }
         
-        console.log('🔔 Event detected:', latestScan.player, latestScan.effect)
+        console.log('🔔 MAJOR Event detected:', latestScan.player, latestScan.effect)
         console.log('📊 Scan data:', {
           effect: latestScan.effect,
           cryptoSymbol: latestScan.cryptoSymbol,

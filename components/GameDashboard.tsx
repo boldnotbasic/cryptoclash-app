@@ -124,8 +124,6 @@ export default function GameDashboard({
     setPendingSale(null)
   }
 
-  const [showEndGameModal, setShowEndGameModal] = useState(false)
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 p-4">
       <div className="max-w-6xl mx-auto">
@@ -393,49 +391,6 @@ export default function GameDashboard({
         onClose={handleCloseSuccess}
         value={pendingSale?.value || 0}
       />
-
-      {/* Spel afsluiten knop onderaan dashboard */}
-      <div className="mt-10 flex justify-center">
-        <button
-          type="button"
-          onClick={() => setShowEndGameModal(true)}
-          className="px-6 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold text-sm shadow-lg shadow-red-900/40 border border-red-400/60 transition-transform duration-200 hover:scale-105"
-        >
-          Spel afsluiten
-        </button>
-      </div>
-
-      {showEndGameModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="crypto-card max-w-sm w-full p-6 text-center">
-            <h3 className="text-lg font-bold text-white mb-2">Spel definitief afsluiten?</h3>
-            <p className="text-gray-300 text-sm mb-5">
-              Hiermee wordt het huidige spel volledig beëindigd en wordt alle spelgeschiedenis gewist. Weet je het zeker?
-            </p>
-            <div className="flex items-center justify-between gap-3">
-              <button
-                type="button"
-                className="flex-1 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 transition-colors text-sm font-semibold"
-                onClick={() => setShowEndGameModal(false)}
-              >
-                Annuleren
-              </button>
-              <button
-                type="button"
-                className="flex-1 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors text-sm font-semibold"
-                onClick={() => {
-                  setShowEndGameModal(false)
-                  if (onEndGame) {
-                    onEndGame()
-                  }
-                }}
-              >
-                Ja, afsluiten
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
