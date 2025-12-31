@@ -1057,16 +1057,19 @@ export default function MarketDashboard({
             <div className="space-y-3">
               {(() => {
                 // Sorteer op tijd (nieuwste eerst), verwijder dubbele IDs, en filter forecasts
+                const seenIds = new Set<string>()
                 const uniqueScans = [...playerScanActions]
+                  .sort((a, b) => b.timestamp - a.timestamp)
                   .filter(scan => {
                     // Filter out forecast events - they are only for trigger player
                     const isForecast = scan.effect?.includes('Market Forecast') || scan.action === 'Forecast'
-                    return !isForecast
+                    if (isForecast) return false
+                    
+                    // Filter out duplicates
+                    if (seenIds.has(scan.id)) return false
+                    seenIds.add(scan.id)
+                    return true
                   })
-                  .sort((a, b) => b.timestamp - a.timestamp)
-                  .filter((scan, index, arr) =>
-                    arr.findIndex(s => s.id === scan.id) === index
-                  )
                   .slice(0, 3)
 
                 if (uniqueScans.length === 0) {

@@ -207,17 +207,18 @@ export default function Win({
                     : 'border-2 border-white/10 hover:border-white/20'
                 }`}
               >
-                <div className="w-20 h-20 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden mb-2">
+                {/* Cash figure uit de tegel laten komen */}
+                <div className="relative w-28 h-28 md:w-32 md:h-32 rounded-xl bg-transparent flex items-center justify-center overflow-visible -mt-6 mb-1">
                   <img
                     src="/wincash.png"
                     alt="€500 Cash"
-                    width={80}
-                    height={80}
-                    className="object-contain"
+                    width={120}
+                    height={120}
+                    className="object-contain drop-shadow-[0_0_32px_rgba(0,0,0,1)]"
                     loading="lazy"
                   />
                 </div>
-                <div className="w-full text-center">
+                <div className="w-full text-center mt-1">
                   <div className="text-white font-semibold text-sm mb-0.5">€500 Cash</div>
                   <div className="text-gray-400 text-xs">Direct in Cash Wallet</div>
                 </div>
@@ -233,17 +234,18 @@ export default function Win({
                     : 'border-2 border-white/10 hover:border-white/20'
                 }`}
               >
-                <div className="w-20 h-20 rounded-xl bg-white/5 flex items-center justify-center overflow-hidden mb-2">
+                {/* Goudhaantje figure uit de tegel laten komen */}
+                <div className="relative w-28 h-28 md:w-32 md:h-32 rounded-xl bg-transparent flex items-center justify-center overflow-visible -mt-6 mb-1">
                   <img
                     src="/goudhaantje.png"
                     alt="Goudhaantje €1000"
-                    width={80}
-                    height={80}
-                    className="object-contain"
+                    width={120}
+                    height={120}
+                    className="object-contain drop-shadow-[0_0_32px_rgba(0,0,0,1)]"
                     loading="lazy"
                   />
                 </div>
-                <div className="w-full text-center">
+                <div className="w-full text-center mt-1">
                   <div className="text-neon-gold font-semibold text-sm mb-0.5">Goudhaantje €1000</div>
                   <div className="text-gray-400 text-xs">Premium cash prijs</div>
                 </div>
