@@ -1805,21 +1805,25 @@ export default function Home() {
       setAutoScanActions(normAuto)
       setPlayerScanActions(normPlayer)
 
-      // Show event from ALL players
+      // Show event ONLY from player-triggered events (not auto-scan)
       // Forecast: trigger player sees full forecast, others see "eye" icon
       // All other events: everyone sees the same pop-up
-      if (latestScan && latestScan.player && latestScan.effect) {
+      // IMPORTANT: Only show if this is from playerScanActions (not autoScanActions)
+      const isPlayerTriggered = normPlayer.length > 0 && latestScan === normPlayer[0]
+      
+      if (latestScan && latestScan.player && latestScan.effect && isPlayerTriggered) {
         const isForecast = latestScan.effect.includes('Market Forecast') || latestScan.isForecast
         const isOtherPlayerForecast = isForecast && latestScan.player !== playerName
         
-        console.log('🔔 Event detected:', latestScan.player, latestScan.effect)
+        console.log('🔔 PLAYER-TRIGGERED Event detected:', latestScan.player, latestScan.effect)
         console.log('📊 Scan data:', {
           effect: latestScan.effect,
           cryptoSymbol: latestScan.cryptoSymbol,
           percentageValue: latestScan.percentageValue,
           player: latestScan.player,
           isForecast: latestScan.isForecast,
-          isOtherPlayerForecast
+          isOtherPlayerForecast,
+          forecastData: (latestScan as any).forecastData
         })
         
         // If other player's forecast, show "eye" icon instead
@@ -1874,6 +1878,12 @@ export default function Home() {
         }
         
         console.log('✅ Created ScanEffect:', scanEffect)
+        console.log('🔮 Forecast data check:', {
+          hasTopGainer: !!scanEffect.topGainer,
+          hasTopLoser: !!scanEffect.topLoser,
+          topGainer: scanEffect.topGainer,
+          topLoser: scanEffect.topLoser
+        })
         
         setOtherPlayerEventData(scanEffect)
         setShowOtherPlayerEvent(true)
