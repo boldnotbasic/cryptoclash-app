@@ -1805,45 +1805,52 @@ export default function Home() {
       setAutoScanActions(normAuto)
       setPlayerScanActions(normPlayer)
 
-      // Show event from ALL players (forecast only for trigger player)
-      // ONLY show pop-ups for MAJOR events (Bull Run, Market Crash, Whale Alert, Forecast)
-      // NOT for individual crypto fluctuations
+      // Show event from ALL players
+      // Forecast: trigger player sees full forecast, others see "eye" icon
+      // All other events: everyone sees the same pop-up
       if (latestScan && latestScan.player && latestScan.effect) {
-        // Check if this is a MAJOR event that should show a pop-up
         const isForecast = latestScan.effect.includes('Market Forecast') || latestScan.isForecast
-        const isMajorEvent = latestScan.effect.includes('Bull Run') || 
-                            latestScan.effect.includes('Market Crash') || 
-                            latestScan.effect.includes('Whale Alert') ||
-                            isForecast
+        const isOtherPlayerForecast = isForecast && latestScan.player !== playerName
         
-        // Skip pop-up for individual crypto fluctuations
-        if (!isMajorEvent) {
-          console.log('📊 Individual crypto fluctuation - no pop-up needed')
-          return
-        }
-        
-        // Forecast events: only show to the player who triggered it
-        if (isForecast && latestScan.player !== playerName) {
-          console.log('🔮 Forecast event - skipping for non-trigger player')
-          return // Don't show forecast to other players
-        }
-        
-        console.log('🔔 MAJOR Event detected:', latestScan.player, latestScan.effect)
+        console.log('🔔 Event detected:', latestScan.player, latestScan.effect)
         console.log('📊 Scan data:', {
           effect: latestScan.effect,
           cryptoSymbol: latestScan.cryptoSymbol,
           percentageValue: latestScan.percentageValue,
           player: latestScan.player,
-          isForecast: latestScan.isForecast
+          isForecast: latestScan.isForecast,
+          isOtherPlayerForecast
         })
+        
+        // If other player's forecast, show "eye" icon instead
+        if (isOtherPlayerForecast) {
+          const scanEffect: ScanEffect = {
+            type: 'forecast',
+            cryptoSymbol: null,
+            percentage: 0,
+            message: `${latestScan.player} bekijkt Market Forecast`,
+            icon: '👁️',
+            color: 'neon-purple'
+          }
+          
+          console.log('👁️ Other player forecast - showing eye icon')
+          setOtherPlayerEventData(scanEffect)
+          setShowOtherPlayerEvent(true)
+          
+          setTimeout(() => {
+            setShowOtherPlayerEvent(false)
+            setOtherPlayerEventData(null)
+          }, 3000)
+          return
+        }
         
         // Determine type based on effect message
         let eventType: 'boost' | 'crash' | 'event' | 'forecast' = 'boost'
-        if (latestScan.effect.includes('Market Forecast') || latestScan.isForecast) {
+        if (isForecast) {
           eventType = 'forecast'
         } else if (latestScan.effect.includes('Bull Run') || latestScan.effect.includes('Market Crash') || latestScan.effect.includes('Whale Alert')) {
           eventType = 'event'
-        } else if (latestScan.effect.includes('daalt') || latestScan.effect.includes('crash') || (latestScan.percentageValue && latestScan.percentageValue < 0)) {
+        } else if (latestScan.effect.includes('daalt') || latestScan.effect.includes('crash') || latestScan.effect.includes('dip') || (latestScan.percentageValue && latestScan.percentageValue < 0)) {
           eventType = 'crash'
         } else {
           eventType = 'boost'
@@ -1859,8 +1866,9 @@ export default function Home() {
           color: eventType === 'event' ? 
                  (latestScan.effect.includes('Bull Run') ? 'neon-gold' :
                   latestScan.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
-                 eventType === 'crash' ? 'red-500' : 'neon-purple',
-          // Add forecast data if available
+                 eventType === 'forecast' ? 'neon-purple' :
+                 eventType === 'crash' ? 'red-500' : 'neon-green',
+          // Add forecast data if available (only for trigger player)
           topGainer: (latestScan as any).forecastData?.topGainer,
           topLoser: (latestScan as any).forecastData?.topLoser
         }

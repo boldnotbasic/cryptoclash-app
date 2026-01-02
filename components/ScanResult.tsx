@@ -289,55 +289,9 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
     console.log('Selected scenario:', scenario)
     setCurrentScenario(scenario)
 
-    // Play audio based on effect type (after user interaction)
+    // Audio uitgeschakeld: geen geluid meer bij events
     const playAudio = async () => {
-      try {
-        // Bepaal expliciet of dit een stijging (succes-geluid) of daling (fail-geluid) is
-        const msg = (scenario.message || '').toLowerCase()
-        let isPositive = false
-
-        if (scenario.type === 'forecast') {
-          // Forecast is always positive (informative)
-          isPositive = true
-        } else if (typeof scenario.percentage === 'number') {
-          // Percentage bekend: >0 = stijging, <0 = daling
-          isPositive = scenario.percentage > 0
-        } else {
-          // Geen expliciet percentage: leid af uit tekst / event naam
-          if (
-            msg.includes('bull run') ||
-            msg.includes('whale alert') ||
-            msg.includes('+') ||
-            msg.includes('stijgt') ||
-            msg.includes('omhoog')
-          ) {
-            isPositive = true
-          }
-          // Market Crash / daalt blijven standaard negatief (isPositive blijft false)
-        }
-
-        if (isPositive) {
-          // Gebruik jouw eigen succes-geluid uit /public
-          const audio = new Audio('/chime_success.wav')
-          audio.volume = 0.9
-          try {
-            await audio.play()
-          } catch (err) {
-            console.warn('Failed to play success sound', err)
-          }
-        } else {
-          // Gebruik jouw eigen fail-geluid uit /public
-          const audio = new Audio('/fail_sound.wav')
-          audio.volume = 0.9
-          try {
-            await audio.play()
-          } catch (err) {
-            console.warn('Failed to play fail sound', err)
-          }
-        }
-      } catch (error) {
-        console.log('Audio not supported:', error)
-      }
+      return
     }
     
     // Show animation
