@@ -1805,23 +1805,23 @@ export default function Home() {
       setAutoScanActions(normAuto)
       setPlayerScanActions(normPlayer)
 
-      // Show event ONLY from player-triggered events (not auto-scan)
+      // Show event from player-triggered events AND auto market events
       // Forecast: trigger player sees full forecast, others see "eye" icon
       // All other events: everyone sees the same pop-up
-      // IMPORTANT: Only show if this is from playerScanActions (not autoScanActions)
-      const isPlayerTriggered = normPlayer.length > 0 && latestScan === normPlayer[0]
-      
-      if (latestScan && latestScan.player && latestScan.effect && isPlayerTriggered) {
+      if (latestScan && latestScan.player && latestScan.effect) {
         const isForecast = latestScan.effect.includes('Market Forecast') || latestScan.isForecast
+        const isMyForecast = isForecast && latestScan.player === playerName
         const isOtherPlayerForecast = isForecast && latestScan.player !== playerName
         
-        console.log('🔔 PLAYER-TRIGGERED Event detected:', latestScan.player, latestScan.effect)
+        console.log('🔔 Event detected:', latestScan.player, latestScan.effect)
+        console.log('📊 Current player:', playerName)
         console.log('📊 Scan data:', {
           effect: latestScan.effect,
           cryptoSymbol: latestScan.cryptoSymbol,
           percentageValue: latestScan.percentageValue,
           player: latestScan.player,
           isForecast: latestScan.isForecast,
+          isMyForecast,
           isOtherPlayerForecast,
           forecastData: (latestScan as any).forecastData
         })
@@ -1878,12 +1878,15 @@ export default function Home() {
         }
         
         console.log('✅ Created ScanEffect:', scanEffect)
-        console.log('🔮 Forecast data check:', {
-          hasTopGainer: !!scanEffect.topGainer,
-          hasTopLoser: !!scanEffect.topLoser,
-          topGainer: scanEffect.topGainer,
-          topLoser: scanEffect.topLoser
-        })
+        if (eventType === 'forecast') {
+          console.log('🔮 Forecast data check:', {
+            hasTopGainer: !!scanEffect.topGainer,
+            hasTopLoser: !!scanEffect.topLoser,
+            topGainer: scanEffect.topGainer,
+            topLoser: scanEffect.topLoser,
+            rawForecastData: (latestScan as any).forecastData
+          })
+        }
         
         setOtherPlayerEventData(scanEffect)
         setShowOtherPlayerEvent(true)
