@@ -1879,10 +1879,12 @@ export default function Home() {
         setShowOtherPlayerEvent(true)
         
         // Auto-close after component handles it
+        // Forecast: 10 seconds, other events: 4 seconds
+        const closeDelay = eventType === 'forecast' ? 10000 : 4000
         setTimeout(() => {
           setShowOtherPlayerEvent(false)
           setOtherPlayerEventData(null)
-        }, 4000)
+        }, closeDelay)
       }
 
       console.log('✅ Scan data normalized and sorted from server')
@@ -3300,8 +3302,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Event from other player - show colored ScanResult tile (NOT on market-dashboard, it has its own) */}
-      {showOtherPlayerEvent && otherPlayerEventData && currentScreen !== 'market-dashboard' && (
+      {/* Event from other player - show colored ScanResult tile on ALL screens */}
+      {showOtherPlayerEvent && otherPlayerEventData && (
         <div className="fixed inset-0 z-50">
           <ScanResult
             externalScenario={otherPlayerEventData}
