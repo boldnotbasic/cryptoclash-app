@@ -73,6 +73,9 @@ export default function Home() {
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
   const [isFirstTurn, setIsFirstTurn] = useState<boolean>(true) // Track if this is the first turn
   
+  // Track shown events to prevent duplicates
+  const shownEventIdsRef = useRef<Set<string>>(new Set())
+  
   // Get socket connection for game events (room state only; we don't rely on socket.id for turn logic)
   const { socket, room } = useSocket()
 
@@ -1805,15 +1808,33 @@ export default function Home() {
       setAutoScanActions(normAuto)
       setPlayerScanActions(normPlayer)
 
-      // Show event from player-triggered events AND auto market events
+      // Show event ONLY if it's NEW (not already shown)
       // Forecast: trigger player sees full forecast, others see "eye" icon
       // All other events: everyone sees the same pop-up
       if (latestScan && latestScan.player && latestScan.effect) {
+        // Check if we've already shown this event
+        const eventId = latestScan.id || `${latestScan.timestamp}-${latestScan.effect}`
+        
+        if (shownEventIdsRef.current.has(eventId)) {
+          console.log('⏭️ Event already shown, skipping:', eventId)
+          return // Already shown this event
+        }
+        
+        // Mark this event as shown
+        shownEventIdsRef.current.add(eventId)
+        
+        // Clean up old event IDs (keep only last 50)
+        if (shownEventIdsRef.current.size > 50) {
+          const idsArray = Array.from(shownEventIdsRef.current)
+          shownEventIdsRef.current = new Set(idsArray.slice(-50))
+        }
+        
         const isForecast = latestScan.effect.includes('Market Forecast') || latestScan.isForecast
         const isMyForecast = isForecast && latestScan.player === playerName
         const isOtherPlayerForecast = isForecast && latestScan.player !== playerName
         
-        console.log('🔔 Event detected:', latestScan.player, latestScan.effect)
+        console.log('🔔 NEW Event detected:', latestScan.player, latestScan.effect)
+        console.log('📊 Event ID:', eventId)
         console.log('📊 Current player:', playerName)
         console.log('📊 Scan data:', {
           effect: latestScan.effect,
