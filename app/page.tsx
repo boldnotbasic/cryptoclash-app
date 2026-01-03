@@ -1849,14 +1849,22 @@ export default function Home() {
         }
         
         // Determine type based on effect message
+        // CRITICAL: Check in correct order - most specific first!
         let eventType: 'boost' | 'crash' | 'event' | 'forecast' = 'boost'
+        
         if (isForecast) {
           eventType = 'forecast'
-        } else if (latestScan.effect.includes('Bull Run') || latestScan.effect.includes('Market Crash') || latestScan.effect.includes('Whale Alert')) {
+        } else if (latestScan.effect.includes('Bull Run!') || latestScan.effect.includes('Market Crash!') || latestScan.effect.includes('Whale Alert')) {
+          // Market-wide events (with exclamation mark to be specific)
           eventType = 'event'
-        } else if (latestScan.effect.includes('daalt') || latestScan.effect.includes('crash') || latestScan.effect.includes('dip') || (latestScan.percentageValue && latestScan.percentageValue < 0)) {
+        } else if (latestScan.percentageValue !== undefined && latestScan.percentageValue !== null) {
+          // Individual crypto events - use percentage to determine type
+          eventType = latestScan.percentageValue < 0 ? 'crash' : 'boost'
+        } else if (latestScan.effect.includes('daalt') || latestScan.effect.includes('crash') || latestScan.effect.includes('dip')) {
+          // Fallback: text-based detection for crash
           eventType = 'crash'
-        } else {
+        } else if (latestScan.effect.includes('stijgt') || latestScan.effect.includes('rally') || latestScan.effect.includes('move')) {
+          // Fallback: text-based detection for boost
           eventType = 'boost'
         }
         
@@ -3317,21 +3325,19 @@ export default function Home() {
 
       {/* Event from other player - show colored ScanResult tile on ALL screens */}
       {showOtherPlayerEvent && otherPlayerEventData && (
-        <div className="fixed inset-0 z-50">
-          <ScanResult
-            externalScenario={otherPlayerEventData}
-            onClose={() => {
-              setShowOtherPlayerEvent(false)
-              setOtherPlayerEventData(null)
-            }}
-            onApplyEffect={(effect) => {
-              console.log('Event from other player applied:', effect)
-              // Effect is already applied by server, just close
-              setShowOtherPlayerEvent(false)
-              setOtherPlayerEventData(null)
-            }}
-          />
-        </div>
+        <ScanResult
+          externalScenario={otherPlayerEventData}
+          onClose={() => {
+            setShowOtherPlayerEvent(false)
+            setOtherPlayerEventData(null)
+          }}
+          onApplyEffect={(effect) => {
+            console.log('Event from other player applied:', effect)
+            // Effect is already applied by server, just close
+            setShowOtherPlayerEvent(false)
+            setOtherPlayerEventData(null)
+          }}
+        />
       )}
 
       {/* Swap notification overlay */}
