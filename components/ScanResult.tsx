@@ -103,7 +103,7 @@ const scanScenarios: ScanScenarioTemplate[] = [
     minPercentage: 5,
     maxPercentage: 5,
     baseMessage: 'Bull Run! Alle munten {PERCENTAGE}!',
-    icon: '�',
+    icon: '🚀',
     color: 'neon-gold'
   },
   {
@@ -111,7 +111,7 @@ const scanScenarios: ScanScenarioTemplate[] = [
     minPercentage: -10,
     maxPercentage: -10,
     baseMessage: 'Market Crash! Alle munten {PERCENTAGE}!',
-    icon: '�',
+    icon: '📉',
     color: 'red-500'
   },
   {

@@ -1905,7 +1905,7 @@ export default function Home() {
           cryptoSymbol: newestEvent.cryptoSymbol,
           percentage: newestEvent.percentageValue,
           message: newestEvent.effect,
-          icon: newestEvent.cryptoSymbol || '🎲',
+          icon: newestEvent.cryptoSymbol || '',
           color: eventType === 'event' ? 
                  (newestEvent.effect.includes('Bull Run') ? 'neon-gold' :
                   newestEvent.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
