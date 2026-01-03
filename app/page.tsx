@@ -1911,9 +1911,9 @@ export default function Home() {
                   newestEvent.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
                  eventType === 'forecast' ? 'neon-purple' :
                  eventType === 'crash' ? 'red-500' : 'neon-green',
-          // Add forecast data if available (only for trigger player)
-          topGainer: (newestEvent as any).forecastData?.topGainer,
-          topLoser: (newestEvent as any).forecastData?.topLoser
+          // CRITICAL: Only add forecast data if this is MY forecast (trigger player)
+          topGainer: (isForecast && isMyForecast) ? (newestEvent as any).forecastData?.topGainer : undefined,
+          topLoser: (isForecast && isMyForecast) ? (newestEvent as any).forecastData?.topLoser : undefined
         }
         
         console.log('✅ Created ScanEffect:', scanEffect)
