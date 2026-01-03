@@ -1690,9 +1690,9 @@ export default function Home() {
       const normPlayer = normalizeAndSort(playerScanActions)
 
       // DETECT AND APPLY MARKET EVENTS IMMEDIATELY (before state update)
-      // Player scans have priority over auto scans - put player scans first
+      // Find the NEWEST scan by timestamp (regardless of type)
       const allScans = [...normPlayer, ...normAuto]
-      const latestScan = allScans[0] // Most recent scan (player events take priority)
+      const latestScan = allScans.sort((a, b) => b.timestamp - a.timestamp)[0] // NEWEST scan by timestamp
       
       if (latestScan && latestScan.effect) {
         console.log('\n🔍 === CHECKING LATEST SCAN FOR MARKET EVENTS ===')
@@ -1809,11 +1809,13 @@ export default function Home() {
       setPlayerScanActions(normPlayer)
 
       // Show event ONLY if it's NEW (not already shown)
-      // Forecast: trigger player sees full forecast, others see "eye" icon
-      // All other events: everyone sees the same pop-up
-      if (latestScan && latestScan.player && latestScan.effect) {
+      // CRITICAL: Find the ABSOLUTE NEWEST event across ALL scans
+      const allScansForPopup = [...normPlayer, ...normAuto]
+      const newestEvent = allScansForPopup.sort((a, b) => b.timestamp - a.timestamp)[0]
+      
+      if (newestEvent && newestEvent.player && newestEvent.effect) {
         // Check if we've already shown this event
-        const eventId = latestScan.id || `${latestScan.timestamp}-${latestScan.effect}`
+        const eventId = newestEvent.id || `${newestEvent.timestamp}-${newestEvent.effect}`
         
         if (shownEventIdsRef.current.has(eventId)) {
           console.log('⏭️ Event already shown, skipping:', eventId)
@@ -1829,22 +1831,23 @@ export default function Home() {
           shownEventIdsRef.current = new Set(idsArray.slice(-50))
         }
         
-        const isForecast = latestScan.effect.includes('Market Forecast') || latestScan.isForecast
-        const isMyForecast = isForecast && latestScan.player === playerName
-        const isOtherPlayerForecast = isForecast && latestScan.player !== playerName
+        const isForecast = newestEvent.effect.includes('Market Forecast') || newestEvent.isForecast
+        const isMyForecast = isForecast && newestEvent.player === playerName
+        const isOtherPlayerForecast = isForecast && newestEvent.player !== playerName
         
-        console.log('🔔 NEW Event detected:', latestScan.player, latestScan.effect)
+        console.log('🔔 NEW Event detected:', newestEvent.player, newestEvent.effect)
         console.log('📊 Event ID:', eventId)
+        console.log('📊 Event timestamp:', newestEvent.timestamp)
         console.log('📊 Current player:', playerName)
         console.log('📊 Scan data:', {
-          effect: latestScan.effect,
-          cryptoSymbol: latestScan.cryptoSymbol,
-          percentageValue: latestScan.percentageValue,
-          player: latestScan.player,
-          isForecast: latestScan.isForecast,
+          effect: newestEvent.effect,
+          cryptoSymbol: newestEvent.cryptoSymbol,
+          percentageValue: newestEvent.percentageValue,
+          player: newestEvent.player,
+          isForecast: newestEvent.isForecast,
           isMyForecast,
           isOtherPlayerForecast,
-          forecastData: (latestScan as any).forecastData
+          forecastData: (newestEvent as any).forecastData
         })
         
         // If other player's forecast, show "eye" icon instead
@@ -1853,7 +1856,7 @@ export default function Home() {
             type: 'forecast',
             cryptoSymbol: null,
             percentage: 0,
-            message: `${latestScan.player} bekijkt Market Forecast`,
+            message: `${newestEvent.player} bekijkt Market Forecast`,
             icon: '👁️',
             color: 'neon-purple'
           }
@@ -1875,16 +1878,16 @@ export default function Home() {
         
         if (isForecast) {
           eventType = 'forecast'
-        } else if (latestScan.effect.includes('Bull Run!') || latestScan.effect.includes('Market Crash!') || latestScan.effect.includes('Whale Alert')) {
+        } else if (newestEvent.effect.includes('Bull Run!') || newestEvent.effect.includes('Market Crash!') || newestEvent.effect.includes('Whale Alert')) {
           // Market-wide events (with exclamation mark to be specific)
           eventType = 'event'
-        } else if (latestScan.percentageValue !== undefined && latestScan.percentageValue !== null) {
+        } else if (newestEvent.percentageValue !== undefined && newestEvent.percentageValue !== null) {
           // Individual crypto events - use percentage to determine type
-          eventType = latestScan.percentageValue < 0 ? 'crash' : 'boost'
-        } else if (latestScan.effect.includes('daalt') || latestScan.effect.includes('crash') || latestScan.effect.includes('dip')) {
+          eventType = newestEvent.percentageValue < 0 ? 'crash' : 'boost'
+        } else if (newestEvent.effect.includes('daalt') || newestEvent.effect.includes('crash') || newestEvent.effect.includes('dip')) {
           // Fallback: text-based detection for crash
           eventType = 'crash'
-        } else if (latestScan.effect.includes('stijgt') || latestScan.effect.includes('rally') || latestScan.effect.includes('move')) {
+        } else if (newestEvent.effect.includes('stijgt') || newestEvent.effect.includes('rally') || newestEvent.effect.includes('move')) {
           // Fallback: text-based detection for boost
           eventType = 'boost'
         }
@@ -1892,18 +1895,18 @@ export default function Home() {
         // Convert scan data to ScanEffect format
         const scanEffect: ScanEffect = {
           type: eventType,
-          cryptoSymbol: latestScan.cryptoSymbol,
-          percentage: latestScan.percentageValue,
-          message: latestScan.effect,
-          icon: latestScan.cryptoSymbol || '🎲',
+          cryptoSymbol: newestEvent.cryptoSymbol,
+          percentage: newestEvent.percentageValue,
+          message: newestEvent.effect,
+          icon: newestEvent.cryptoSymbol || '🎲',
           color: eventType === 'event' ? 
-                 (latestScan.effect.includes('Bull Run') ? 'neon-gold' :
-                  latestScan.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
+                 (newestEvent.effect.includes('Bull Run') ? 'neon-gold' :
+                  newestEvent.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
                  eventType === 'forecast' ? 'neon-purple' :
                  eventType === 'crash' ? 'red-500' : 'neon-green',
           // Add forecast data if available (only for trigger player)
-          topGainer: (latestScan as any).forecastData?.topGainer,
-          topLoser: (latestScan as any).forecastData?.topLoser
+          topGainer: (newestEvent as any).forecastData?.topGainer,
+          topLoser: (newestEvent as any).forecastData?.topLoser
         }
         
         console.log('✅ Created ScanEffect:', scanEffect)
@@ -1913,7 +1916,7 @@ export default function Home() {
             hasTopLoser: !!scanEffect.topLoser,
             topGainer: scanEffect.topGainer,
             topLoser: scanEffect.topLoser,
-            rawForecastData: (latestScan as any).forecastData
+            rawForecastData: (newestEvent as any).forecastData
           })
         }
         

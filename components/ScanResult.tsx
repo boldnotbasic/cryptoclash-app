@@ -428,7 +428,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">     
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">     
       <div className={`transform transition-all duration-500 ${
         isVisible ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
       }`}>
