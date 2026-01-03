@@ -453,6 +453,8 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                       width={180}
                       height={180}
                       className="object-contain"
+                      priority
+                      quality={85}
                     />
                   )
                 }
@@ -467,6 +469,8 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                       width={180}
                       height={180}
                       className="object-contain"
+                      priority
+                      quality={85}
                     />
                   )
                 }
@@ -505,6 +509,8 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                             width={40}
                             height={40}
                             className="object-contain"
+                            loading="lazy"
+                            quality={80}
                           />
                         ) : (
                           <span className="text-2xl">📈</span>
@@ -537,6 +543,8 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                             width={40}
                             height={40}
                             className="object-contain"
+                            loading="lazy"
+                            quality={80}
                           />
                         ) : (
                           <span className="text-2xl">📉</span>
