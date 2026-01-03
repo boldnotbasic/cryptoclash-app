@@ -1832,13 +1832,20 @@ export default function Home() {
         }
         
         const isForecast = newestEvent.effect.includes('Market Forecast') || newestEvent.isForecast
-        const isMyForecast = isForecast && newestEvent.player === playerName
-        const isOtherPlayerForecast = isForecast && newestEvent.player !== playerName
+
+        const normalizeName = (name?: string | null) => (name || '').trim().toLowerCase()
+
+        const normalizedEventPlayer = normalizeName(newestEvent.player)
+        const normalizedCurrentPlayer = normalizeName(playerName)
+
+        const isMyForecast = isForecast && normalizedEventPlayer === normalizedCurrentPlayer
+        const isOtherPlayerForecast = isForecast && normalizedEventPlayer !== '' && normalizedCurrentPlayer !== '' && normalizedEventPlayer !== normalizedCurrentPlayer
         
         console.log('🔔 NEW Event detected:', newestEvent.player, newestEvent.effect)
         console.log('📊 Event ID:', eventId)
         console.log('📊 Event timestamp:', newestEvent.timestamp)
-        console.log('📊 Current player:', playerName)
+        console.log('📊 Current player (raw):', playerName)
+        console.log('📊 Normalized names:', { normalizedEventPlayer, normalizedCurrentPlayer })
         console.log('📊 Scan data:', {
           effect: newestEvent.effect,
           cryptoSymbol: newestEvent.cryptoSymbol,
