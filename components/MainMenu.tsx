@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { QrCode, BarChart3, Wallet, Settings, TrendingUp, TrendingDown, Crown, Medal, Trophy, CreditCard, Zap, Users, ListChecks } from 'lucide-react'
 import { getTileClasses } from '@/utils/styleUtils'
 import Header from './Header'
-import ScanResult, { ScanEffect } from './ScanResult'
+import EventPopup, { ScanEffect } from './EventPopup'
 
 interface CryptoCurrency {
   id: string
@@ -798,7 +798,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
 
         {/* Scan Modal from Actions > Beurs */}
         {showScanModal && (
-          <ScanResult
+          <EventPopup
           onClose={() => setShowScanModal(false)}
           onApplyEffect={(effect) => {
             try { onApplyScanEffect && onApplyScanEffect(effect) } catch {}

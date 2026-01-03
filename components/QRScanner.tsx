@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Camera, X, Zap, ArrowLeft, MessageSquare } from 'lucide-react'
 import Header from './Header'
-import ScanResult, { ScanEffect } from './ScanResult'
+import EventPopup, { ScanEffect } from './EventPopup'
 
 interface QRScannerProps {
   onScan: (effect: ScanEffect) => void
@@ -212,7 +212,7 @@ export default function QRScanner({ onScan, onClose, playerName, playerAvatar }:
         
         {/* Scan Result Modal */}
         {showScanResult && (
-          <ScanResult 
+          <EventPopup 
             onClose={closeScanResult}
             onApplyEffect={handleScanResult}
           />
@@ -326,7 +326,7 @@ export default function QRScanner({ onScan, onClose, playerName, playerAvatar }:
 
       {/* Scan Result Modal */}
       {showScanResult && (
-        <ScanResult 
+        <EventPopup 
           onClose={closeScanResult}
           onApplyEffect={handleScanResult}
         />

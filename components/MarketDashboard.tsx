@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks, Power, SkipForward, Clock } from 'lucide-react'
 import Header from './Header'
-import ScanResult, { ScanEffect } from './ScanResult'
+import EventPopup, { ScanEffect } from './EventPopup'
 
 interface CryptoCurrency {
   id: string
@@ -140,7 +140,7 @@ export default function MarketDashboard({
           timestamp: Date.now(),
           player: playerName || 'Market Screen',
           action: 'Test Scan',
-          effect: 'Bull Run! Alle munten +5%!',
+          effect: 'Bull Run!',
           avatar: playerAvatar,
           cryptoSymbol: undefined,
           percentageValue: undefined
@@ -395,7 +395,7 @@ export default function MarketDashboard({
         color = 'neon-purple'
         eventType = 'forecast'
       } else if (effect.includes('Bull Run')) {
-        message = effect  // Use original effect: "Bull Run! Alle munten +5%!"
+        message = effect  // Use original effect: "Bull Run!"
         icon = '🚀'
         color = 'green-500'  // Positive event = GREEN
         eventType = 'event'
@@ -422,12 +422,12 @@ export default function MarketDashboard({
         const parts = effect.split(' ')
         const cryptoName = parts[0] || 'Crypto'
         
-        // Extract percentage from effect (CRITICAL: must match ScanResult logic exactly)
+        // Extract percentage from effect (CRITICAL: must match EventPopup logic exactly)
         // Look for percentage with + or - sign, including decimals
         const percentageMatch = effect.match(/([+-]?\d+(?:\.\d+)?)%?/)
         const percentageValue = percentageMatch ? parseFloat(percentageMatch[1]) : 0
         
-        // SIMPLIFIED: Use same logic as ScanResult - only percentage determines direction
+        // SIMPLIFIED: Use same logic as EventPopup - only percentage determines direction
         const isPositive = percentageValue > 0
         
         console.log('🔍 PERCENTAGE PARSING DEBUG:')
@@ -1388,9 +1388,9 @@ export default function MarketDashboard({
         </div>
       )}
 
-      {/* Event Overlay - uses ScanResult component for consistency */}
+      {/* Event Overlay - uses EventPopup component for consistency */}
       {showKansEvent && currentKansEvent && (
-        <ScanResult
+        <EventPopup
           externalScenario={currentKansEvent}
           onClose={() => {
             setShowKansEvent(false)

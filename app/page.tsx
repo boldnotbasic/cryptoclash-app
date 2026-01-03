@@ -22,7 +22,7 @@ import ActionsMenu from '@/components/ActionsMenu'
 import BuyCrypto from '@/components/BuyCrypto'
 import Win from '../components/Win'
 import SwapScreen from '@/components/SwapScreen'
-import ScanResult, { ScanEffect } from '@/components/ScanResult'
+import EventPopup, { ScanEffect } from '@/components/EventPopup'
 import { useSocket } from '@/hooks/useSocket'
 import TurnTimer from '@/components/TurnTimer'
 
@@ -1814,6 +1814,24 @@ export default function Home() {
       const newestEvent = allScansForPopup.sort((a, b) => b.timestamp - a.timestamp)[0]
       
       if (newestEvent && newestEvent.player && newestEvent.effect) {
+        // CRITICAL: Only show pop-ups for EVENTS, not for buy/sell actions
+        const isEventAction = newestEvent.action && (
+          newestEvent.action.includes('Test Scan') || 
+          newestEvent.action.includes('Kans') ||
+          newestEvent.action.includes('Event')
+        )
+        
+        // Skip buy/sell actions - they should NOT trigger pop-ups
+        if (newestEvent.action && (
+          newestEvent.action.includes('Koop') || 
+          newestEvent.action.includes('Verkoop') ||
+          newestEvent.action.includes('Buy') ||
+          newestEvent.action.includes('Sell')
+        )) {
+          console.log('⏭️ Skipping buy/sell action, no pop-up:', newestEvent.action)
+          return
+        }
+        
         // Check if we've already shown this event
         const eventId = newestEvent.id || `${newestEvent.timestamp}-${newestEvent.effect}`
         
@@ -1842,6 +1860,7 @@ export default function Home() {
         const isOtherPlayerForecast = isForecast && normalizedEventPlayer !== '' && normalizedCurrentPlayer !== '' && normalizedEventPlayer !== normalizedCurrentPlayer
         
         console.log('🔔 NEW Event detected:', newestEvent.player, newestEvent.effect)
+        console.log('🔮 Forecast check:', { isForecast, isMyForecast, isOtherPlayerForecast })
         console.log('📊 Event ID:', eventId)
         console.log('📊 Event timestamp:', newestEvent.timestamp)
         console.log('📊 Current player (raw):', playerName)
@@ -2307,11 +2326,11 @@ export default function Home() {
       // die in handleScanDataUpdate de nieuwe prijzen doorvoert voor alle spelers.
     }
     
-    // STEP 2: Build effect text for display - USE ORIGINAL MESSAGE FROM SCANRESULT
+    // STEP 2: Build effect text for display - USE ORIGINAL MESSAGE FROM EVENTPOPUP
     // This ensures consistency with server-generated events
     let effectText = effect.message || ''
     
-    // Fallback: if no message, build one (should not happen with ScanResult)
+    // Fallback: if no message, build one (should not happen with EventPopup)
     if (!effectText) {
       if (effect.type === 'boost' || effect.type === 'crash') {
         if (effect.cryptoSymbol && effect.percentage) {
@@ -3354,9 +3373,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* Event from other player - show colored ScanResult tile on ALL screens */}
+      {/* Event from other player - show colored EventPopup tile on ALL screens */}
       {showOtherPlayerEvent && otherPlayerEventData && (
-        <ScanResult
+        <EventPopup
           externalScenario={otherPlayerEventData}
           onClose={() => {
             setShowOtherPlayerEvent(false)

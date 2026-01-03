@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { ShoppingCart, TrendingDown, Gift, Dice5, ArrowLeftRight, ScrollText } from 'lucide-react'
 import Header from './Header'
-import ScanResult, { ScanEffect } from './ScanResult'
+import EventPopup, { ScanEffect } from './EventPopup'
 
 interface ScanAction {
   id: string
@@ -221,9 +221,9 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
           })}
         </div>
 
-        {/* ScanResult modal triggered by Kans */}
+        {/* EventPopup modal triggered by Kans */}
         {showScan && (
-          <ScanResult 
+          <EventPopup 
             onClose={() => setShowScan(false)}
             onApplyEffect={handleKansEffect}
           />
