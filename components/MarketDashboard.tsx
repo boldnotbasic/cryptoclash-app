@@ -477,16 +477,19 @@ export default function MarketDashboard({
       }
 
       // Show kans event with ScanResult component
+      // CRITICAL: Market Dashboard should NEVER see forecast data, only eye icon
+      const isForecastEvent = effect.includes('Market Forecast')
+      
       setCurrentKansEvent({
-        type: eventType,
-        cryptoSymbol,
-        percentage,
-        message,
-        icon,
-        color,
-        // Add forecast data if available
-        topGainer: (latestEvent as any).forecastData?.topGainer,
-        topLoser: (latestEvent as any).forecastData?.topLoser
+        type: isForecastEvent ? 'forecast' : eventType,
+        cryptoSymbol: isForecastEvent ? null : cryptoSymbol,
+        percentage: isForecastEvent ? 0 : percentage,
+        message: isForecastEvent ? `${latestEvent.player} bekijkt Market Forecast` : message,
+        icon: isForecastEvent ? '👁️' : icon,
+        color: isForecastEvent ? 'neon-purple' : color,
+        // Market Dashboard NEVER gets forecast data - only eye icon
+        topGainer: undefined,
+        topLoser: undefined
       })
       
       setShowKansEvent(true)
