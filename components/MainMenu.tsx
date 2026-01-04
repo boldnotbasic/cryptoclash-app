@@ -736,19 +736,22 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           <div 
             className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
             onClick={(e) => {
-              console.log('🎯 Modal overlay clicked')
+              console.log('🎯 Modal overlay clicked', { year, nextYear: year + 1 })
               if (e.target === e.currentTarget) {
                 console.log('✅ Closing modal (clicked outside)')
                 setIsYearModalOpen(false)
               }
             }}
           >
-            <div className="crypto-card bg-gradient-to-br from-dark-bg via-purple-900/20 to-dark-bg border-2 border-neon-gold/50 rounded-xl p-6 w-96 max-w-[90vw] shadow-2xl shadow-neon-gold/20">
+            <div 
+              className="crypto-card bg-gradient-to-br from-dark-bg via-purple-900/20 to-dark-bg border-2 border-neon-gold/50 rounded-xl p-6 w-96 max-w-[90vw] shadow-2xl shadow-neon-gold/20"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="text-center mb-4">
                 <div className="text-6xl mb-3">🎉</div>
                 <h3 className="text-white font-bold text-2xl mb-2">Nieuw Jaar!</h3>
                 <p className="text-gray-300 text-base mb-2">
-                  Start jaar <span className="text-neon-gold font-bold">{year + 1}</span>
+                  Start jaar <span className="text-neon-gold font-bold text-xl">{year ? year + 1 : 2025}</span>
                 </p>
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 mt-3">
                   <p className="text-green-400 font-bold text-lg">

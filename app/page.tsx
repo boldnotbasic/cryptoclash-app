@@ -1879,26 +1879,54 @@ export default function Home() {
           forecastData: (newestEvent as any).forecastData
         })
         
-        // If other player's forecast, show "eye" icon instead
-        if (isOtherPlayerForecast) {
-          const scanEffect: ScanEffect = {
-            type: 'forecast',
-            cryptoSymbol: null,
-            percentage: 0,
-            message: `${newestEvent.player} bekijkt Market Forecast`,
-            icon: '👁️',
-            color: 'neon-purple'
+        // CRITICAL: Handle forecast privacy
+        if (isForecast) {
+          // If this is OTHER player's forecast, show eye icon ONLY
+          if (isOtherPlayerForecast) {
+            const scanEffect: ScanEffect = {
+              type: 'forecast',
+              cryptoSymbol: null,
+              percentage: 0,
+              message: `${newestEvent.player} bekijkt Market Forecast`,
+              icon: '👁️',
+              color: 'neon-purple'
+            }
+            
+            console.log('👁️ Other player forecast - showing eye icon ONLY')
+            setOtherPlayerEventData(scanEffect)
+            setShowOtherPlayerEvent(true)
+            
+            setTimeout(() => {
+              setShowOtherPlayerEvent(false)
+              setOtherPlayerEventData(null)
+            }, 3000)
+            return
           }
           
-          console.log('👁️ Other player forecast - showing eye icon')
-          setOtherPlayerEventData(scanEffect)
-          setShowOtherPlayerEvent(true)
-          
-          setTimeout(() => {
-            setShowOtherPlayerEvent(false)
-            setOtherPlayerEventData(null)
-          }, 3000)
-          return
+          // If this is MY forecast, check if we have forecastData
+          if (isMyForecast) {
+            const hasForecastData = !!(newestEvent as any).forecastData?.topGainer && !!(newestEvent as any).forecastData?.topLoser
+            console.log('🔮 MY FORECAST - Has data?', hasForecastData)
+            
+            if (!hasForecastData) {
+              console.log('❌ MY FORECAST but NO DATA - server filtering failed! Showing eye icon as fallback')
+              const scanEffect: ScanEffect = {
+                type: 'forecast',
+                cryptoSymbol: null,
+                percentage: 0,
+                message: `${newestEvent.player} bekijkt Market Forecast`,
+                icon: '👁️',
+                color: 'neon-purple'
+              }
+              setOtherPlayerEventData(scanEffect)
+              setShowOtherPlayerEvent(true)
+              setTimeout(() => {
+                setShowOtherPlayerEvent(false)
+                setOtherPlayerEventData(null)
+              }, 3000)
+              return
+            }
+          }
         }
         
         // Determine type based on effect message
