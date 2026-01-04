@@ -228,8 +228,14 @@ function startActivityInterval(roomCode, socketIo) {
   const generateActivity = () => {
     const randomCrypto = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
     const bound = getVolatilityBound()
-    const raw = parseFloat(((Math.random() * (2 * bound)) - bound).toFixed(1))
-    const percentage = Math.max(-bound, Math.min(bound, raw)) // final clamp
+    
+    // Generate percentage - NEVER 0!
+    let percentage
+    do {
+      const raw = parseFloat(((Math.random() * (2 * bound)) - bound).toFixed(1))
+      percentage = Math.max(-bound, Math.min(bound, raw)) // final clamp
+    } while (percentage === 0)  // Re-roll if 0
+    
     const sign = percentage >= 0 ? '+' : ''
     const actions = ['Market Move', 'Price Alert', 'Trading Signal', 'Volume Spike']
     const randomActionType = actions[Math.floor(Math.random() * actions.length)]

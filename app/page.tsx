@@ -1933,10 +1933,10 @@ export default function Home() {
                   newestEvent.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
                  eventType === 'forecast' ? 'neon-purple' :
                  eventType === 'crash' ? 'red-500' : 'neon-green',
-          // CRITICAL FIX: ALWAYS pass forecast data if it exists
-          // The server already filtered it, so if we have it, we should show it!
-          topGainer: (newestEvent as any).forecastData?.topGainer,
-          topLoser: (newestEvent as any).forecastData?.topLoser
+          // CRITICAL: Only pass forecast data if this is MY forecast
+          // Server filters it, but we add extra client-side validation for safety
+          topGainer: (isForecast && isMyForecast) ? (newestEvent as any).forecastData?.topGainer : undefined,
+          topLoser: (isForecast && isMyForecast) ? (newestEvent as any).forecastData?.topLoser : undefined
         }
         
         console.log('✅ Created ScanEffect:', scanEffect)

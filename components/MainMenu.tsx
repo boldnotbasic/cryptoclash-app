@@ -472,8 +472,12 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           {/* Speeljaar - Jaartal tegel */}
           <button
             onClick={() => {
+              console.log('🗓️ Year tile clicked:', { year, gameFinished })
               if (!gameFinished) {
+                console.log('✅ Opening year modal')
                 setIsYearModalOpen(true)
+              } else {
+                console.log('❌ Game finished, not opening modal')
               }
             }}
             className={getTileClasses(
@@ -729,7 +733,16 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
 
 
         {isYearModalOpen && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div 
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            onClick={(e) => {
+              console.log('🎯 Modal overlay clicked')
+              if (e.target === e.currentTarget) {
+                console.log('✅ Closing modal (clicked outside)')
+                setIsYearModalOpen(false)
+              }
+            }}
+          >
             <div className="crypto-card bg-gradient-to-br from-dark-bg via-purple-900/20 to-dark-bg border-2 border-neon-gold/50 rounded-xl p-6 w-96 max-w-[90vw] shadow-2xl shadow-neon-gold/20">
               <div className="text-center mb-4">
                 <div className="text-6xl mb-3">🎉</div>
