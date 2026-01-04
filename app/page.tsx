@@ -1932,19 +1932,21 @@ export default function Home() {
                   newestEvent.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
                  eventType === 'forecast' ? 'neon-purple' :
                  eventType === 'crash' ? 'red-500' : 'neon-green',
-          // CRITICAL: Only add forecast data if this is MY forecast (trigger player)
-          topGainer: (isForecast && isMyForecast) ? (newestEvent as any).forecastData?.topGainer : undefined,
-          topLoser: (isForecast && isMyForecast) ? (newestEvent as any).forecastData?.topLoser : undefined
+          // CRITICAL FIX: ALWAYS pass forecast data if it exists
+          // The server already filtered it, so if we have it, we should show it!
+          topGainer: (newestEvent as any).forecastData?.topGainer,
+          topLoser: (newestEvent as any).forecastData?.topLoser
         }
         
         console.log('✅ Created ScanEffect:', scanEffect)
+        console.log('🔮 Forecast flags:', { isForecast, isMyForecast, isOtherPlayerForecast })
+        console.log('🔮 Raw forecastData from event:', (newestEvent as any).forecastData)
         if (eventType === 'forecast') {
-          console.log('🔮 Forecast data check:', {
+          console.log('🔮 Forecast data in ScanEffect:', {
             hasTopGainer: !!scanEffect.topGainer,
             hasTopLoser: !!scanEffect.topLoser,
             topGainer: scanEffect.topGainer,
-            topLoser: scanEffect.topLoser,
-            rawForecastData: (newestEvent as any).forecastData
+            topLoser: scanEffect.topLoser
           })
         }
         
