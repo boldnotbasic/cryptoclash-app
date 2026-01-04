@@ -1821,14 +1821,16 @@ export default function Home() {
           newestEvent.action.includes('Event')
         )
         
-        // Skip buy/sell actions - they should NOT trigger pop-ups
+        // Skip buy/sell/win actions - they should NOT trigger pop-ups
         if (newestEvent.action && (
           newestEvent.action.includes('Koop') || 
           newestEvent.action.includes('Verkoop') ||
           newestEvent.action.includes('Buy') ||
-          newestEvent.action.includes('Sell')
+          newestEvent.action.includes('Sell') ||
+          newestEvent.action.includes('Win') ||
+          (newestEvent as any).isWinAction === true
         )) {
-          console.log('⏭️ Skipping buy/sell action, no pop-up:', newestEvent.action)
+          console.log('⏭️ Skipping buy/sell/win action, no pop-up:', newestEvent.action)
           return
         }
         
