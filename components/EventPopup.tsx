@@ -276,8 +276,15 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
     // maar één keer een scenario kiezen en audio afspelen.
     if (initializedRef.current) return
     initializedRef.current = true
-    console.log('ScanResult component mounted')
+    console.log('EventPopup component mounted')
     console.log('External scenario provided:', externalScenario)
+    console.log('🔮 Forecast data check in EventPopup:', {
+      type: externalScenario?.type,
+      hasTopGainer: !!externalScenario?.topGainer,
+      hasTopLoser: !!externalScenario?.topLoser,
+      topGainer: externalScenario?.topGainer,
+      topLoser: externalScenario?.topLoser
+    })
     
     // Use external scenario if provided, otherwise generate random
     const scenario = externalScenario || (() => {
