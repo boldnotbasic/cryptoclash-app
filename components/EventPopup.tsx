@@ -272,11 +272,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
   }
 
   useEffect(() => {
-    // React 18 StrictMode runt effects twee keer in dev; zorg dat we
-    // maar één keer een scenario kiezen en audio afspelen.
-    if (initializedRef.current) return
-    initializedRef.current = true
-    console.log('EventPopup component mounted')
+    console.log('EventPopup effect triggered')
     console.log('External scenario provided:', externalScenario)
     console.log('🔮 Forecast data check in EventPopup:', {
       type: externalScenario?.type,
@@ -286,7 +282,8 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
       topLoser: externalScenario?.topLoser
     })
     
-    // Use external scenario if provided, otherwise generate random
+    // CRITICAL: Always use externalScenario if provided (for forecast data!)
+    // Only generate random if no external scenario
     const scenario = externalScenario || (() => {
       console.log('⚠️ No external scenario - generating random')
       const randomTemplate = scanScenarios[Math.floor(Math.random() * scanScenarios.length)]
@@ -294,22 +291,28 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
     })()
     
     console.log('Selected scenario:', scenario)
+    console.log('🔮 Final scenario forecast data:', {
+      hasTopGainer: !!scenario.topGainer,
+      hasTopLoser: !!scenario.topLoser,
+      topGainer: scenario.topGainer,
+      topLoser: scenario.topLoser
+    })
     setCurrentScenario(scenario)
 
-    // Audio uitgeschakeld: geen geluid meer bij events
-    const playAudio = async () => {
-      return
+    // Show animation
+    if (!initializedRef.current) {
+      initializedRef.current = true
+      setTimeout(() => {
+        console.log('Setting visible to true')
+        setIsVisible(true)
+      }, 100)
+    } else {
+      // If already initialized, show immediately
+      setIsVisible(true)
     }
     
-    // Show animation
-    setTimeout(async () => {
-      console.log('Setting visible to true')
-      setIsVisible(true)
-      await playAudio()
-    }, 100)
-    
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only run once on mount
+  }, [externalScenario]) // Re-run when externalScenario changes!
 
   // Separate effect for auto-close timer that depends on currentScenario being set
   useEffect(() => {
