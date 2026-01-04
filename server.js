@@ -1521,7 +1521,7 @@ app.prepare().then(() => {
           { type: 'boost', symbol: 'REX', min: -30, max: 30, msg: (pct) => `Rex ${pct > 0 ? 'move' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
           { type: 'boost', symbol: 'ORLO', min: -30, max: 30, msg: (pct) => `Orlo ${pct > 0 ? 'stijgt' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
           // Market-wide events
-          { type: 'event', symbol: null, min: 5, max: 5, msg: () => 'Bull Run! Alle munten +5%!' },
+          { type: 'event', symbol: null, min: 5, max: 5, msg: () => 'Bull Run!' },
           { type: 'event', symbol: null, min: -10, max: -10, msg: () => 'Market Crash! Alle munten -10%!' },
         ]
         
@@ -1703,11 +1703,46 @@ app.prepare().then(() => {
         console.log(`📡 Broadcasting updated crypto prices to room ${roomCode}`)
         io.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
         
-        // Broadcast updated scan data to ALL devices
-        io.to(roomCode).emit('scanData:update', {
-          autoScanActions: roomScanData[roomCode].autoScanActions,
-          playerScanActions: roomScanData[roomCode].playerScanActions
-        })
+        // 🔮 CRITICAL: Broadcast scan data with forecast filtering per player
+        // Each player gets their own filtered version of playerScanActions
+        const socketsForBroadcast = io.sockets.adapter.rooms.get(roomCode)
+        if (socketsForBroadcast) {
+          socketsForBroadcast.forEach(socketId => {
+            const targetSocket = io.sockets.sockets.get(socketId)
+            if (targetSocket) {
+              // Get the player name for this socket
+              const targetPlayerName = rooms[roomCode]?.players[socketId]?.name || 'Market Dashboard'
+              
+              // Filter forecast data: only show full forecast to trigger player
+              const filteredPlayerScans = roomScanData[roomCode].playerScanActions.map(scan => {
+                if (scan.isForecast && scan.forecastData) {
+                  // If this is a forecast and the target player is NOT the trigger player
+                  if (scan.player !== targetPlayerName) {
+                    // Remove forecast data for other players
+                    const { forecastData, ...scanWithoutForecast } = scan
+                    return scanWithoutForecast
+                  }
+                }
+                // Return full scan data for trigger player or non-forecast events
+                return scan
+              })
+              
+              // Send filtered data to this specific socket
+              targetSocket.emit('scanData:update', {
+                autoScanActions: roomScanData[roomCode].autoScanActions,
+                playerScanActions: filteredPlayerScans
+              })
+              
+              console.log(`📤 Sent ${targetPlayerName === scanAction.player ? 'FULL' : 'FILTERED'} scan data to ${targetPlayerName}`)
+            }
+          })
+        } else {
+          // Fallback: broadcast to room (should not happen)
+          io.to(roomCode).emit('scanData:update', {
+            autoScanActions: roomScanData[roomCode].autoScanActions,
+            playerScanActions: roomScanData[roomCode].playerScanActions
+          })
+        }
         // Broadcast authoritative market change map
         io.to(roomCode).emit('market:stateUpdate', {
           change24h: roomMarketChange24h[roomCode] || {}
