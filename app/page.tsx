@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import Image from 'next/image'
 import StartScreen from '@/components/StartScreen'
 import LoginScreen from '@/components/LoginScreen'
 import GameSetup from '@/components/GameSetup'
@@ -2815,9 +2816,13 @@ export default function Home() {
                 
                 <div className="relative text-center crypto-card px-10 py-12 bg-white/5 border-white/10">
                   <div className="mb-6 flex justify-center">
-                    <img
+                    <Image
                       src="/Collage_logo.png"
                       alt="CryptoClash"
+                      width={600}
+                      height={600}
+                      priority
+                      quality={95}
                       className="w-[40vw] md:w-[18vw] h-auto max-h-[40vh] drop-shadow-[0_8px_30px_rgba(139,92,246,0.6)]"
                     />
                   </div>
@@ -2825,10 +2830,10 @@ export default function Home() {
                     Spel wordt gestart...
                   </h2>
                   <p className="text-gray-300 text-sm mt-2">Even geduld, we zetten alles klaar</p>
-                  <div className="mt-6 flex items-center justify-center space-x-2 text-xs text-gray-400">
-                    <span className="w-2 h-2 bg-neon-blue rounded-full animate-bounce" />
-                    <span className="w-2 h-2 bg-neon-purple rounded-full animate-bounce [animation-delay:0.15s]" />
-                    <span className="w-2 h-2 bg-neon-gold rounded-full animate-bounce [animation-delay:0.3s]" />
+                  <div className="mt-6 w-full max-w-xs mx-auto">
+                    <div className="w-full bg-gray-700/50 rounded-full h-2 overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-neon-blue via-neon-purple to-neon-gold rounded-full animate-pulse" style={{ width: '100%' }}></div>
+                    </div>
                   </div>
                 </div>
               </div>

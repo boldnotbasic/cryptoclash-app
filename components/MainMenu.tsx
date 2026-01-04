@@ -729,21 +729,32 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
 
 
         {isYearModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-dark-bg/95 border border-white/10 rounded-lg p-5 w-80">
-              <h3 className="text-white font-bold text-lg mb-2 text-center">Nieuw jaar starten?</h3>
-              <p className="text-gray-300 text-sm mb-4 text-center">
-                Ga over naar {year + 1} en ontvang €500 startgeld toegevoegd aan je Cash Wallet.
-              </p>
-              <div className="flex items-center justify-between space-x-3">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+            <div className="crypto-card bg-gradient-to-br from-dark-bg via-purple-900/20 to-dark-bg border-2 border-neon-gold/50 rounded-xl p-6 w-96 max-w-[90vw] shadow-2xl shadow-neon-gold/20">
+              <div className="text-center mb-4">
+                <div className="text-6xl mb-3">🎉</div>
+                <h3 className="text-white font-bold text-2xl mb-2">Nieuw Jaar!</h3>
+                <p className="text-gray-300 text-base mb-2">
+                  Start jaar <span className="text-neon-gold font-bold">{year + 1}</span>
+                </p>
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 mt-3">
+                  <p className="text-green-400 font-bold text-lg">
+                    +€500 Startbonus
+                  </p>
+                  <p className="text-gray-400 text-sm">
+                    Toegevoegd aan je Cash Wallet
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between space-x-3 mt-6">
                 <button
-                  className="flex-1 py-2 rounded-md bg-gray-700 text-white hover:bg-gray-600 transition"
+                  className="flex-1 py-3 rounded-lg bg-gray-700 text-white font-semibold hover:bg-gray-600 transition"
                   onClick={() => setIsYearModalOpen(false)}
                 >
                   Annuleren
                 </button>
                 <button
-                  className="flex-1 py-2 rounded-md bg-neon-gold text-black font-semibold hover:opacity-90 transition"
+                  className="flex-1 py-3 rounded-lg bg-neon-gold text-black font-bold hover:opacity-90 transition shadow-lg shadow-neon-gold/30"
                   onClick={() => {
                     try {
                       onPassStart && onPassStart()
@@ -752,7 +763,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                     }
                   }}
                 >
-                  Bevestigen
+                  Start Jaar {year + 1}
                 </button>
               </div>
             </div>
