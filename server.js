@@ -1716,11 +1716,19 @@ app.prepare().then(() => {
               // Filter forecast data: only show full forecast to trigger player
               const filteredPlayerScans = roomScanData[roomCode].playerScanActions.map(scan => {
                 if (scan.isForecast && scan.forecastData) {
+                  console.log(`🔮 Forecast filtering:`)
+                  console.log(`   📊 Scan player: "${scan.player}"`)
+                  console.log(`   👤 Target player: "${targetPlayerName}"`)
+                  console.log(`   ✅ Match: ${scan.player === targetPlayerName}`)
+                  
                   // If this is a forecast and the target player is NOT the trigger player
                   if (scan.player !== targetPlayerName) {
                     // Remove forecast data for other players
+                    console.log(`   ❌ Removing forecastData for ${targetPlayerName}`)
                     const { forecastData, ...scanWithoutForecast } = scan
                     return scanWithoutForecast
+                  } else {
+                    console.log(`   ✅ Keeping forecastData for trigger player ${targetPlayerName}`)
                   }
                 }
                 // Return full scan data for trigger player or non-forecast events
