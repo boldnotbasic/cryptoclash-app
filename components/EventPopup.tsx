@@ -152,8 +152,10 @@ const scanScenarios: ScanScenarioTemplate[] = [
 export default function ScanResult({ onClose, onApplyEffect, externalScenario }: ScanResultProps) {
   const [currentScenario, setCurrentScenario] = useState<ScanEffect | null>(null)
   const [isVisible, setIsVisible] = useState(false)
+  const [remainingSeconds, setRemainingSeconds] = useState(5) // Timer for forecast
   const initializedRef = useRef(false)
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const hasClosedRef = useRef(false)
 
   // Simulate next 10 events to calculate top gainer and loser
@@ -320,13 +322,32 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
     
     console.log('🕒 Starting auto-close timer for scenario:', currentScenario.message)
     
-    // Clear any existing timer
+    // Clear any existing timers
     if (autoCloseTimerRef.current) {
       clearTimeout(autoCloseTimerRef.current)
     }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+    }
     
-    // Forecast events stay longer (5 seconds), others 3 seconds
+    // Forecast events: 5 seconds with countdown, others: 3 seconds
     const displayTime = currentScenario.type === 'forecast' ? 5000 : 3000
+    
+    // Start countdown for forecast
+    if (currentScenario.type === 'forecast') {
+      setRemainingSeconds(5)
+      countdownIntervalRef.current = setInterval(() => {
+        setRemainingSeconds(prev => {
+          if (prev <= 1) {
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current)
+            }
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
     
     autoCloseTimerRef.current = setTimeout(() => {
       if (hasClosedRef.current) {
@@ -345,12 +366,16 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
       }, 300)
     }, displayTime + 100) // 100ms fade-in + display time
 
-    // Cleanup: only clear timer on unmount, not on re-render
+    // Cleanup: only clear timers on unmount, not on re-render
     return () => {
-      console.log('🧹 Component unmounting, clearing timer')
+      console.log('🧹 Component unmounting, clearing timers')
       if (autoCloseTimerRef.current) {
         clearTimeout(autoCloseTimerRef.current)
         autoCloseTimerRef.current = null
+      }
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current)
+        countdownIntervalRef.current = null
       }
     }
   }, [currentScenario])
@@ -498,11 +523,19 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
           <div className="mb-6">
             {/* Show message for forecast AND market-wide events (Bull Run, Market Crash, Whale Alert) */}
             {(currentScenario.type === 'forecast' || currentScenario.type === 'event') && (
-              <h3 className={`text-3xl font-bold ${getTextColor()} mb-2`}>
-                {currentScenario.message.includes('Bull Run') ? 'Bull Run!' : 
-                 currentScenario.message.includes('Market Crash') ? 'Market Crash!' : 
-                 currentScenario.message}
-              </h3>
+              <div className="flex items-center justify-center gap-3">
+                <h3 className={`text-3xl font-bold ${getTextColor()}`}>
+                  {currentScenario.message.includes('Bull Run') ? 'Bull Run!' : 
+                   currentScenario.message.includes('Market Crash') ? 'Market Crash!' : 
+                   currentScenario.message}
+                </h3>
+                {/* Timer for forecast */}
+                {currentScenario.type === 'forecast' && (
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-neon-purple/20 border-2 border-neon-purple">
+                    <span className="text-lg font-bold text-neon-purple">{remainingSeconds}</span>
+                  </div>
+                )}
+              </div>
             )}
             
             {/* Forecast: Show top gainer and loser */}

@@ -1954,8 +1954,8 @@ export default function Home() {
         setShowOtherPlayerEvent(true)
         
         // Auto-close after component handles it
-        // Forecast: 10 seconds, other events: 4 seconds
-        const closeDelay = eventType === 'forecast' ? 10000 : 4000
+        // Forecast: 5 seconds (with timer), other events: 4 seconds
+        const closeDelay = eventType === 'forecast' ? 5500 : 4000
         setTimeout(() => {
           setShowOtherPlayerEvent(false)
           setOtherPlayerEventData(null)

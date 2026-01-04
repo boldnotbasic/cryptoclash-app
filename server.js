@@ -1470,25 +1470,29 @@ app.prepare().then(() => {
       let scanAction
       
       if (shouldGenerateForecast) {
-        // Generate forecast event with 10 future predictions
+        // Generate forecast event - ONE prediction per crypto (no duplicates!)
         const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
         const futureEvents = []
         
-        // Simulate 10 future events
-        for (let i = 0; i < 10; i++) {
-          const symbol = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
+        // Generate ONE prediction per crypto symbol
+        cryptoSymbols.forEach(symbol => {
           let pct
           do {
             pct = Math.floor(Math.random() * 61) - 30  // -30 to +30
           } while (pct === 0)  // Never 0
           
           futureEvents.push({ symbol, percentage: pct })
-        }
+        })
         
         // Find top gainer and loser from predictions
         const sorted = [...futureEvents].sort((a, b) => b.percentage - a.percentage)
         const topGainer = sorted[0]
         const topLoser = sorted[sorted.length - 1]
+        
+        console.log(`🔮 FORECAST VALIDATION:`)
+        console.log(`   Top Gainer: ${topGainer.symbol} ${topGainer.percentage > 0 ? '+' : ''}${topGainer.percentage}%`)
+        console.log(`   Top Loser: ${topLoser.symbol} ${topLoser.percentage > 0 ? '+' : ''}${topLoser.percentage}%`)
+        console.log(`   ✅ Different coins: ${topGainer.symbol !== topLoser.symbol}`)
         
         scanAction = {
           id: Date.now().toString(),
