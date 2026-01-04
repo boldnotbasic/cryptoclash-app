@@ -1521,8 +1521,8 @@ app.prepare().then(() => {
           { type: 'boost', symbol: 'REX', min: -30, max: 30, msg: (pct) => `Rex ${pct > 0 ? 'move' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
           { type: 'boost', symbol: 'ORLO', min: -30, max: 30, msg: (pct) => `Orlo ${pct > 0 ? 'stijgt' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
           // Market-wide events
-          { type: 'event', symbol: null, min: 5, max: 5, msg: () => 'Bull Run!' },
-          { type: 'event', symbol: null, min: -10, max: -10, msg: () => 'Market Crash! Alle munten -10%!' },
+          { type: 'event', symbol: null, min: 5, max: 5, msg: () => 'Bull Run! Alle munten +5%' },
+          { type: 'event', symbol: null, min: -10, max: -10, msg: () => 'Market Crash! Alle munten -10%' },
         ]
         
         randomEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)]

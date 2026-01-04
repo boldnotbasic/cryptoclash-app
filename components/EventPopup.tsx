@@ -499,7 +499,9 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
             {/* Show message for forecast AND market-wide events (Bull Run, Market Crash, Whale Alert) */}
             {(currentScenario.type === 'forecast' || currentScenario.type === 'event') && (
               <h3 className={`text-3xl font-bold ${getTextColor()} mb-2`}>
-                {currentScenario.message}
+                {currentScenario.message.includes('Bull Run') ? 'Bull Run!' : 
+                 currentScenario.message.includes('Market Crash') ? 'Market Crash!' : 
+                 currentScenario.message}
               </h3>
             )}
             
@@ -578,17 +580,23 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
 
             {/* Regular percentage display for non-forecast events */}
             {currentScenario.type !== 'forecast' && currentScenario.percentage && (
-              <div className="flex items-center justify-center space-x-3 mt-2">
-                {currentScenario.percentage > 0 ? (
-                  <TrendingUp className="w-8 h-8 text-green-400" />
-                ) : (
-                  <TrendingDown className="w-8 h-8 text-red-400" />
+              <div className="flex flex-col items-center justify-center mt-2">
+                <div className="flex items-center space-x-3">
+                  {currentScenario.percentage > 0 ? (
+                    <TrendingUp className="w-8 h-8 text-green-400" />
+                  ) : (
+                    <TrendingDown className="w-8 h-8 text-red-400" />
+                  )}
+                  <span className={`text-4xl font-bold ${
+                    currentScenario.percentage > 0 ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {currentScenario.percentage > 0 ? '+' : ''}{currentScenario.percentage}%
+                  </span>
+                </div>
+                {/* Show "Alle munten" for Bull Run and Market Crash */}
+                {(currentScenario.message.includes('Bull Run') || currentScenario.message.includes('Market Crash')) && (
+                  <div className="text-lg text-gray-300 mt-2">Alle munten</div>
                 )}
-                <span className={`text-4xl font-bold ${
-                  currentScenario.percentage > 0 ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {currentScenario.percentage > 0 ? '+' : ''}{currentScenario.percentage}%
-                </span>
               </div>
             )}
           </div>
@@ -596,14 +604,13 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
 
 
           {/* Auto-close indicator */}
-          <div className="text-gray-400 text-sm">
-            <div className="w-full bg-gray-700 rounded-full h-1 mb-2">
+          <div className="w-full">
+            <div className="w-full bg-gray-700 rounded-full h-1">
               <div 
                 className="bg-neon-gold h-1 rounded-full transition-all duration-5000 ease-linear"
                 style={{ width: isVisible ? '0%' : '100%' }}
               ></div>
             </div>
-            Wordt automatisch toegepast...
           </div>
         </div>
       </div>
