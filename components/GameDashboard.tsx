@@ -16,6 +16,7 @@ interface CryptoCurrency {
   amount: number
   color: string
   icon: string
+  purchasePrice?: number
 }
 
 interface GameDashboardProps {
@@ -161,13 +162,22 @@ export default function GameDashboard({
             const isTopGainerTile = topGainer && crypto.id === topGainer.id
             const isTopValueTile = topValueCoin && crypto.id === topValueCoin.id
             const isBothHighlight = isTopGainerTile && isTopValueTile
+            const isOwned = crypto.amount > 0
 
             return (
             <button
               key={crypto.id}
               onClick={() => setSelectedCryptoId(crypto.id)}
               disabled={!showSellControls || crypto.amount === 0}
-              className={`crypto-card rounded-xl p-3 bg-dark-bg/40 text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`crypto-card rounded-xl p-3 bg-dark-bg/40 text-left transition-all ${
+                crypto.amount === 0 
+                  ? 'opacity-40 cursor-not-allowed' 
+                  : 'opacity-100'
+              } ${
+                !showSellControls || crypto.amount === 0
+                  ? 'cursor-not-allowed'
+                  : ''
+              } ${
                 selectedCryptoId === crypto.id
                   ? 'border-2 border-neon-blue shadow-lg shadow-neon-blue/30'
                   : isBothHighlight
@@ -226,6 +236,30 @@ export default function GameDashboard({
                         <TrendingDown className="w-3 h-3 mr-1" />
                       )}
                       {crypto.change24h >= 0 ? '+' : ''}{crypto.change24h.toFixed(1)}%
+                    </div>
+                  </div>
+
+                  {/* Aankoopprijs + Winst/Verlies percentage */}
+                  <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-white/5">
+                    <div className="text-gray-500 text-[10px]">
+                      Aankoop: <span className="text-gray-400">
+                        {(crypto as any).purchasePrice 
+                          ? `€${(crypto as any).purchasePrice.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : '-'
+                        }
+                      </span>
+                    </div>
+                    <div className="text-[10px]">
+                      {(crypto as any).purchasePrice ? (() => {
+                        const profitLossPercentage = ((crypto.price - (crypto as any).purchasePrice) / (crypto as any).purchasePrice) * 100
+                        return (
+                          <span className={`font-bold ${profitLossPercentage >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {profitLossPercentage >= 0 ? '+' : ''}{profitLossPercentage.toFixed(1)}%
+                          </span>
+                        )
+                      })() : (
+                        <span className="text-gray-400">-</span>
+                      )}
                     </div>
                   </div>
 

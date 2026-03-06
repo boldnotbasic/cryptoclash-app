@@ -21,6 +21,11 @@ const roomCleanupTimers = new Map()
 // Live activity intervals per room
 const activityIntervals = {}
 
+// Track scan count per room for automatic forecast every 10 scans
+const roomScanCount = {}
+// Pre-generated next 10 events per room for accurate forecast
+const roomUpcomingEvents = {}
+
 // Track per-player cleanup timers for disconnected players
 const playerCleanupTimers = new Map()
 
@@ -1448,6 +1453,101 @@ app.prepare().then(() => {
       console.log(`💰 === PRICE UPDATE END ===\n`)
     })
 
+    // Helper function to generate a single random event
+    const generateRandomEvent = () => {
+      const eventTypes = [
+        // Crypto specific events (NEVER 0%) - meest voorkomend
+        { type: 'boost', symbol: 'DSHEEP', min: -30, max: 30 },
+        { type: 'boost', symbol: 'DSHEEP', min: -30, max: 30 },
+        { type: 'boost', symbol: 'DSHEEP', min: -30, max: 30 },
+        { type: 'boost', symbol: 'NGT', min: -30, max: 30 },
+        { type: 'boost', symbol: 'NGT', min: -30, max: 30 },
+        { type: 'boost', symbol: 'NGT', min: -30, max: 30 },
+        { type: 'boost', symbol: 'LNTR', min: -30, max: 30 },
+        { type: 'boost', symbol: 'LNTR', min: -30, max: 30 },
+        { type: 'boost', symbol: 'LNTR', min: -30, max: 30 },
+        { type: 'boost', symbol: 'OMLT', min: -30, max: 30 },
+        { type: 'boost', symbol: 'OMLT', min: -30, max: 30 },
+        { type: 'boost', symbol: 'OMLT', min: -30, max: 30 },
+        { type: 'boost', symbol: 'REX', min: -30, max: 30 },
+        { type: 'boost', symbol: 'REX', min: -30, max: 30 },
+        { type: 'boost', symbol: 'REX', min: -30, max: 30 },
+        { type: 'boost', symbol: 'ORLO', min: -30, max: 30 },
+        { type: 'boost', symbol: 'ORLO', min: -30, max: 30 },
+        { type: 'boost', symbol: 'ORLO', min: -30, max: 30 },
+        // Market-wide events - zeldzamer (1x in pool)
+        { type: 'event', symbol: null, min: 5, max: 5 }, // Bull Run
+        { type: 'event', symbol: null, min: -10, max: -10 }, // Market Crash
+        // Whale Alert events - TIJDELIJK UITGESCHAKELD
+        // { type: 'whale', symbol: null, min: 50, max: 50 }, // Random crypto +50%
+      ]
+      
+      const randomEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)]
+      let percentage
+      do {
+        percentage = randomEvent.min === randomEvent.max ? randomEvent.min : 
+                          Math.floor(Math.random() * (randomEvent.max - randomEvent.min + 1)) + randomEvent.min
+      } while (percentage === 0)
+      
+      return { ...randomEvent, percentage }
+    }
+
+    // Helper function to generate next 10 events for a room
+    const generateUpcomingEvents = (roomCode) => {
+      const events = []
+      // Genereer eerste 9 events normaal
+      for (let i = 0; i < 9; i++) {
+        events.push(generateRandomEvent())
+      }
+      // 10e event is altijd Market Forecast
+      events.push({ 
+        type: 'forecast', 
+        symbol: null, 
+        percentage: 0,
+        message: 'Market Forecast beschikbaar'
+      })
+      roomUpcomingEvents[roomCode] = events
+      console.log(`📋 Generated 9 random events + 1 forecast event for room ${roomCode}`)
+      return events
+    }
+
+    // Helper function to calculate forecast based on upcoming events
+    const calculateForecast = (upcomingEvents) => {
+      const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+      const cryptoTotals = {}
+      
+      // Initialize with 0 for each crypto (simpele optelling)
+      cryptoSymbols.forEach(symbol => {
+        cryptoTotals[symbol] = 0
+      })
+      
+      // Tel alle percentages op (simpele optelling, geen compound)
+      upcomingEvents.forEach(event => {
+        if (event.type === 'event') {
+          // Market-wide events affect all cryptos
+          cryptoSymbols.forEach(symbol => {
+            cryptoTotals[symbol] += event.percentage
+          })
+        } else if (event.symbol && event.type !== 'whale' && event.type !== 'forecast') {
+          // Individual crypto event (exclude whale alerts and forecast)
+          cryptoTotals[event.symbol] += event.percentage
+        }
+        // Whale alerts and forecast events are ignored in forecast calculation
+      })
+      
+      // Maak predictions array met totale percentages
+      const predictions = cryptoSymbols.map(symbol => ({
+        symbol,
+        percentage: Math.round(cryptoTotals[symbol] * 10) / 10 // Round to 1 decimal
+      }))
+      
+      const sorted = [...predictions].sort((a, b) => b.percentage - a.percentage)
+      const topGainer = sorted[0]
+      const topLoser = sorted[sorted.length - 1]
+      
+      return { topGainer, topLoser, predictions }
+    }
+
     // Player triggers event - server generates and broadcasts to ALL players
     socket.on('player:triggerEvent', ({ roomCode, playerName, playerAvatar }) => {
       console.log(`\n🎲 === PLAYER TRIGGERED EVENT ===`)
@@ -1467,38 +1567,56 @@ app.prepare().then(() => {
         }
       }
       
-      // Generate random event on server with weighted probabilities
-      // 20% chance for forecast, 80% for regular events
-      const shouldGenerateForecast = Math.random() < 0.2
+      // Initialize scan count for this room
+      if (!roomScanCount[roomCode]) {
+        roomScanCount[roomCode] = 0
+      }
+      
+      // Initialize upcoming events if not exists
+      if (!roomUpcomingEvents[roomCode] || roomUpcomingEvents[roomCode].length === 0) {
+        generateUpcomingEvents(roomCode)
+      }
+      
+      // Increment scan count
+      roomScanCount[roomCode]++
+      console.log(`📊 Scan count for room ${roomCode}: ${roomScanCount[roomCode]}`)
+      
+      // Every 10 scans, trigger forecast
+      const shouldGenerateForecast = roomScanCount[roomCode] % 10 === 0
       
       let randomEvent
       let percentage
       let scanAction
       
       if (shouldGenerateForecast) {
-        // Generate forecast event - ONE prediction per crypto (no duplicates!)
-        const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
-        const futureEvents = []
+        console.log(`\n🔮 ==================== FORECAST TRIGGERED ====================`)
+        console.log(`🔮 Scan #${roomScanCount[roomCode]} - Generating Market Forecast`)
         
-        // Generate ONE prediction per crypto symbol
-        cryptoSymbols.forEach(symbol => {
-          let pct
-          do {
-            pct = Math.floor(Math.random() * 61) - 30  // -30 to +30
-          } while (pct === 0)  // Never 0
-          
-          futureEvents.push({ symbol, percentage: pct })
+        // NIEUWE LOGICA: Genereer NIEUWE 9 events en voorspel die
+        // Forecast voorspelt de VOLGENDE 9 events (niet de huidige)
+        const newEvents = []
+        for (let i = 0; i < 9; i++) {
+          newEvents.push(generateRandomEvent())
+        }
+        
+        console.log(`🔮 Generated 9 NEW events for forecast prediction`)
+        
+        // Calculate forecast based on NEW events
+        const forecast = calculateForecast(newEvents)
+        
+        console.log(`\n🔮 📋 NEXT 9 EVENTS (forecast prediction):`)
+        newEvents.forEach((evt, idx) => {
+          const evtDesc = evt.type === 'event' 
+            ? `${evt.percentage > 0 ? '📈 Bull Run' : '📉 Market Crash'} (${evt.percentage > 0 ? '+' : ''}${evt.percentage}% all)`
+            : `${evt.symbol} ${evt.percentage > 0 ? '+' : ''}${evt.percentage}%`
+          console.log(`   ${idx + 1}. ${evtDesc}`)
         })
         
-        // Find top gainer and loser from predictions
-        const sorted = [...futureEvents].sort((a, b) => b.percentage - a.percentage)
-        const topGainer = sorted[0]
-        const topLoser = sorted[sorted.length - 1]
-        
-        console.log(`🔮 FORECAST VALIDATION:`)
-        console.log(`   Top Gainer: ${topGainer.symbol} ${topGainer.percentage > 0 ? '+' : ''}${topGainer.percentage}%`)
-        console.log(`   Top Loser: ${topLoser.symbol} ${topLoser.percentage > 0 ? '+' : ''}${topLoser.percentage}%`)
-        console.log(`   ✅ Different coins: ${topGainer.symbol !== topLoser.symbol}`)
+        console.log(`\n🔮 📊 FORECAST CALCULATION RESULT:`)
+        console.log(`   📈 Top Gainer: ${forecast.topGainer.symbol} ${forecast.topGainer.percentage > 0 ? '+' : ''}${forecast.topGainer.percentage}%`)
+        console.log(`   📉 Top Loser: ${forecast.topLoser.symbol} ${forecast.topLoser.percentage > 0 ? '+' : ''}${forecast.topLoser.percentage}%`)
+        console.log(`   ✅ Different coins: ${forecast.topGainer.symbol !== forecast.topLoser.symbol}`)
+        console.log(`\n🔮 ============================================================\n`)
         
         scanAction = {
           id: Date.now().toString(),
@@ -1511,51 +1629,116 @@ app.prepare().then(() => {
           percentageValue: 0,
           isForecast: true,
           forecastData: {
-            topGainer: { symbol: topGainer.symbol, percentage: topGainer.percentage },
-            topLoser: { symbol: topLoser.symbol, percentage: topLoser.percentage },
-            predictions: futureEvents
+            topGainer: { symbol: forecast.topGainer.symbol, percentage: forecast.topGainer.percentage },
+            topLoser: { symbol: forecast.topLoser.symbol, percentage: forecast.topLoser.percentage },
+            predictions: forecast.predictions
           }
         }
         
-        console.log(`🔮 Generated forecast event`)
-        console.log(`📈 Top Gainer: ${topGainer.symbol} ${topGainer.percentage > 0 ? '+' : ''}${topGainer.percentage}%`)
-        console.log(`📉 Top Loser: ${topLoser.symbol} ${topLoser.percentage > 0 ? '+' : ''}${topLoser.percentage}%`)
+        console.log(`🔮 Forecast event created with predictions for NEXT 9 events`)
+        
+        // Reset scan count after forecast
+        roomScanCount[roomCode] = 0
+        
+        // Replace queue with new events + forecast at end
+        roomUpcomingEvents[roomCode] = [...newEvents, { 
+          type: 'forecast', 
+          symbol: null, 
+          percentage: 0,
+          message: 'Market Forecast beschikbaar'
+        }]
+        console.log(`📋 Queue replaced with 9 new events + forecast at position 10`)
       } else {
-        // Generate regular event
-        const eventTypes = [
-          // Crypto specific events (NEVER 0%)
-          { type: 'boost', symbol: 'DSHEEP', min: -30, max: 30, msg: (pct) => `DigiSheep ${pct > 0 ? 'stijgt' : 'daalt'} ${pct > 0 ? '+' : ''}${pct}%` },
-          { type: 'boost', symbol: 'NGT', min: -30, max: 30, msg: (pct) => `Nugget ${pct > 0 ? 'rally' : 'crash'} ${pct > 0 ? '+' : ''}${pct}%` },
-          { type: 'boost', symbol: 'LNTR', min: -30, max: 30, msg: (pct) => `Lentra ${pct > 0 ? 'stijgt' : 'crash'} ${pct > 0 ? '+' : ''}${pct}%` },
-          { type: 'boost', symbol: 'OMLT', min: -30, max: 30, msg: (pct) => `Omlet ${pct > 0 ? 'stijgt' : 'daalt'} ${pct > 0 ? '+' : ''}${pct}%` },
-          { type: 'boost', symbol: 'REX', min: -30, max: 30, msg: (pct) => `Rex ${pct > 0 ? 'move' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
-          { type: 'boost', symbol: 'ORLO', min: -30, max: 30, msg: (pct) => `Orlo ${pct > 0 ? 'stijgt' : 'dip'} ${pct > 0 ? '+' : ''}${pct}%` },
-          // Market-wide events
-          { type: 'event', symbol: null, min: 5, max: 5, msg: () => 'Bull Run! Alle munten +5%' },
-          { type: 'event', symbol: null, min: -10, max: -10, msg: () => 'Market Crash! Alle munten -10%' },
-        ]
+        // Use next event from upcoming events queue
+        const nextEvent = roomUpcomingEvents[roomCode].shift()
         
-        randomEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)]
+        // If queue is empty, generate new batch
+        if (!nextEvent) {
+          generateUpcomingEvents(roomCode)
+          randomEvent = roomUpcomingEvents[roomCode].shift()
+        } else {
+          randomEvent = nextEvent
+        }
         
-        // Generate percentage - NEVER 0!
-        do {
-          percentage = randomEvent.min === randomEvent.max ? randomEvent.min : 
-                            Math.floor(Math.random() * (randomEvent.max - randomEvent.min + 1)) + randomEvent.min
-        } while (percentage === 0)  // Re-roll if 0
+        // Vul queue altijd aan tot 10 events (9 random + 1 forecast)
+        // Forecast moet altijd op laatste positie blijven
+        const lastEvent = roomUpcomingEvents[roomCode][roomUpcomingEvents[roomCode].length - 1]
+        const isForecastLast = lastEvent && lastEvent.type === 'forecast'
+        
+        if (isForecastLast) {
+          // Forecast staat op laatste positie - voeg nieuwe events toe vóór forecast
+          while (roomUpcomingEvents[roomCode].length < 10) {
+            const newEvent = generateRandomEvent()
+            // Voeg toe op voorlaatste positie (voor forecast)
+            roomUpcomingEvents[roomCode].splice(roomUpcomingEvents[roomCode].length - 1, 0, newEvent)
+          }
+        } else {
+          // Forecast is weg of niet op laatste positie - voeg forecast toe
+          while (roomUpcomingEvents[roomCode].length < 9) {
+            const newEvent = generateRandomEvent()
+            roomUpcomingEvents[roomCode].push(newEvent)
+          }
+          // Voeg forecast toe als 10de event
+          roomUpcomingEvents[roomCode].push({ 
+            type: 'forecast', 
+            symbol: null, 
+            percentage: 0,
+            message: 'Market Forecast beschikbaar'
+          })
+        }
+        
+        console.log(`📋 Queue bijgevuld - nu ${roomUpcomingEvents[roomCode].length} events`)
+        
+        percentage = randomEvent.percentage
+        
+        // Create message based on event type
+        let effectMessage
+        let targetSymbol = randomEvent.symbol
+        
+        if (randomEvent.type === 'event') {
+          effectMessage = randomEvent.percentage > 0 ? 'Bull Run! Alle munten +5%' : 'Market Crash! Alle munten -10%'
+        } else if (randomEvent.type === 'whale') {
+          // Whale alert: kies random crypto
+          const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+          targetSymbol = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
+          const cryptoNames = {
+            'DSHEEP': 'DigiSheep',
+            'NGT': 'Nugget',
+            'LNTR': 'Lentra',
+            'OMLT': 'Omlet',
+            'REX': 'Rex',
+            'ORLO': 'Orlo'
+          }
+          const name = cryptoNames[targetSymbol]
+          effectMessage = `Whale Alert! ${name} +50%`
+        } else {
+          const cryptoNames = {
+            'DSHEEP': 'DigiSheep',
+            'NGT': 'Nugget',
+            'LNTR': 'Lentra',
+            'OMLT': 'Omlet',
+            'REX': 'Rex',
+            'ORLO': 'Orlo'
+          }
+          const name = cryptoNames[randomEvent.symbol] || randomEvent.symbol
+          const direction = percentage > 0 ? 'stijgt' : 'daalt'
+          effectMessage = `${name} ${direction} ${percentage > 0 ? '+' : ''}${percentage}%`
+        }
         
         scanAction = {
           id: Date.now().toString(),
           timestamp: Date.now(),
           player: playerName,
           action: 'Event',
-          effect: randomEvent.msg(percentage),
+          effect: effectMessage,
           avatar: playerAvatar,
-          cryptoSymbol: randomEvent.symbol,
+          cryptoSymbol: targetSymbol,
           percentageValue: percentage
         }
         
-        console.log(`🎲 Generated event: ${scanAction.effect}`)
+        console.log(`🎲 Using pre-generated event: ${scanAction.effect}`)
         console.log(`📊 Symbol: ${scanAction.cryptoSymbol}, Percentage: ${scanAction.percentageValue}`)
+        console.log(`📋 Remaining events in queue: ${roomUpcomingEvents[roomCode].length}`)
       }
       
       // Apply price changes (skip for forecast)
@@ -1726,13 +1909,17 @@ app.prepare().then(() => {
               // Filter forecast data: only show full forecast to trigger player
               const filteredPlayerScans = roomScanData[roomCode].playerScanActions.map(scan => {
                 if (scan.isForecast && scan.forecastData) {
+                  // Normalize names for comparison (case-insensitive, trim whitespace)
+                  const normalizedScanPlayer = (scan.player || '').trim().toLowerCase()
+                  const normalizedTargetPlayer = (targetPlayerName || '').trim().toLowerCase()
+                  
                   console.log(`🔮 Forecast filtering:`)
-                  console.log(`   📊 Scan player: "${scan.player}"`)
-                  console.log(`   👤 Target player: "${targetPlayerName}"`)
-                  console.log(`   ✅ Match: ${scan.player === targetPlayerName}`)
+                  console.log(`   📊 Scan player: "${scan.player}" (normalized: "${normalizedScanPlayer}")`)
+                  console.log(`   👤 Target player: "${targetPlayerName}" (normalized: "${normalizedTargetPlayer}")`)
+                  console.log(`   ✅ Match: ${normalizedScanPlayer === normalizedTargetPlayer}`)
                   
                   // If this is a forecast and the target player is NOT the trigger player
-                  if (scan.player !== targetPlayerName) {
+                  if (normalizedScanPlayer !== normalizedTargetPlayer) {
                     // Remove forecast data for other players
                     console.log(`   ❌ Removing forecastData for ${targetPlayerName}`)
                     const { forecastData, ...scanWithoutForecast } = scan
@@ -1748,10 +1935,25 @@ app.prepare().then(() => {
               // Send filtered data to this specific socket
               targetSocket.emit('scanData:update', {
                 autoScanActions: roomScanData[roomCode].autoScanActions,
-                playerScanActions: filteredPlayerScans
+                playerScanActions: filteredPlayerScans,
+                upcomingEvents: roomUpcomingEvents[roomCode] || [],
+                scanCount: roomScanCount[roomCode] || 0
               })
               
               console.log(`📤 Sent ${targetPlayerName === scanAction.player ? 'FULL' : 'FILTERED'} scan data to ${targetPlayerName}`)
+              
+              // DEBUG: Log what forecast data was sent
+              const forecastScans = filteredPlayerScans.filter(s => s.isForecast)
+              if (forecastScans.length > 0) {
+                forecastScans.forEach(fs => {
+                  console.log(`   🔮 Forecast in sent data:`, {
+                    player: fs.player,
+                    hasForecastData: !!fs.forecastData,
+                    topGainer: fs.forecastData?.topGainer,
+                    topLoser: fs.forecastData?.topLoser
+                  })
+                })
+              }
             }
           })
         } else {
@@ -1794,15 +1996,27 @@ app.prepare().then(() => {
         console.log(`🤖 Auto scans: ${roomScanData[roomCode].autoScanActions.length}`)
         console.log(`👤 Player scans: ${roomScanData[roomCode].playerScanActions.length}`)
         
+        // Initialize upcoming events if not exists
+        if (!roomUpcomingEvents[roomCode] || roomUpcomingEvents[roomCode].length === 0) {
+          generateUpcomingEvents(roomCode)
+        }
+        
+        const upcomingEvents = roomUpcomingEvents[roomCode] || []
+        console.log(`📋 Upcoming events: ${upcomingEvents.length}`)
+        
         socket.emit('scanData:update', {
           autoScanActions: roomScanData[roomCode].autoScanActions,
-          playerScanActions: roomScanData[roomCode].playerScanActions
+          playerScanActions: roomScanData[roomCode].playerScanActions,
+          upcomingEvents: upcomingEvents,
+          scanCount: roomScanCount[roomCode] || 0
         })
       } else {
         console.log(`❌ Room ${roomCode} not found or no scan data`)
         socket.emit('scanData:update', {
           autoScanActions: [],
-          playerScanActions: []
+          playerScanActions: [],
+          upcomingEvents: [],
+          scanCount: 0
         })
       }
       console.log(`📊 === SCAN DATA REQUEST END ===\n`)

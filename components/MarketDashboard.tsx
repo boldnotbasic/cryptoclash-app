@@ -77,6 +77,8 @@ export default function MarketDashboard({
   const [showKansEvent, setShowKansEvent] = useState(false)
   const [currentKansEvent, setCurrentKansEvent] = useState<ScanEffect | null>(null)
   const lastShownEventId = useRef<string | null>(null)
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([])
+  const [scanCount, setScanCount] = useState(0)
 
   const getCryptoImagePath = (symbol: string) => {
     switch (symbol) {
@@ -310,6 +312,28 @@ export default function MarketDashboard({
 
     return () => {
       socket.off('room:timerStateChanged', handleTimerStateChanged)
+    }
+  }, [socket])
+
+  // Listen for upcoming events from server
+  useEffect(() => {
+    if (!socket) return
+
+    const handleScanDataUpdate = ({ upcomingEvents: events, scanCount: count }: any) => {
+      if (events) {
+        console.log(`📋 Received ${events.length} upcoming events from server`)
+        setUpcomingEvents(events)
+      }
+      if (typeof count === 'number') {
+        console.log(`📊 Scan count: ${count}`)
+        setScanCount(count)
+      }
+    }
+
+    socket.on('scanData:update', handleScanDataUpdate)
+
+    return () => {
+      socket.off('scanData:update', handleScanDataUpdate)
     }
   }, [socket])
 
@@ -1361,6 +1385,248 @@ export default function MarketDashboard({
               </div>
             )
           })()}
+        </div>
+
+        {/* Komende Events Widget */}
+        <div className="crypto-card mt-4">
+          <h3 className="text-lg font-bold text-white mb-3 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-5 h-5 text-neon-purple" />
+              <span>Komende 10 Pop-up Events</span>
+            </div>
+            <div className="text-sm text-gray-400">
+              Scan {scanCount % 10}/10 tot forecast
+            </div>
+          </h3>
+
+          {upcomingEvents.length > 0 ? (
+            <div className="space-y-2">
+              {/* Events 1-11 (10 normale + 1 forecast) */}
+              {upcomingEvents.map((event, index) => {
+                const isMarketEvent = event.type === 'event'
+                const isWhaleAlert = event.type === 'whale'
+                const isForecast = event.type === 'forecast'
+                
+                // Voor whale alert: gebruik het symbol dat server heeft toegewezen
+                const displaySymbol = isWhaleAlert ? event.symbol : event.symbol
+                
+                const eventName = isMarketEvent 
+                  ? (event.percentage > 0 ? 'Bull Run (+5%)' : 'Market Crash (-10%)')
+                  : isWhaleAlert
+                    ? displaySymbol // Toon crypto symbol in plaats van "Whale Alert"
+                    : isForecast
+                      ? 'Market Forecast'
+                      : event.symbol
+                const eventPercentage = event.percentage
+                const isPositive = eventPercentage > 0
+                
+                return (
+                  <div 
+                    key={index}
+                    className={`flex items-center justify-between p-3 rounded-lg border ${
+                        isForecast
+                          ? 'border-neon-purple/50 bg-purple-500/10'
+                          : isPositive 
+                            ? 'border-green-500/30 bg-green-500/10' 
+                            : 'border-red-500/30 bg-red-500/10'
+                      }`}
+                    >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 relative">
+                        {(() => {
+                          if (isMarketEvent) {
+                            // Toon Bull-run.png of Beurscrash.png voor market events
+                            const marketEventImage = isPositive ? '/Bull-run.png' : '/Beurscrash.png'
+                            return (
+                              <Image
+                                src={marketEventImage}
+                                alt={isPositive ? 'Bull Run' : 'Market Crash'}
+                                width={32}
+                                height={32}
+                                className="object-contain"
+                              />
+                            )
+                          } else if (isForecast) {
+                            // Toon crystal ball voor forecast event
+                            return (
+                              <div className="w-8 h-8 flex items-center justify-center text-2xl">
+                                🔮
+                              </div>
+                            )
+                          } else {
+                            // Voor whale alert EN normale crypto events: toon crypto icon
+                            const imgPath = getCryptoImagePath(displaySymbol || event.symbol)
+                            return imgPath ? (
+                              <Image
+                                src={imgPath}
+                                alt={displaySymbol || event.symbol}
+                                width={32}
+                                height={32}
+                                className="object-contain"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-xs">
+                                {displaySymbol || event.symbol}
+                              </div>
+                            )
+                          }
+                        })()}
+                      </div>
+                      
+                      <div>
+                        <p className="text-white font-semibold text-sm">
+                          {eventName}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {isMarketEvent ? 'Alle munten' : isForecast ? 'Voorspelling beschikbaar' : 'Individueel'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      {isForecast ? (
+                        <span className="text-neon-purple font-bold text-sm">
+                          {index === 0 ? 'Nu!' : `Over ${index} scan${index === 1 ? '' : 's'}`}
+                        </span>
+                      ) : (
+                        <>
+                          {isPositive ? (
+                            <TrendingUp className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <TrendingDown className="w-4 h-4 text-red-400" />
+                          )}
+                          <span className={`font-bold text-lg ${
+                            isPositive ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                            {isPositive ? '+' : ''}{eventPercentage}%
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+              
+              {/* Market Forecast Preview - na 10 events */}
+              {(() => {
+                const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+                
+                // Bereken forecast op basis van simpele optelling van percentages
+                const cryptoTotals: {[key: string]: number} = {}
+                const cryptoCalculations: {[key: string]: string[]} = {}
+                cryptoSymbols.forEach(symbol => { 
+                  cryptoTotals[symbol] = 0
+                  cryptoCalculations[symbol] = []
+                })
+                
+                // CRITICAL: Use ALL events before forecast for calculation (same as server)
+                // Do NOT slice by scansInCycle - always use all 9 events
+                const forecastIndex = upcomingEvents.findIndex(evt => evt.type === 'forecast')
+                const eventsForForecast = forecastIndex >= 0 ? upcomingEvents.slice(0, forecastIndex) : upcomingEvents.slice(0, 9)
+                
+                console.log(`🔮 FORECAST PREVIEW: Using ${eventsForForecast.length} events for forecast calculation`)
+                console.log(`🔮 Events used:`, eventsForForecast.map((e, i) => `${i+1}. ${e.symbol || 'Market'} ${e.percentage}%`))
+                
+                // Tel alle percentages op (simpele optelling, geen compound)
+                eventsForForecast.forEach((evt, idx) => {
+                  if (evt.type === 'event') {
+                    // Market-wide events beïnvloeden alle cryptos
+                    const eventName = evt.percentage > 0 ? 'Bull Run' : 'Market Crash'
+                    cryptoSymbols.forEach(symbol => {
+                      cryptoTotals[symbol] += evt.percentage
+                      cryptoCalculations[symbol].push(`${eventName} ${evt.percentage > 0 ? '+' : ''}${evt.percentage}%`)
+                    })
+                  } else if (evt.symbol && evt.type !== 'whale') {
+                    // Individuele crypto events
+                    cryptoTotals[evt.symbol] += evt.percentage
+                    cryptoCalculations[evt.symbol].push(`${evt.symbol} ${evt.percentage > 0 ? '+' : ''}${evt.percentage}%`)
+                  }
+                  // Whale alerts worden genegeerd in forecast (speler kiest zelf)
+                })
+                
+                // Maak predictions array met totale percentages
+                const predictions = cryptoSymbols.map(symbol => ({
+                  symbol,
+                  percentage: cryptoTotals[symbol],
+                  calculation: cryptoCalculations[symbol]
+                }))
+                
+                const sorted = [...predictions].sort((a, b) => b.percentage - a.percentage)
+                const forecastData = { 
+                  topGainer: sorted[0], 
+                  topLoser: sorted[sorted.length - 1]
+                }
+                
+                return (
+                  <div className="p-4 rounded-lg border-2 border-neon-purple/50 bg-gradient-to-r from-purple-900/20 to-purple-800/20 mt-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-2xl">🔮</span>
+                        <h4 className="text-white font-bold">Market Forecast Preview</h4>
+                      </div>
+                      <span className="text-xs text-gray-400">Na 10 events</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Top Gainer */}
+                      <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                        <div className="flex items-center space-x-2 mb-1">
+                          {(() => {
+                            const imgPath = getCryptoImagePath(forecastData.topGainer.symbol)
+                            return imgPath ? (
+                              <Image src={imgPath} alt={forecastData.topGainer.symbol} width={24} height={24} className="object-contain" />
+                            ) : null
+                          })()}
+                          <span className="text-white text-sm font-semibold">{forecastData.topGainer.symbol}</span>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-1">Sterkste Stijger</p>
+                        <p className="text-green-400 font-bold text-lg mb-2">
+                          +{forecastData.topGainer.percentage}%
+                        </p>
+                        <div className="text-[10px] text-gray-500 space-y-0.5 border-t border-white/5 pt-2">
+                          <p className="font-semibold text-gray-400 mb-1">Berekening:</p>
+                          {forecastData.topGainer.calculation.slice(1).map((calc, i) => (
+                            <p key={i} className="truncate">{calc}</p>
+                          ))}
+                          <p className="font-semibold text-green-400 mt-1">Totaal: +{forecastData.topGainer.percentage}%</p>
+                        </div>
+                      </div>
+                      
+                      {/* Top Loser */}
+                      <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                        <div className="flex items-center space-x-2 mb-1">
+                          {(() => {
+                            const imgPath = getCryptoImagePath(forecastData.topLoser.symbol)
+                            return imgPath ? (
+                              <Image src={imgPath} alt={forecastData.topLoser.symbol} width={24} height={24} className="object-contain" />
+                            ) : null
+                          })()}
+                          <span className="text-white text-sm font-semibold">{forecastData.topLoser.symbol}</span>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-1">Sterkste Daler</p>
+                        <p className="text-red-400 font-bold text-lg mb-2">
+                          {forecastData.topLoser.percentage}%
+                        </p>
+                        <div className="text-[10px] text-gray-500 space-y-0.5 border-t border-white/5 pt-2">
+                          <p className="font-semibold text-gray-400 mb-1">Berekening:</p>
+                          {forecastData.topLoser.calculation.slice(1).map((calc, i) => (
+                            <p key={i} className="truncate">{calc}</p>
+                          ))}
+                          <p className="font-semibold text-red-400 mt-1">Totaal: {forecastData.topLoser.percentage}%</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+          ) : (
+            <div className="text-center text-gray-400 py-8">
+              <Clock className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>Geen komende events beschikbaar</p>
+              <p className="text-xs mt-1">Events worden gegenereerd na eerste scan</p>
+            </div>
+          )}
         </div>
       </div>
 

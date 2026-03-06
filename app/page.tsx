@@ -23,11 +23,12 @@ import ActionsMenu from '@/components/ActionsMenu'
 import BuyCrypto from '@/components/BuyCrypto'
 import Win from '../components/Win'
 import SwapScreen from '@/components/SwapScreen'
+import WhaleChoice from '@/components/WhaleChoice'
 import EventPopup, { ScanEffect } from '@/components/EventPopup'
 import { useSocket } from '@/hooks/useSocket'
 import TurnTimer from '@/components/TurnTimer'
 
-type Screen = 'start-screen' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'buy' | 'sell' | 'win' | 'swap' | 'game-over' | 'resume-game'
+type Screen = 'start-screen' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'buy' | 'sell' | 'win' | 'swap' | 'whale-choice' | 'game-over' | 'resume-game'
 
 interface CryptoCurrency {
   id: string
@@ -40,6 +41,7 @@ interface CryptoCurrency {
   icon: string
   volume: number
   marketCap: number
+  purchasePrice?: number  // Laatste prijs die speler heeft betaald bij aankoop
 }
 
 interface GameState {
@@ -1677,6 +1679,18 @@ export default function Home() {
       console.log('\n📊 === SERVER SCAN DATA UPDATE ===')
       console.log(`🤖 Auto scans received: ${autoScanActions.length}`)
       console.log(`👤 Player scans received: ${playerScanActions.length}`)
+      
+      // DEBUG: Log all player scans to see if forecast data is present
+      playerScanActions.forEach((scan: any, index: number) => {
+        if (scan.isForecast) {
+          console.log(`🔮 FORECAST SCAN #${index}:`, {
+            player: scan.player,
+            effect: scan.effect,
+            hasForecastData: !!scan.forecastData,
+            forecastData: scan.forecastData
+          })
+        }
+      })
 
       // Normalize timestamps to numbers and sort descending by time to ensure newest first
       const normalizeAndSort = (arr: any[] = []) =>
@@ -1744,23 +1758,10 @@ export default function Home() {
               }
             }))
           } else if (marketEffect.message.includes('Whale Alert')) {
-            const randomIndex = Math.floor(Math.random() * cryptos.length)
-            const targetCoin = cryptos[randomIndex]
-            console.log(`🐋 APPLYING WHALE ALERT: Random coin +50% → ${targetCoin?.symbol || 'unknown'}`)
-            setCryptos(prev => prev.map((crypto, index) => {
-              if (index === randomIndex) {
-                const newPrice = Math.round(crypto.price * 1.5 * 100) / 100
-                console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (+50%)`)
-                return {
-                  ...crypto,
-                  price: newPrice,
-                  change24h: 50,
-                  volume: crypto.volume * 2,
-                  marketCap: crypto.marketCap * 1.5
-                }
-              }
-              return crypto
-            }))
+            console.log(`🐋 WHALE ALERT DETECTED - Navigating to choice screen`)
+            // Navigeer direct naar whale-choice scherm (popup wordt automatisch gesloten)
+            navigateToScreen('whale-choice')
+            return // Stop verdere verwerking
           }
           
           console.log('✅ Market event applied to crypto prices!')
@@ -1859,11 +1860,14 @@ export default function Home() {
         const normalizedEventPlayer = normalizeName(newestEvent.player)
         const normalizedCurrentPlayer = normalizeName(playerName)
 
-        const isMyForecast = isForecast && normalizedEventPlayer === normalizedCurrentPlayer
-        const isOtherPlayerForecast = isForecast && normalizedEventPlayer !== '' && normalizedCurrentPlayer !== '' && normalizedEventPlayer !== normalizedCurrentPlayer
+        // Check if forecast data is present (server already filtered it)
+        const hasForecastData = !!(newestEvent as any).forecastData?.topGainer && !!(newestEvent as any).forecastData?.topLoser
+        
+        const isMyForecast = isForecast && hasForecastData
+        const isOtherPlayerForecast = isForecast && !hasForecastData
         
         console.log('🔔 NEW Event detected:', newestEvent.player, newestEvent.effect)
-        console.log('🔮 Forecast check:', { isForecast, isMyForecast, isOtherPlayerForecast })
+        console.log('🔮 Forecast check:', { isForecast, isMyForecast, isOtherPlayerForecast, hasForecastData })
         console.log('📊 Event ID:', eventId)
         console.log('📊 Event timestamp:', newestEvent.timestamp)
         console.log('📊 Current player (raw):', playerName)
@@ -1879,9 +1883,14 @@ export default function Home() {
           forecastData: (newestEvent as any).forecastData
         })
         
+        // EXTRA DEBUG: Log complete newestEvent object to see all properties
+        if (isForecast) {
+          console.log('🔮 COMPLETE FORECAST EVENT:', JSON.stringify(newestEvent, null, 2))
+        }
+        
         // CRITICAL: Handle forecast privacy
         if (isForecast) {
-          // If this is OTHER player's forecast, show eye icon ONLY
+          // If this is OTHER player's forecast (no data), show eye icon ONLY
           if (isOtherPlayerForecast) {
             const scanEffect: ScanEffect = {
               type: 'forecast',
@@ -1903,29 +1912,9 @@ export default function Home() {
             return
           }
           
-          // If this is MY forecast, check if we have forecastData
+          // If this is MY forecast with data, continue to show full forecast
           if (isMyForecast) {
-            const hasForecastData = !!(newestEvent as any).forecastData?.topGainer && !!(newestEvent as any).forecastData?.topLoser
-            console.log('🔮 MY FORECAST - Has data?', hasForecastData)
-            
-            if (!hasForecastData) {
-              console.log('❌ MY FORECAST but NO DATA - server filtering failed! Showing eye icon as fallback')
-              const scanEffect: ScanEffect = {
-                type: 'forecast',
-                cryptoSymbol: null,
-                percentage: 0,
-                message: `${newestEvent.player} bekijkt Market Forecast`,
-                icon: '👁️',
-                color: 'neon-purple'
-              }
-              setOtherPlayerEventData(scanEffect)
-              setShowOtherPlayerEvent(true)
-              setTimeout(() => {
-                setShowOtherPlayerEvent(false)
-                setOtherPlayerEventData(null)
-              }, 3000)
-              return
-            }
+            console.log('🔮 MY FORECAST with data - will show full forecast with topGainer and topLoser')
           }
         }
         
@@ -1955,7 +1944,7 @@ export default function Home() {
           cryptoSymbol: newestEvent.cryptoSymbol,
           percentage: newestEvent.percentageValue,
           message: newestEvent.effect,
-          icon: newestEvent.cryptoSymbol || '',
+          icon: eventType === 'forecast' ? '🔮' : (newestEvent.cryptoSymbol || ''),
           color: eventType === 'event' ? 
                  (newestEvent.effect.includes('Bull Run') ? 'neon-gold' :
                   newestEvent.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
@@ -2345,7 +2334,10 @@ export default function Home() {
     console.log('\n🎯 === QR SCAN EFFECT APPLIED ===')
     console.log('📊 Effect:', effect)
     
-    // STEP 1: EVENT effects (Bull Run, Market Crash, Whale Alert)
+    // Whale Alert wordt nu behandeld binnen de EventPopup component
+    // Geen navigatie naar apart scherm meer
+    
+    // STEP 2: EVENT effects (Bull Run, Market Crash)
     // Marktprijzen worden ALLEEN via server scanData (handleScanDataUpdate) aangepast,
     // zodat elke client dezelfde +/‑% ziet en we geen dubbele toepassing krijgen.
     if (effect.type === 'event') {
@@ -2354,7 +2346,6 @@ export default function Home() {
       console.log('🔍 Effect message:', JSON.stringify(effect.message))
       console.log('🔍 Contains "Market Crash"?', effect.message.includes('Market Crash'))
       console.log('🔍 Contains "Bull Run"?', effect.message.includes('Bull Run'))
-      console.log('🔍 Contains "Whale Alert"?', effect.message.includes('Whale Alert'))
       // Geen lokale prijsaanpassing hier: server past markt aan en stuurt scanData/update,
       // die in handleScanDataUpdate de nieuwe prijzen doorvoert voor alle spelers.
     }
@@ -3009,7 +3000,12 @@ export default function Home() {
                   const newCash = Math.round((cashBalance - cost) * 100) / 100
                   if (newCash < 0) return
 
-                  const newCryptos = cryptos.map(c => c.symbol === symbol ? { ...c, amount: c.amount + quantity } : c)
+                  // Update crypto met nieuwe amount EN sla aankoopprijs op
+                  const newCryptos = cryptos.map(c => c.symbol === symbol ? { 
+                    ...c, 
+                    amount: c.amount + quantity,
+                    purchasePrice: selected.price  // Sla huidige prijs op als aankoopprijs
+                  } : c)
                   setCryptos(newCryptos)
                   setCashBalance(newCash)
 
@@ -3069,7 +3065,18 @@ export default function Home() {
                   if (!coin) return
                   const revenue = Math.round(coin.price * amountToSell * 100) / 100
 
-                  const newCryptos = cryptos.map(c => c.id === cryptoId ? { ...c, amount: Math.max(0, c.amount - amountToSell) } : c)
+                  const newCryptos = cryptos.map(c => {
+                    if (c.id === cryptoId) {
+                      const newAmount = Math.max(0, c.amount - amountToSell)
+                      // Verwijder purchasePrice als alle coins verkocht zijn
+                      if (newAmount === 0) {
+                        const { purchasePrice, ...rest } = c
+                        return { ...rest, amount: 0 }
+                      }
+                      return { ...c, amount: newAmount }
+                    }
+                    return c
+                  })
                   const newCash = Math.round((cashBalance + revenue) * 100) / 100
                   setCryptos(newCryptos)
                   setCashBalance(newCash)
@@ -3283,6 +3290,54 @@ export default function Home() {
                   }
 
                   console.log(`✅ Player won €1000 via Goudhaantje`)
+                }}
+              />
+            )
+            
+          case 'whale-choice':
+            return (
+              <WhaleChoice
+                cryptos={cryptos}
+                onSelectCrypto={(symbol: string, direction: 'up' | 'down') => {
+                  const multiplier = direction === 'up' ? 1.5 : 0.5
+                  const percentage = direction === 'up' ? 50 : -50
+                  console.log(`🐋 Player selected ${symbol} for ${direction === 'up' ? '+' : ''}${percentage}% whale boost`)
+                  
+                  // Pas percentage toe op gekozen crypto
+                  setCryptos(prev => prev.map(crypto => {
+                    if (crypto.symbol === symbol) {
+                      const newPrice = Math.round(crypto.price * multiplier * 100) / 100
+                      console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (${direction === 'up' ? '+' : ''}${percentage}%)`)
+                      return {
+                        ...crypto,
+                        price: newPrice,
+                        change24h: percentage,
+                        volume: crypto.volume * (direction === 'up' ? 2 : 0.5),
+                        marketCap: crypto.marketCap * multiplier
+                      }
+                    }
+                    return crypto
+                  }))
+                  
+                  // Broadcast whale alert met gekozen crypto naar andere spelers
+                  if (socket && roomId) {
+                    socket.emit('market:priceUpdate', {
+                      roomCode: roomId,
+                      cryptos: cryptos.map(crypto => {
+                        if (crypto.symbol === symbol) {
+                          return {
+                            ...crypto,
+                            price: Math.round(crypto.price * multiplier * 100) / 100,
+                            change24h: percentage
+                          }
+                        }
+                        return crypto
+                      })
+                    })
+                  }
+                  
+                  // Ga terug naar main menu
+                  navigateToScreen('main-menu')
                 }}
               />
             )

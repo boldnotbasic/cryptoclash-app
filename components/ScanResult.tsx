@@ -8,7 +8,6 @@ interface ScanResultProps {
   onClose: () => void
   onApplyEffect: (effect: ScanEffect) => void
   externalScenario?: ScanEffect  // Optional: use external scenario instead of random
-  cryptos?: Array<{symbol: string, name: string, price: number, icon: string}>  // Voor whale alert selectie
 }
 
 export interface ScanEffect {
@@ -99,7 +98,31 @@ const scanScenarios: ScanScenarioTemplate[] = [
     icon: '🎵',
     color: 'neon-gold'
   },
-  // Forecast events worden niet via deze template gebruikt - server genereert ze apart
+  {
+    type: 'event',
+    minPercentage: 5,
+    maxPercentage: 5,
+    baseMessage: 'Bull Run!',
+    icon: '🚀',
+    color: 'neon-gold'
+  },
+  {
+    type: 'event',
+    minPercentage: -10,
+    maxPercentage: -10,
+    baseMessage: 'Market Crash!',
+    icon: '📉',
+    color: 'red-500'
+  },
+  {
+    type: 'event',
+    minPercentage: 50,
+    maxPercentage: 50,
+    baseMessage: 'Whale Alert! {SYMBOL} {PERCENTAGE}!',
+    icon: '🐋',
+    color: 'neon-turquoise'
+  },
+  // Forecast event 3x voor hogere kans (3/12 = 25%)
   {
     type: 'forecast',
     minPercentage: 0,
@@ -126,15 +149,12 @@ const scanScenarios: ScanScenarioTemplate[] = [
   }
 ]
 
-export default function ScanResult({ onClose, onApplyEffect, externalScenario, cryptos }: ScanResultProps) {
+export default function ScanResult({ onClose, onApplyEffect, externalScenario }: ScanResultProps) {
   const [currentScenario, setCurrentScenario] = useState<ScanEffect | null>(null)
   const [isVisible, setIsVisible] = useState(false)
-  const [remainingSeconds, setRemainingSeconds] = useState(5) // Timer for forecast
   const initializedRef = useRef(false)
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const hasClosedRef = useRef(false)
-  
 
   // Simulate next 10 events to calculate top gainer and loser
   const simulateFutureEvents = (numEvents: number = 10): { topGainer: { symbol: string; percentage: number }; topLoser: { symbol: string; percentage: number } } => {
@@ -252,18 +272,14 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
   }
 
   useEffect(() => {
-    console.log('EventPopup effect triggered')
+    // React 18 StrictMode runt effects twee keer in dev; zorg dat we
+    // maar één keer een scenario kiezen en audio afspelen.
+    if (initializedRef.current) return
+    initializedRef.current = true
+    console.log('ScanResult component mounted')
     console.log('External scenario provided:', externalScenario)
-    console.log('🔮 Forecast data check in EventPopup:', {
-      type: externalScenario?.type,
-      hasTopGainer: !!externalScenario?.topGainer,
-      hasTopLoser: !!externalScenario?.topLoser,
-      topGainer: externalScenario?.topGainer,
-      topLoser: externalScenario?.topLoser
-    })
     
-    // CRITICAL: Always use externalScenario if provided (for forecast data!)
-    // Only generate random if no external scenario
+    // Use external scenario if provided, otherwise generate random
     const scenario = externalScenario || (() => {
       console.log('⚠️ No external scenario - generating random')
       const randomTemplate = scanScenarios[Math.floor(Math.random() * scanScenarios.length)]
@@ -271,35 +287,22 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
     })()
     
     console.log('Selected scenario:', scenario)
-    console.log('🔮 Final scenario forecast data:', {
-      hasTopGainer: !!scenario.topGainer,
-      hasTopLoser: !!scenario.topLoser,
-      topGainer: scenario.topGainer,
-      topLoser: scenario.topLoser
-    })
-    console.log('🐋 WHALE ALERT DEBUG:', {
-      message: scenario.message,
-      includesWhaleAlert: scenario.message.includes('Whale Alert'),
-      type: scenario.type,
-      scenario
-    })
-    
     setCurrentScenario(scenario)
 
-    // Show animation
-    if (!initializedRef.current) {
-      initializedRef.current = true
-      setTimeout(() => {
-        console.log('Setting visible to true')
-        setIsVisible(true)
-      }, 100)
-    } else {
-      // If already initialized, show immediately
-      setIsVisible(true)
+    // Audio uitgeschakeld: geen geluid meer bij events
+    const playAudio = async () => {
+      return
     }
     
+    // Show animation
+    setTimeout(async () => {
+      console.log('Setting visible to true')
+      setIsVisible(true)
+      await playAudio()
+    }, 100)
+    
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [externalScenario]) // Re-run when externalScenario changes!
+  }, []) // Only run once on mount
 
   // Separate effect for auto-close timer that depends on currentScenario being set
   useEffect(() => {
@@ -307,74 +310,37 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
     
     console.log('🕒 Starting auto-close timer for scenario:', currentScenario.message)
     
-    // Clear any existing timers
+    // Clear any existing timer
     if (autoCloseTimerRef.current) {
       clearTimeout(autoCloseTimerRef.current)
     }
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current)
-    }
     
-    // Forecast events: 5 seconds with countdown, others: 3 seconds
+    // Forecast events stay longer (5 seconds), others 3 seconds
     const displayTime = currentScenario.type === 'forecast' ? 5000 : 3000
     
-    // Start countdown for forecast
-    if (currentScenario.type === 'forecast') {
-      setRemainingSeconds(5)
-      let countdownValue = 5
-      countdownIntervalRef.current = setInterval(() => {
-        countdownValue -= 1
-        setRemainingSeconds(countdownValue)
-        
-        // When countdown reaches 0, close the popup
-        if (countdownValue <= 0) {
-          if (countdownIntervalRef.current) {
-            clearInterval(countdownIntervalRef.current)
-          }
-          
-          if (!hasClosedRef.current) {
-            console.log('🔥 Timer reached 0 - CLOSING forecast popup')
-            hasClosedRef.current = true
-            setIsVisible(false)
-            
-            setTimeout(() => {
-              console.log('🔥 APPLYING EFFECT and closing')
-              onApplyEffect(currentScenario)
-              onClose()
-            }, 300)
-          }
-        }
-      }, 1000)
-    } else {
-      // For non-forecast events, use the old timer logic
-      autoCloseTimerRef.current = setTimeout(() => {
-        if (hasClosedRef.current) {
-          console.log('⚠️ Already closed, skipping')
-          return
-        }
-        
-        console.log('🔥 FORCE CLOSING scan result NOW')
-        hasClosedRef.current = true
-        setIsVisible(false)
-        
-        setTimeout(() => {
-          console.log('🔥 APPLYING EFFECT and closing')
-          onApplyEffect(currentScenario)
-          onClose()
-        }, 300)
-      }, displayTime + 100) // 100ms fade-in + display time
-    }
+    autoCloseTimerRef.current = setTimeout(() => {
+      if (hasClosedRef.current) {
+        console.log('⚠️ Already closed, skipping')
+        return
+      }
+      
+      console.log('🔥 FORCE CLOSING scan result NOW')
+      hasClosedRef.current = true
+      setIsVisible(false)
+      
+      setTimeout(() => {
+        console.log('🔥 APPLYING EFFECT and closing')
+        onApplyEffect(currentScenario)
+        onClose()
+      }, 300)
+    }, displayTime + 100) // 100ms fade-in + display time
 
-    // Cleanup: only clear timers on unmount, not on re-render
+    // Cleanup: only clear timer on unmount, not on re-render
     return () => {
-      console.log('🧹 Component unmounting, clearing timers')
+      console.log('🧹 Component unmounting, clearing timer')
       if (autoCloseTimerRef.current) {
         clearTimeout(autoCloseTimerRef.current)
         autoCloseTimerRef.current = null
-      }
-      if (countdownIntervalRef.current) {
-        clearInterval(countdownIntervalRef.current)
-        countdownIntervalRef.current = null
       }
     }
   }, [currentScenario])
@@ -462,11 +428,11 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">     
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">     
       <div className={`transform transition-all duration-500 ${
         isVisible ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
       }`}>
-        <div className={`crypto-card ${getBorderColor()} bg-gradient-to-br ${getBackgroundColor()} max-w-md w-full text-center p-8 relative`}>
+        <div className={`crypto-card ${getBorderColor()} bg-gradient-to-br ${getBackgroundColor()} max-w-md w-full text-center p-8`}>
 
           {/* Crypto Icon */}
           <div className="mb-6">
@@ -522,13 +488,9 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
           <div className="mb-6">
             {/* Show message for forecast AND market-wide events (Bull Run, Market Crash, Whale Alert) */}
             {(currentScenario.type === 'forecast' || currentScenario.type === 'event') && (
-              <div className="flex items-center justify-center">
-                <h3 className={`text-3xl font-bold ${getTextColor()}`}>
-                  {currentScenario.message.includes('Bull Run') ? 'Bull Run!' : 
-                   currentScenario.message.includes('Market Crash') ? 'Market Crash!' : 
-                   currentScenario.message}
-                </h3>
-              </div>
+              <h3 className={`text-3xl font-bold ${getTextColor()} mb-2`}>
+                {currentScenario.message}
+              </h3>
             )}
             
             {/* Forecast: Show top gainer and loser */}
@@ -556,7 +518,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
                       })()}
                       <div className="text-left">
                         <div className="text-white font-bold">{cryptoNames[currentScenario.topGainer.symbol] || currentScenario.topGainer.symbol}</div>
-                        <div className="text-xs text-gray-400">Aankomende Stijger</div>
+                        <div className="text-xs text-gray-400">Sterkste Stijger</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -590,7 +552,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
                       })()}
                       <div className="text-left">
                         <div className="text-white font-bold">{cryptoNames[currentScenario.topLoser.symbol] || currentScenario.topLoser.symbol}</div>
-                        <div className="text-xs text-gray-400">Aankomende Daler</div>
+                        <div className="text-xs text-gray-400">Sterkste Daler</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -604,52 +566,35 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
               </div>
             )}
 
-            {/* Regular percentage display for non-forecast events - EXCLUDE whale alerts */}
-            {currentScenario.type !== 'forecast' && currentScenario.percentage && !currentScenario.message.includes('Whale Alert') && (
-              <div className="flex flex-col items-center justify-center mt-2">
-                <div className="flex items-center space-x-3">
-                  {currentScenario.percentage > 0 ? (
-                    <TrendingUp className="w-8 h-8 text-green-400" />
-                  ) : (
-                    <TrendingDown className="w-8 h-8 text-red-400" />
-                  )}
-                  <span className={`text-4xl font-bold ${
-                    currentScenario.percentage > 0 ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {currentScenario.percentage > 0 ? '+' : ''}{currentScenario.percentage}%
-                  </span>
-                </div>
-                {/* Show "Alle munten" for Bull Run and Market Crash */}
-                {(currentScenario.message.includes('Bull Run') || currentScenario.message.includes('Market Crash')) && (
-                  <div className="text-lg text-gray-300 mt-2">Alle munten</div>
+            {/* Regular percentage display for non-forecast events */}
+            {currentScenario.type !== 'forecast' && currentScenario.percentage && (
+              <div className="flex items-center justify-center space-x-3 mt-2">
+                {currentScenario.percentage > 0 ? (
+                  <TrendingUp className="w-8 h-8 text-green-400" />
+                ) : (
+                  <TrendingDown className="w-8 h-8 text-red-400" />
                 )}
+                <span className={`text-4xl font-bold ${
+                  currentScenario.percentage > 0 ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {currentScenario.percentage > 0 ? '+' : ''}{currentScenario.percentage}%
+                </span>
               </div>
             )}
           </div>
 
 
 
-          {/* Auto-close indicator with timer */}
-          {(
-            <div className="w-full flex items-center gap-3">
-              {/* Timer for forecast - positioned next to progress bar */}
-              {currentScenario.type === 'forecast' && (
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-neon-purple/20 border-2 border-neon-purple flex-shrink-0">
-                  <span className="text-lg font-bold text-neon-purple">{remainingSeconds}</span>
-                </div>
-              )}
-              
-              {/* Progress bar */}
-              <div className="flex-1">
-                <div className="w-full bg-gray-700 rounded-full h-1">
-                  <div 
-                    className="bg-neon-gold h-1 rounded-full transition-all duration-5000 ease-linear"
-                    style={{ width: isVisible ? '0%' : '100%' }}
-                  ></div>
-                </div>
-              </div>
+          {/* Auto-close indicator */}
+          <div className="text-gray-400 text-sm">
+            <div className="w-full bg-gray-700 rounded-full h-1 mb-2">
+              <div 
+                className="bg-neon-gold h-1 rounded-full transition-all duration-5000 ease-linear"
+                style={{ width: isVisible ? '0%' : '100%' }}
+              ></div>
             </div>
-          )}
+            Wordt automatisch toegepast...
+          </div>
         </div>
       </div>
     </div>
