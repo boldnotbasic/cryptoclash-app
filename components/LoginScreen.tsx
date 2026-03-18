@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Zap, Coins, TrendingUp, RefreshCw, ArrowLeft, Camera, X } from 'lucide-react'
+import { Coins, TrendingUp, RefreshCw, ArrowLeft, QrCode, X } from 'lucide-react'
 import QrScanner from 'qr-scanner'
 
 // List of 20 random avatars
@@ -168,6 +168,29 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
             </div>
             
             <form onSubmit={handleRoomCodeSubmit} className="space-y-6">
+              {/* QR Scan Button - Bovenaan */}
+              <button
+                type="button"
+                onClick={() => {
+                  setScanMethod('camera')
+                  startScanner()
+                }}
+                className="w-full py-4 px-4 bg-neon-gold/20 hover:bg-neon-gold/30 border-2 border-neon-gold/50 text-neon-gold rounded-lg font-bold transition-all hover:scale-[1.02] flex items-center justify-center gap-3 shadow-[0_0_15px_rgba(251,191,36,0.3)]"
+              >
+                <QrCode className="w-6 h-6" />
+                <span className="text-lg">Scan QR Code</span>
+              </button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-600"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-dark-bg text-gray-400">of</span>
+                </div>
+              </div>
+
+              {/* Manual Code Input - Onder 'of' lijn */}
               <div>
                 <label htmlFor="roomCode" className="block text-sm font-medium text-gray-300 mb-2">
                   Voer de lobby code in:
@@ -182,37 +205,6 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
                   maxLength={6}
                   required
                 />
-              </div>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-600"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-dark-bg text-gray-400">of</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setScanMethod('camera')
-                    startScanner()
-                  }}
-                  className="py-3 px-4 bg-neon-gold/20 hover:bg-neon-gold/30 border border-neon-gold/50 text-neon-gold rounded-lg font-semibold transition-colors flex flex-col items-center justify-center gap-1"
-                >
-                  <Camera className="w-5 h-5" />
-                  <span className="text-xs">Camera</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="py-3 px-4 bg-neon-purple/20 hover:bg-neon-purple/30 border border-neon-purple/50 text-neon-purple rounded-lg font-semibold transition-colors flex flex-col items-center justify-center gap-1"
-                >
-                  <Zap className="w-5 h-5" />
-                  <span className="text-xs">Upload QR</span>
-                </button>
               </div>
               <input
                 ref={fileInputRef}
