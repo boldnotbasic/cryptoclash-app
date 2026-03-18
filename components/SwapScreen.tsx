@@ -309,7 +309,7 @@ export default function SwapScreen({
 
         {/* Confirmation Modal */}
         {showConfirmation && myCrypto && otherCrypto && selectedPlayer && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
             <div className="relative max-w-md w-full">
               {/* Gradient border top */}
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-neon-purple via-neon-gold to-neon-purple rounded-t-2xl"></div>

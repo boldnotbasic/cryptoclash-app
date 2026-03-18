@@ -377,7 +377,7 @@ export default function Win({
       </div>
 
       {successMessage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="crypto-card bg-dark-bg/95 border border-neon-gold/40 max-w-xs w-full text-center p-6">
             <h3 className="text-xl font-bold text-white mb-2">Gefeliciteerd!</h3>
             <p className="text-gray-300 mb-4">{successMessage}</p>

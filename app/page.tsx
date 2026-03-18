@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Image from 'next/image'
 import StartScreen from '@/components/StartScreen'
 import LoginScreen from '@/components/LoginScreen'
+import { playPositiveSound, playNegativeSound, playEventSound } from '@/utils/soundEffects'
 import GameSetup from '@/components/GameSetup'
 import HostSetup from '@/components/HostSetup'
 import RoleSelection from '@/components/RoleSelection'
@@ -71,7 +72,7 @@ export default function Home() {
   const [swapNotification, setSwapNotification] = useState<{ id: string, message: string, fromPlayerName: string, fromPlayerAvatar: string, receivedCrypto: string, lostCrypto: string } | null>(null)
   const [showOtherPlayerEvent, setShowOtherPlayerEvent] = useState<boolean>(false)
   const [otherPlayerEventData, setOtherPlayerEventData] = useState<ScanEffect | null>(null)
-  const [currentYear, setCurrentYear] = useState<number>(2024)
+  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear())
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
   const [isFirstTurn, setIsFirstTurn] = useState<boolean>(true) // Track if this is the first turn
@@ -191,6 +192,9 @@ export default function Home() {
   // Scan actions state
   const [playerScanActions, setPlayerScanActions] = useState<any[]>([])
   const [autoScanActions, setAutoScanActions] = useState<any[]>([])
+  
+  // Price history for candlestick charts
+  const [priceHistory, setPriceHistory] = useState<Record<string, Array<{percentage: number, timestamp: number}>>>({})
   
   // Dynamic players data based on room players
   const [players, setPlayers] = useState<any[]>([])
@@ -331,7 +335,7 @@ export default function Home() {
       name: 'DigiSheep',
       symbol: 'DSHEEP',
       price: 1420.75,
-      change24h: 7.3,
+      change24h: 0,
       amount: 1.0,
       color: 'neon-purple',
       icon: '🐑',
@@ -343,7 +347,7 @@ export default function Home() {
       name: 'Nugget',
       symbol: 'NGT',
       price: 3250.90,
-      change24h: -1.8,
+      change24h: 0,
       amount: 0,
       color: 'neon-blue',
       icon: '🐔',
@@ -355,7 +359,7 @@ export default function Home() {
       name: 'Lentra',
       symbol: 'LNTR',
       price: 685.40,
-      change24h: 12.1,
+      change24h: 0,
       amount: 0,
       color: 'neon-turquoise',
       icon: '🌟',
@@ -367,7 +371,7 @@ export default function Home() {
       name: 'Omlet',
       symbol: 'OMLT',
       price: 890.25,
-      change24h: -3.2,
+      change24h: 0,
       amount: 1,
       color: 'neon-gold',
       icon: '🥚',
@@ -379,7 +383,7 @@ export default function Home() {
       name: 'Rex',
       symbol: 'REX',
       price: 1750.60,
-      change24h: 15.7,
+      change24h: 0,
       amount: 1,
       color: 'neon-purple',
       icon: '💫',
@@ -391,7 +395,7 @@ export default function Home() {
       name: 'Orlo',
       symbol: 'ORLO',
       price: 2340.80,
-      change24h: 4.5,
+      change24h: 0,
       amount: 0,
       color: 'neon-blue',
       icon: '🔮',
@@ -1022,6 +1026,80 @@ export default function Home() {
       socket.on('dashboard:livePlayerUpdate', handleLivePlayerUpdate)
       socket.on('player:dataSync', handlePlayerDataSync)
       
+      // Handle year undo from admin
+      socket.on('player:yearUndo', ({ playerName: undoPlayerName, actionId, cashAmount }: any) => {
+        console.log('🔄 === YEAR UNDO EVENT ===')
+        console.log('  Player to undo:', undoPlayerName)
+        console.log('  My player name:', playerName)
+        console.log('  Action ID:', actionId)
+        console.log('  Cash to deduct:', cashAmount)
+        
+        // Only process if this is for the current player
+        if (undoPlayerName === playerName) {
+          console.log('🗓️ Decreasing year for current player')
+          setCurrentYear((prev: number) => Math.max(2024, prev - 1))
+          
+          // Deduct cash balance
+          if (cashAmount) {
+            setCashBalance((prev: number) => Math.max(0, prev - cashAmount))
+            console.log(`💰 Cash reduced by €${cashAmount}`)
+          }
+          
+          // Remove the action from player scan actions
+          setPlayerScanActions((prev: any[]) => prev.filter(a => a.id !== actionId))
+          
+          console.log('✅ Year undo processed')
+        }
+        
+        console.log('🔄 === YEAR UNDO EVENT END ===')
+      })
+      
+      // Handle general undo actions (buy/sell)
+      socket.on('player:undoAction', ({ playerName: undoPlayerName, actionId, actionType, cryptoSymbol, amount, cashRefund, cashDeduction }: any) => {
+        console.log('🔄 === UNDO ACTION EVENT ===')
+        console.log('  Player to undo:', undoPlayerName)
+        console.log('  My player name:', playerName)
+        console.log('  Action ID:', actionId)
+        console.log('  Action type:', actionType)
+        console.log('  Crypto:', cryptoSymbol)
+        console.log('  Amount:', amount)
+        
+        // Only process if this is for the current player
+        if (undoPlayerName === playerName) {
+          if (actionType === 'buy') {
+            // Reverse buy: remove crypto, refund cash
+            console.log(`🛒 Reversing buy: -${amount}x ${cryptoSymbol}, +€${cashRefund}`)
+            
+            setCryptos((prev: any[]) => prev.map(c => 
+              c.symbol === cryptoSymbol 
+                ? { ...c, amount: Math.max(0, c.amount - amount) }
+                : c
+            ))
+            
+            setCashBalance((prev: number) => prev + cashRefund)
+            
+          } else if (actionType === 'sell') {
+            // Reverse sell: add crypto back, deduct cash
+            console.log(`💰 Reversing sell: +${amount}x ${cryptoSymbol}, -€${cashDeduction}`)
+            
+            setCryptos((prev: any[]) => prev.map(c => 
+              c.symbol === cryptoSymbol 
+                ? { ...c, amount: c.amount + amount }
+                : c
+            ))
+            
+            setCashBalance((prev: number) => Math.max(0, prev - cashDeduction))
+          }
+          
+          // Remove the action from player scan actions
+          setPlayerScanActions((prev: any[]) => prev.filter(a => a.id !== actionId))
+          
+          console.log('✅ Undo action processed')
+        }
+        
+        console.log('🔄 === UNDO ACTION EVENT END ===')
+      })
+      
       // Handle turn changes
       socket.on('turn:changed', ({ newTurnPlayerId, newTurnPlayerName, previousTurnPlayerId, autoAdvanced }: any) => {
         console.log('⏭️ === TURN CHANGED EVENT ===')
@@ -1217,22 +1295,6 @@ export default function Home() {
           console.warn('Failed to apply market:stateUpdate', e)
         }
       })
-      socket.on('crypto:priceUpdate', (serverPrices: Record<string, number>) => {
-        console.log('💰 Received server crypto prices:', serverPrices)
-        
-        setCryptos(prevCryptos => 
-          prevCryptos.map(crypto => {
-            const newPrice = serverPrices[crypto.symbol]
-            if (typeof newPrice !== 'number') return crypto
-
-            return {
-              ...crypto,
-              price: newPrice
-            }
-          })
-        )
-      })
-
       // 🚨 CRITICAL: Handle forced recalculation from server
       socket.on('crypto:forceRecalculation', ({ prices, timestamp, triggeredBy }: any) => {
         console.log(`🔄 FORCED RECALCULATION by ${triggeredBy} at ${new Date(timestamp).toLocaleTimeString()}`)
@@ -1275,25 +1337,32 @@ export default function Home() {
           }
         }, 100) // Small delay to ensure crypto state is updated
       })
-      
+
+      socket.on('crypto:priceHistory', (history: Record<string, Array<{percentage: number, timestamp: number}>>) => {
+        console.log('📊 Received price history update:', history)
+        setPriceHistory(history)
+      })
+
       return () => {
         socket.off('connect', handleConnect)
         socket.off('disconnect', handleDisconnect)
         socket.off('lobby:update', handleLobbyUpdate)
         socket.off('dashboard:livePlayerUpdate', handleLivePlayerUpdate)
         socket.off('player:dataSync', handlePlayerDataSync)
-        // Extra: voorkom dubbele handlers
+        socket.off('player:yearUndo')
+        socket.off('player:undoAction')
         socket.off('turn:changed')
         socket.off('player:swapReceived')
-        socket.off('market:stateUpdate')
         socket.off('game:reset')
         socket.off('game:ended')
         socket.off('test:messageReceived', handleTestMessageReceived)
+        socket.off('market:stateUpdate')
         socket.off('crypto:priceUpdate')
         socket.off('crypto:forceRecalculation')
+        socket.off('crypto:priceHistory')
       }
     }
-  }, [socket, handleLivePlayerUpdate, handlePlayerDataSync])
+  }, [socket, handleLivePlayerUpdate, handlePlayerDataSync, handleTestMessageReceived])
 
   // ALL CLIENTS push their current market snapshot once to initialize server state
   // This ensures the server knows the initial change24h values (like -3.2%, -1.8%, etc.)
@@ -1733,6 +1802,7 @@ export default function Home() {
           // Apply the market event logic (same as handleQRScan but without navigation)
           if (marketEffect.message.includes('Bull Run')) {
             console.log('🚀 APPLYING BULL RUN: All coins +5%')
+            playPositiveSound()
             setCryptos(prev => prev.map(crypto => {
               const newPrice = Math.round(crypto.price * 1.05 * 100) / 100
               console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (+5%)`)
@@ -1746,6 +1816,7 @@ export default function Home() {
             }))
           } else if (marketEffect.message.includes('Market Crash')) {
             console.log('📉 APPLYING MARKET CRASH: All coins -10%')
+            playNegativeSound()
             setCryptos(prev => prev.map(crypto => {
               const newPrice = Math.round(crypto.price * 0.9 * 100) / 100
               console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (-10%)`)
@@ -1812,17 +1883,15 @@ export default function Home() {
 
       // Show event ONLY if it's NEW (not already shown)
       // CRITICAL: Find the ABSOLUTE NEWEST event across ALL scans
-      const allScansForPopup = [...normPlayer, ...normAuto]
+      // For Market Dashboard (host): show both player AND auto events
+      // For Player screens: show ONLY player events (filter out auto beurs events)
+      const allScansForPopup = isHost 
+        ? [...normPlayer, ...normAuto]  // Market Dashboard: both
+        : [...normPlayer]  // Player screens: only player events
+      
       const newestEvent = allScansForPopup.sort((a, b) => b.timestamp - a.timestamp)[0]
       
       if (newestEvent && newestEvent.player && newestEvent.effect) {
-        // CRITICAL: Only show pop-ups for EVENTS, not for buy/sell actions
-        const isEventAction = newestEvent.action && (
-          newestEvent.action.includes('Test Scan') || 
-          newestEvent.action.includes('Kans') ||
-          newestEvent.action.includes('Event')
-        )
-        
         // Skip buy/sell/win actions - they should NOT trigger pop-ups
         if (newestEvent.action && (
           newestEvent.action.includes('Koop') || 
@@ -1833,6 +1902,24 @@ export default function Home() {
           (newestEvent as any).isWinAction === true
         )) {
           console.log('⏭️ Skipping buy/sell/win action, no pop-up:', newestEvent.action)
+          return
+        }
+        
+        // ONLY block Bot automatic market events on player screens
+        if (!isHost && newestEvent.player === 'Bot') {
+          console.log('🚫 BLOCKED Bot auto event on Player Screen:', newestEvent.effect)
+          return
+        }
+        
+        // Only show pop-ups for actual game events (Test Scan, Kans, Event)
+        const isEventAction = newestEvent.action && (
+          newestEvent.action.includes('Test Scan') || 
+          newestEvent.action.includes('Kans') ||
+          newestEvent.action.includes('Event')
+        )
+        
+        if (!isEventAction) {
+          console.log('⏭️ Not an event action, skipping popup:', newestEvent.action)
           return
         }
         
@@ -1970,6 +2057,10 @@ export default function Home() {
         
         setOtherPlayerEventData(scanEffect)
         setShowOtherPlayerEvent(true)
+        
+        // Play sound based on event effect
+        console.log('🔊 Playing sound for event:', scanEffect.message)
+        playEventSound(scanEffect.message)
         
         // Auto-close after component handles it
         // Forecast: 5 seconds (with timer), other events: 4 seconds
@@ -2197,23 +2288,24 @@ export default function Home() {
     navigateToScreen('main-menu')
   }
 
-  const handleLogin = (name: string, avatar: string) => {
+  const handleLogin = (name: string, avatar: string, roomCode: string) => {
     setPlayerName(name)
     setPlayerAvatar(avatar)
+    setRoomId(roomCode)
     
     // Save session data including room info for potential rejoin
     const sessionData = {
       playerName: name,
       playerAvatar: avatar,
-      roomId: roomId,
-      isHost: isHost,
+      roomId: roomCode,
+      isHost: false,
       timestamp: Date.now(),
-      lastRoomId: roomId // Keep track of last room for rejoin
+      lastRoomId: roomCode
     }
     localStorage.setItem('cryptoClashSession', JSON.stringify(sessionData))
     
-    // Only players use login - they go to room join
-    navigateToScreen('player-login')
+    // Navigate to waiting room with the room code
+    navigateToScreen('waiting-room')
   }
 
   const handleStartGame = (startYear: number, gameDuration: number, language: string) => {
@@ -2374,13 +2466,24 @@ export default function Home() {
         id: Date.now().toString(),
         timestamp: Date.now(),
         player: playerName,
-        action: 'Event',
+        action: effect.type === 'forecast' ? 'Kans - Market Forecast' : 'Kans',
         effect: effectText,
         avatar: playerAvatar,
         cryptoSymbol: effect.cryptoSymbol,
-        percentageValue: effect.percentage
+        percentageValue: effect.percentage,
+        isForecast: effect.type === 'forecast',
+        forecastData: effect.type === 'forecast' ? { topGainer: effect.topGainer, topLoser: effect.topLoser } : undefined
       }
       setPlayerScanActions(prev => [newScanAction, ...prev.slice(0, 9)])
+      
+      // Play sound based on event type
+      if (effect.percentage !== undefined) {
+        if (effect.percentage > 0) {
+          playPositiveSound()
+        } else if (effect.percentage < 0) {
+          playNegativeSound()
+        }
+      }
       
       // Apply portfolio effects for single-coin boost/crash
       // Skip when effect is marked as marketOnly (e.g., Kans events should not modify portfolio)
@@ -2652,6 +2755,7 @@ export default function Home() {
 
 
   return (
+    <>
     <div className="min-h-screen bg-dark-bg text-white">
       {/* Render the current screen */}
       {(() => {
@@ -2697,7 +2801,7 @@ export default function Home() {
             )
             
           case 'login':
-            return <LoginScreen onLogin={handleLogin} onBack={() => setCurrentScreen('start-screen')} />
+            return <LoginScreen onLogin={handleLogin} onBack={() => setCurrentScreen('start-screen')} room={room} />
             
           case 'game-setup':
             return (
@@ -2716,34 +2820,61 @@ export default function Home() {
                 year={currentYear}
                 onPassStart={() => {
                   try {
-                    console.log('🎯 onPassStart called - gameState:', gameState)
+                    console.log('\n🎯 === START BONUS CLICKED ===')
+                    console.log('🎯 gameState:', JSON.stringify(gameState))
                     console.log('🎯 currentYear:', currentYear)
                     console.log('🎯 isGameFinishedForPlayer:', isGameFinishedForPlayer)
                     
-                    // Check EERST of speler al alle jaren heeft gespeeld
+                    // CRITICAL: Check if player has already finished
+                    if (isGameFinishedForPlayer) {
+                      console.log('🛑 Player already finished - blocking action')
+                      return
+                    }
+                    
+                    // Check ALLEEN als gameState bestaat EN compleet is
                     if (gameState && typeof gameState.startYear === 'number' && typeof gameState.gameDuration === 'number') {
-                      const yearsCompleted = currentYear - gameState.startYear + 1
-                      console.log(`🔍 Years check: startYear=${gameState.startYear}, currentYear=${currentYear}, yearsCompleted=${yearsCompleted}, gameDuration=${gameState.gameDuration}`)
+                      // Bereken hoeveel jaren we NU al hebben gespeeld (VOOR de increment)
+                      const yearsPlayedSoFar = currentYear - gameState.startYear
+                      console.log(`🔍 BEFORE increment check:`)
+                      console.log(`   startYear: ${gameState.startYear}`)
+                      console.log(`   currentYear: ${currentYear}`)
+                      console.log(`   yearsPlayedSoFar: ${yearsPlayedSoFar}`)
+                      console.log(`   gameDuration: ${gameState.gameDuration}`)
+                      console.log(`   Can we add another year? ${yearsPlayedSoFar < gameState.gameDuration}`)
                       
-                      if (yearsCompleted >= gameState.gameDuration) {
+                      // Als we al gameDuration jaren hebben gespeeld, stop
+                      // Voorbeeld: startYear=2024, gameDuration=2
+                      // - currentYear=2024: yearsPlayedSoFar=0, can add year (go to 2025) ✓
+                      // - currentYear=2025: yearsPlayedSoFar=1, can add year (go to 2026) ✓
+                      // - currentYear=2026: yearsPlayedSoFar=2, CANNOT add year (would be 3rd year) ✗
+                      if (yearsPlayedSoFar >= gameState.gameDuration) {
                         console.log('🛑 Speler heeft al alle jaren voltooid, kan niet verder')
+                        console.log(`   Je hebt ${yearsPlayedSoFar} jaar gespeeld van ${gameState.gameDuration} toegestaan`)
                         setIsGameFinishedForPlayer(true)
                         return // Stop hier, geen jaar-verhoging
                       }
                     } else {
-                      console.log('⚠️ Geen gameState gevonden of incomplete data - allowing year advance')
+                      console.log('⚠️ Geen gameState - jaren check overslaan (mag doorgaan)')
                     }
 
                   // Voeg alleen jaren toe als het spel nog loopt
+                  console.log('✅ Adding year and bonus')
                   setCashBalance(prev => Math.round((prev + 500) * 100) / 100)
                   setCurrentYear(prev => {
                     const next = prev + 1
+                    console.log(`📅 Year increment: ${prev} → ${next}`)
 
                     // Check na verhoging of dit het laatste jaar was
                     if (gameState && typeof gameState.startYear === 'number' && typeof gameState.gameDuration === 'number') {
-                      const yearsCompleted = next - gameState.startYear + 1
-                      if (yearsCompleted >= gameState.gameDuration) {
-                        console.log('🏁 Alle speeljaren afgerond voor speler', playerName, `(${yearsCompleted}/${gameState.gameDuration})`)
+                      const yearsPlayedAfterIncrement = next - gameState.startYear
+                      console.log(`🔍 AFTER increment check:`)
+                      console.log(`   next year: ${next}`)
+                      console.log(`   yearsPlayedAfterIncrement: ${yearsPlayedAfterIncrement}`)
+                      console.log(`   gameDuration: ${gameState.gameDuration}`)
+                      
+                      if (yearsPlayedAfterIncrement >= gameState.gameDuration) {
+                        console.log('🏁 Dit was het laatste toegestane jaar!')
+                        console.log(`   Je hebt nu ${yearsPlayedAfterIncrement} jaar gespeeld van ${gameState.gameDuration} toegestaan`)
                         setIsGameFinishedForPlayer(true)
                       }
                     }
@@ -2822,6 +2953,8 @@ export default function Home() {
                 dashboardToasts={dashboardToasts}
                 socket={socket}
                 onEndGame={handleEndGame}
+                isMarketDashboard={isHost}
+                externalPriceHistory={priceHistory}
               />
             )
           
@@ -2877,6 +3010,7 @@ export default function Home() {
                 onBack={() => navigateToScreen('main-menu')}
                 onSellCrypto={handleSellCrypto}
                 onEndGame={handleEndGame}
+                priceHistory={priceHistory}
               />
             )
             
@@ -2887,6 +3021,19 @@ export default function Home() {
                 currentPlayer={playerName}
                 playerAvatar={playerAvatar}
                 cryptos={cryptos}
+                priceHistory={priceHistory}
+                onEndTurnConfirm={() => {
+                  console.log('\n🔥 === END TURN CLICKED (Market) ===')
+                  if (socket && roomId) {
+                    socket.emit('turn:end', { roomCode: roomId, playerName })
+                    console.log('⏰ turn:end event emitted')
+                  } else {
+                    console.error('⏰ Cannot emit turn:end - socket or roomId missing', { socket: !!socket, roomId })
+                  }
+                  console.log('🔥 === END TURN COMPLETE ===\n')
+                  navigateToScreen('main-menu')
+                }}
+                actionsDisabled={actionsDisabled}
               />
             )
             
@@ -2992,6 +3139,18 @@ export default function Home() {
                 cryptos={cryptos}
                 cashBalance={cashBalance}
                 onBack={() => navigateToScreen('main-menu')}
+                onEndTurnConfirm={() => {
+                  console.log('\n🔥 === END TURN CLICKED (Buy) ===')
+                  if (socket && roomId) {
+                    socket.emit('turn:end', { roomCode: roomId, playerName })
+                    console.log('⏰ turn:end event emitted')
+                  } else {
+                    console.error('⏰ Cannot emit turn:end - socket or roomId missing', { socket: !!socket, roomId })
+                  }
+                  console.log('🔥 === END TURN COMPLETE ===\n')
+                  navigateToScreen('main-menu')
+                }}
+                actionsDisabled={actionsDisabled}
                 onConfirmBuy={(symbol, quantity) => {
                   // Calculate cost using current price
                   const selected = cryptos.find(c => c.symbol === symbol)
@@ -3049,6 +3208,19 @@ export default function Home() {
                 playerAvatar={playerAvatar}
                 cryptos={cryptos}
                 onBack={() => navigateToScreen('main-menu')}
+                priceHistory={priceHistory}
+                onEndTurnConfirm={() => {
+                  console.log('\n🔥 === END TURN CLICKED (Portfolio) ===')
+                  if (socket && roomId) {
+                    socket.emit('turn:end', { roomCode: roomId, playerName })
+                    console.log('⏰ turn:end event emitted')
+                  } else {
+                    console.error('⏰ Cannot emit turn:end - socket or roomId missing', { socket: !!socket, roomId })
+                  }
+                  console.log('🔥 === END TURN COMPLETE ===\n')
+                  navigateToScreen('main-menu')
+                }}
+                actionsDisabled={actionsDisabled}
               />
             )
 
@@ -3060,6 +3232,18 @@ export default function Home() {
                 cryptos={cryptos}
                 onBack={() => navigateToScreen('main-menu')}
                 showSellControls={true}
+                onEndTurnConfirm={() => {
+                  console.log('\n🔥 === END TURN CLICKED (Sell) ===')
+                  if (socket && roomId) {
+                    socket.emit('turn:end', { roomCode: roomId, playerName })
+                    console.log('⏰ turn:end event emitted')
+                  } else {
+                    console.error('⏰ Cannot emit turn:end - socket or roomId missing', { socket: !!socket, roomId })
+                  }
+                  console.log('🔥 === END TURN COMPLETE ===\n')
+                  navigateToScreen('main-menu')
+                }}
+                actionsDisabled={actionsDisabled}
                 onSellCrypto={(cryptoId: string, amountToSell: number) => {
                   const coin = cryptos.find(c => c.id === cryptoId)
                   if (!coin) return
@@ -3440,8 +3624,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Turn change notification overlay */}
-      {turnNotification && (
+      {/* Turn change notification overlay - niet tonen op Market Dashboard */}
+      {currentScreen !== 'market-dashboard' && turnNotification && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-md">
           <div className="relative w-full max-w-xl mx-4 rounded-2xl bg-dark-bg/95 border border-neon-gold/50 shadow-[0_0_40px_rgba(255,215,0,0.35)] overflow-hidden">
             {/* Top accent bar */}
@@ -3465,25 +3649,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Event from other player - show colored EventPopup tile on ALL screens */}
-      {showOtherPlayerEvent && otherPlayerEventData && (
-        <EventPopup
-          externalScenario={otherPlayerEventData}
-          onClose={() => {
-            setShowOtherPlayerEvent(false)
-            setOtherPlayerEventData(null)
-          }}
-          onApplyEffect={(effect) => {
-            console.log('Event from other player applied:', effect)
-            // Effect is already applied by server, just close
-            setShowOtherPlayerEvent(false)
-            setOtherPlayerEventData(null)
-          }}
-        />
-      )}
-
-      {/* Swap notification overlay */}
-      {swapNotification && (
+      {/* Swap notification overlay - niet tonen op Market Dashboard */}
+      {currentScreen !== 'market-dashboard' && swapNotification && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-md">
           <div className="relative w-full max-w-xl mx-4 rounded-2xl bg-dark-bg/95 border border-neon-purple/50 shadow-[0_0_40px_rgba(168,85,247,0.35)] overflow-hidden">
             {/* Top accent bar */}
@@ -3529,5 +3696,23 @@ export default function Home() {
         />
       )}
     </div>
+
+    {/* Event from other player - NIET tonen op Market Dashboard om dubbele overlay te vermijden */}
+    {currentScreen !== 'market-dashboard' && showOtherPlayerEvent && otherPlayerEventData && (
+      <EventPopup
+        externalScenario={otherPlayerEventData}
+        onClose={() => {
+          setShowOtherPlayerEvent(false)
+          setOtherPlayerEventData(null)
+        }}
+        onApplyEffect={(effect) => {
+          console.log('Event from other player applied:', effect)
+          // Effect is already applied by server, just close
+          setShowOtherPlayerEvent(false)
+          setOtherPlayerEventData(null)
+        }}
+      />
+    )}
+    </>
   )
 }

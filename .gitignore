@@ -1,3 +1,5 @@
 node_modules
 .next
 .DS_Store
+public/sounds/*.mp3
+sounds/*.mp3

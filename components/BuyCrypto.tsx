@@ -22,9 +22,11 @@ interface BuyCryptoProps {
   cashBalance: number
   onBack: () => void
   onConfirmBuy: (symbol: string, quantity: number) => void
+  onEndTurnConfirm?: () => void
+  actionsDisabled?: boolean
 }
 
-export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalance, onBack, onConfirmBuy }: BuyCryptoProps) {
+export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalance, onBack, onConfirmBuy, onEndTurnConfirm, actionsDisabled = false }: BuyCryptoProps) {
   const getCryptoImagePath = (symbol: string): string | null => {
     switch (symbol) {
       case 'DSHEEP': return '/dsheep.png'
@@ -70,7 +72,13 @@ export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalan
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 p-4">
       <div className="max-w-6xl mx-auto">
-        <Header playerName={playerName} playerAvatar={playerAvatar} onLogoClick={onBack} />
+        <Header 
+          playerName={playerName} 
+          playerAvatar={playerAvatar} 
+          onLogoClick={onBack} 
+          onEndTurnConfirm={onEndTurnConfirm}
+          actionsDisabled={actionsDisabled}
+        />
 
         <div className="crypto-card mb-4">
           <h1 className="text-2xl font-bold text-white">Kopen</h1>
@@ -235,7 +243,7 @@ export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalan
       </div>
 
       {successMessage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="crypto-card bg-dark-bg/95 border border-neon-gold/40 max-w-xs w-full text-center p-6">
             <h3 className="text-xl font-bold text-white mb-2">Aankoop bevestigd</h3>
             <p className="text-gray-300 mb-4">{successMessage}</p>

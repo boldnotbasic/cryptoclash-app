@@ -72,24 +72,28 @@ export default function TurnTimer({
   // Reversed: start from full circle and decrease
   const strokeDashoffset = circumference * (1 - percentage / 100)
 
+  const smallRadius = 40
+  const smallCircumference = 2 * Math.PI * smallRadius
+  const smallStrokeDashoffset = smallCircumference * (1 - percentage / 100)
+
   return (
-    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-30">
+    <div className="fixed left-2 sm:left-6 top-1/2 transform -translate-y-1/2 z-30">
       {/* Blurred background */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-md rounded-full transform scale-110" />
       
-      {/* Timer container - kleiner gemaakt */}
-      <div className={`relative w-36 h-36 ${isWarning ? 'animate-pulse' : ''}`}>
+      {/* Timer container - responsive size */}
+      <div className={`relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 ${isWarning ? 'animate-pulse' : ''}`}>
         {/* Progress circle on the outside */}
-        <svg className="w-full h-full transform -rotate-90">
+        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 96 96">
           <circle
-            cx="72"
-            cy="72"
-            r={radius}
+            cx="48"
+            cy="48"
+            r={smallRadius}
             stroke="currentColor"
-            strokeWidth="8"
+            strokeWidth="5"
             fill="none"
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
+            strokeDasharray={smallCircumference}
+            strokeDashoffset={smallStrokeDashoffset}
             className={`transition-all duration-1000 ease-linear ${
               isWarning ? 'text-red-500' : 'text-neon-purple'
             }`}
@@ -99,12 +103,12 @@ export default function TurnTimer({
         
         {/* Timer text in center */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={`text-4xl font-bold ${
+          <span className={`text-xl sm:text-2xl md:text-3xl font-bold ${
             isWarning ? 'text-red-400' : 'text-white'
           }`}>
             {timeLeft}
           </span>
-          <span className="text-xs text-gray-400 mt-1">sec</span>
+          <span className="text-[8px] sm:text-[9px] md:text-[10px] text-gray-400 uppercase tracking-wide">sec</span>
         </div>
       </div>
     </div>

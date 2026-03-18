@@ -17,6 +17,7 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
   const [gameDuration, setGameDuration] = useState(1)
   const [volatility, setVolatility] = useState('medium')
   const [startingCash, setStartingCash] = useState(1000)
+  const [marketStartMode, setMarketStartMode] = useState<'zero' | 'random'>('zero')
   const [copied, setCopied] = useState(false)
   const [step, setStep] = useState(1) // 1: Room ID, 2: Settings
   const [isCreatingRoom, setIsCreatingRoom] = useState(false)
@@ -127,7 +128,7 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
       
       if (connected) {
         // Create room via Socket.io - navigation happens in useEffect when room is created
-        const settings = { volatility, gameDuration, startingCash }
+        const settings = { volatility, gameDuration, startingCash, marketStartMode }
         createRoom(roomId, hostName, hostAvatar, settings)
         
         // Fallback timeout in case Socket.io doesn't respond
@@ -417,6 +418,77 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                     <div className="text-sm opacity-80">{preset.description}</div>
                   </button>
                 ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Market Start Mode Selection */}
+          <div className="crypto-card">
+            <div className="flex items-center space-x-3 mb-6">
+              <span className="text-2xl">📊</span>
+              <h2 className="text-2xl font-bold text-white">Markt Start Modus</h2>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <button
+                type="button"
+                onClick={() => setMarketStartMode('zero')}
+                className={`p-6 rounded-lg border-2 transition-all duration-200 text-center ${
+                  marketStartMode === 'zero'
+                    ? 'border-neon-turquoise bg-neon-turquoise/20 text-neon-turquoise'
+                    : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
+                }`}
+              >
+                <div className="text-3xl mb-3">🎯</div>
+                <div className="text-xl font-bold mb-2">0% Start</div>
+                <div className="text-sm opacity-80 leading-relaxed">
+                  Alle coins beginnen op 0%<br/>
+                  <span className="text-xs">Duidelijk referentiepunt</span>
+                </div>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setMarketStartMode('random')}
+                className={`p-6 rounded-lg border-2 transition-all duration-200 text-center ${
+                  marketStartMode === 'random'
+                    ? 'border-neon-purple bg-neon-purple/20 text-neon-purple'
+                    : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
+                }`}
+              >
+                <div className="text-3xl mb-3">🎲</div>
+                <div className="text-xl font-bold mb-2">Random Start</div>
+                <div className="text-sm opacity-80 leading-relaxed">
+                  Coins starten met percentages<br/>
+                  <span className="text-xs">Meer variatie & strategie</span>
+                </div>
+              </button>
+            </div>
+            
+            <div className={`border rounded-lg p-4 ${
+              marketStartMode === 'zero' 
+                ? 'bg-neon-turquoise/10 border-neon-turquoise/30' 
+                : 'bg-neon-purple/10 border-neon-purple/30'
+            }`}>
+              <p className={`font-semibold text-sm mb-2 ${
+                marketStartMode === 'zero' ? 'text-neon-turquoise' : 'text-neon-purple'
+              }`}>
+                💡 {marketStartMode === 'zero' ? '0% Start Info' : 'Random Start Info'}
+              </p>
+              <div className="space-y-1 text-gray-300 text-sm">
+                {marketStartMode === 'zero' ? (
+                  <>
+                    <p>• Alle coins beginnen op 0% voor een eerlijke start</p>
+                    <p>• Spelers zien direct hun impact vanaf beurt 1</p>
+                    <p>• Ideaal voor beginners en korte spellen</p>
+                  </>
+                ) : (
+                  <>
+                    <p>• Coins starten met random percentages (-10% tot +10%)</p>
+                    <p>• Meer strategische keuzes vanaf het begin</p>
+                    <p>• Realistischer markt gevoel</p>
+                  </>
+                )}
               </div>
             </div>
           </div>

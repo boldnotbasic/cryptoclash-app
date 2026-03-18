@@ -25,6 +25,8 @@ const activityIntervals = {}
 const roomScanCount = {}
 // Pre-generated next 10 events per room for accurate forecast
 const roomUpcomingEvents = {}
+// Track price history per room per crypto (last 10 changes)
+const roomPriceHistory = {}
 
 // Track per-player cleanup timers for disconnected players
 const playerCleanupTimers = new Map()
@@ -43,15 +45,15 @@ const globalCryptoPrices = {
   ORLO: 2340.80
 }
 
-// 🚨 CRITICAL: Default market change24h values (matches client-side initial values)
-// This prevents using || 0 when clients haven't synced yet
+// 🚨 CRITICAL: Default market change24h values - ALL START AT 0%
+// All coins begin at 0% for a clean, fair start
 const defaultMarketChange24h = {
-  DSHEEP: 7.3,
-  NGT: -1.8,
-  LNTR: 12.1,
-  OMLT: -3.2,
-  REX: 15.7,
-  ORLO: 4.5
+  DSHEEP: 0,
+  NGT: 0,
+  LNTR: 0,
+  OMLT: 0,
+  REX: 0,
+  ORLO: 0
 }
 
 // 🚨 CRITICAL: Centralized scan data per room - SERVER SOURCE OF TRUTH
@@ -285,6 +287,15 @@ function startActivityInterval(roomCode, socketIo) {
         const newPrice = oldPrice * (1 + percentage / 100)
         globalCryptoPrices[randomCrypto] = Math.max(0.01, Math.round(newPrice * 100) / 100)
         
+        // Track price history for candlestick chart
+        if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][randomCrypto]) {
+          roomPriceHistory[roomCode][randomCrypto].push({ percentage: percentage, timestamp: Date.now() })
+          if (roomPriceHistory[roomCode][randomCrypto].length > 10) {
+            roomPriceHistory[roomCode][randomCrypto].shift()
+          }
+          console.log(`📊 BOT EVENT: ${randomCrypto} price history updated (${percentage > 0 ? '+' : ''}${percentage}%) - now ${roomPriceHistory[roomCode][randomCrypto].length} events`)
+        }
+        
         console.log(`📈 LIVE BEURS PRICE UPDATE: ${randomCrypto} ${oldPrice.toFixed(2)} → ${globalCryptoPrices[randomCrypto].toFixed(2)} (${percentage > 0 ? '+' : ''}${percentage}%)`)
       }
       
@@ -301,6 +312,7 @@ function startActivityInterval(roomCode, socketIo) {
       
       // Broadcast updated crypto prices first
       socketIo.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
+      socketIo.to(roomCode).emit('crypto:priceHistory', roomPriceHistory[roomCode] || {})
       
       // Then broadcast the activity with updated scan data
       // Sanitize any legacy entries before emitting
@@ -581,6 +593,16 @@ app.prepare().then(() => {
       // Create room if doesn't exist
       if (!rooms[roomCode]) {
         rooms[roomCode] = { code: roomCode, players: {}, started: false, settings: settings || {}, playerOrder: [], currentTurnPlayerId: null, timerEnabled: true }
+        
+        // Initialize price history for this room
+        roomPriceHistory[roomCode] = {
+          DSHEEP: [],
+          NGT: [],
+          LNTR: [],
+          OMLT: [],
+          REX: [],
+          ORLO: []
+        }
       }
       
       // Cancel any pending cleanup for this room
@@ -726,10 +748,18 @@ app.prepare().then(() => {
         
         console.log(`✅ ${playerName} successfully rejoined with preserved data`)
       } else {
+        // Check if avatar is already taken by another player
+        const avatarTaken = Object.values(room.players).some(p => p.avatar === playerAvatar)
+        if (avatarTaken) {
+          socket.emit('player:joinError', `Avatar ${playerAvatar} is al in gebruik. Kies een andere avatar.`)
+          console.log(`❌ Avatar ${playerAvatar} already taken in room ${roomCode}`)
+          return
+        }
+        
         // Check if it's a completely new player with existing name
-        const nameExists = Object.values(room.players).some(p => p.name === playerName && p.avatar === playerAvatar)
+        const nameExists = Object.values(room.players).some(p => p.name === playerName)
         if (nameExists) {
-          socket.emit('player:joinError', 'Naam + emoji is al in gebruik')
+          socket.emit('player:joinError', 'Naam is al in gebruik')
           console.log(`❌ Name ${playerName} already exists in room ${roomCode}`)
           return
         }
@@ -761,11 +791,28 @@ app.prepare().then(() => {
       console.log(`📤 Join success data:`, { roomCode, playersCount: Object.keys(room.players).length })
       socket.emit('player:joinSuccess', { roomCode, room })
       
+      // === INITIALIZATION: Ensure price history exists for this room ===
+      if (!roomPriceHistory[roomCode]) {
+        console.log(`📊 Initializing price history for room ${roomCode}`)
+        roomPriceHistory[roomCode] = {
+          DSHEEP: [],
+          NGT: [],
+          LNTR: [],
+          OMLT: [],
+          REX: [],
+          ORLO: []
+        }
+      }
+      
       // === INITIALIZATION: Send authoritative market state to joining player ===
       // This ensures the player sees the same percentages as dashboard
       const initialChange = roomMarketChange24h[roomCode] || {}
       socket.emit('market:stateUpdate', { change24h: initialChange })
       console.log(`📊 Sent initial market state to ${playerName}:`, initialChange)
+      
+      // === INITIALIZATION: Send price history to joining player ===
+      socket.emit('crypto:priceHistory', roomPriceHistory[roomCode] || {})
+      console.log(`📊 Sent initial price history to ${playerName}:`, roomPriceHistory[roomCode])
       
       // 🚨 CRITICAL FIX: Use setImmediate to ensure joinSuccess is processed first
       // This gives the client time to update their local state before receiving lobby update
@@ -1001,11 +1048,45 @@ app.prepare().then(() => {
             })
             console.log(`💠 Normalized initial prices for room ${roomCode}:`, globalCryptoPrices)
             
-            // Reset market change map for a clean slate
+            // Initialize market change based on marketStartMode setting
+            const marketStartMode = room.settings?.marketStartMode || 'zero'
             roomMarketChange24h[roomCode] = {}
-            // Broadcast normalized prices and reset state
+            
+            if (marketStartMode === 'random') {
+              // Random start: generate random percentages between -10% and +10%
+              symbols.forEach(sym => {
+                const randomPercentage = (Math.random() * 20) - 10 // -10 to +10
+                const roundedPercentage = Math.round(randomPercentage * 10) / 10
+                roomMarketChange24h[roomCode][sym] = roundedPercentage
+                
+                // Add to price history so charts show the initial random change
+                if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][sym]) {
+                  roomPriceHistory[roomCode][sym].push({ 
+                    percentage: roundedPercentage, 
+                    timestamp: Date.now() 
+                  })
+                }
+              })
+              console.log(`🎲 Random start mode - initial percentages:`, roomMarketChange24h[roomCode])
+            } else {
+              // Zero start: all coins at 0%
+              symbols.forEach(sym => {
+                roomMarketChange24h[roomCode][sym] = 0
+              })
+              console.log(`🎯 Zero start mode - all coins at 0%`)
+            }
+            
+            // Broadcast normalized prices, initial market state, and price history
             io.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
             io.to(roomCode).emit('market:stateUpdate', { change24h: roomMarketChange24h[roomCode] })
+            io.to(roomCode).emit('crypto:priceHistory', roomPriceHistory[roomCode] || {})
+            
+            // Extra broadcast after short delay to ensure clients receive the data
+            setTimeout(() => {
+              io.to(roomCode).emit('market:stateUpdate', { change24h: roomMarketChange24h[roomCode] })
+              io.to(roomCode).emit('crypto:priceHistory', roomPriceHistory[roomCode] || {})
+              console.log(`🔄 Re-broadcast market state for ${marketStartMode} mode`)
+            }, 500)
           }
         } catch (e) {
           console.warn('⚠️ Failed to normalize initial prices:', e)
@@ -1747,11 +1828,27 @@ app.prepare().then(() => {
         if (scanAction.effect.includes('Bull Run')) {
           Object.keys(globalCryptoPrices).forEach(symbol => {
             globalCryptoPrices[symbol] = Math.round(globalCryptoPrices[symbol] * 1.05 * 100) / 100
+            // Track price history for candlestick chart
+            if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][symbol]) {
+              roomPriceHistory[roomCode][symbol].push({ percentage: 5, timestamp: Date.now() })
+              if (roomPriceHistory[roomCode][symbol].length > 10) {
+                roomPriceHistory[roomCode][symbol].shift()
+              }
+              console.log(`📊 AUTO EVENT: ${symbol} price history updated (+5%) - now ${roomPriceHistory[roomCode][symbol].length} events`)
+            }
           })
           console.log(`🚀 Bull Run applied: All cryptos +5%`)
         } else if (scanAction.effect.includes('Market Crash')) {
           Object.keys(globalCryptoPrices).forEach(symbol => {
             globalCryptoPrices[symbol] = Math.round(globalCryptoPrices[symbol] * 0.9 * 100) / 100
+            // Track price history for candlestick chart
+            if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][symbol]) {
+              roomPriceHistory[roomCode][symbol].push({ percentage: -10, timestamp: Date.now() })
+              if (roomPriceHistory[roomCode][symbol].length > 10) {
+                roomPriceHistory[roomCode][symbol].shift()
+              }
+              console.log(`📊 AUTO EVENT: ${symbol} price history updated (-10%) - now ${roomPriceHistory[roomCode][symbol].length} events`)
+            }
           })
           console.log(`📉 Market Crash applied: All cryptos -10%`)
         }
@@ -1761,6 +1858,14 @@ app.prepare().then(() => {
         const oldPrice = globalCryptoPrices[symbol]
         const newPrice = oldPrice * (1 + scanAction.percentageValue / 100)
         globalCryptoPrices[symbol] = Math.max(0.01, Math.round(newPrice * 100) / 100)
+        // Track price history for candlestick chart
+        if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][symbol]) {
+          roomPriceHistory[roomCode][symbol].push({ percentage: scanAction.percentageValue, timestamp: Date.now() })
+          if (roomPriceHistory[roomCode][symbol].length > 10) {
+            roomPriceHistory[roomCode][symbol].shift()
+          }
+          console.log(`📊 AUTO EVENT: ${symbol} price history updated (${scanAction.percentageValue > 0 ? '+' : ''}${scanAction.percentageValue}%) - now ${roomPriceHistory[roomCode][symbol].length} events`)
+        }
         console.log(`💰 ${symbol}: ${oldPrice.toFixed(2)} → ${globalCryptoPrices[symbol].toFixed(2)}`)
       }
       
@@ -1776,10 +1881,12 @@ app.prepare().then(() => {
         playerScanActions: roomScanData[roomCode].playerScanActions
       })
       
-      // Broadcast price update
+      // Broadcast price update with price history
       io.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
+      io.to(roomCode).emit('crypto:priceHistory', roomPriceHistory[roomCode] || {})
       
       console.log(`✅ Event broadcast to all players in room ${roomCode}`)
+      console.log(`📊 Price history broadcast:`, Object.keys(roomPriceHistory[roomCode] || {}).map(sym => `${sym}:${roomPriceHistory[roomCode][sym].length}`).join(', '))
     })
 
     // Player scan action - broadcast to all players in room (including Market Screen)
@@ -1820,6 +1927,9 @@ app.prepare().then(() => {
             const newPrice = oldPrice * (1 + percentageChange / 100)
             globalCryptoPrices[symbol] = Math.max(0.01, Math.round(newPrice * 100) / 100) // Minimum 1 cent, round to 2 decimals
             
+            // Price history tracking happens in scan:event handler to avoid duplicates
+            console.log(`� PLAYER SCAN: ${symbol} price updated (history tracked in scan:event handler)`)
+            
             console.log(`💰 MANUELE SCAN PRICE UPDATE: ${symbol} ${oldPrice.toFixed(2)} → ${globalCryptoPrices[symbol].toFixed(2)} (${percentageChange > 0 ? '+' : ''}${percentageChange}%)`)
           } else {
             console.warn(`⚠️ Unknown crypto symbol in scan: ${symbol}`)
@@ -1834,6 +1944,7 @@ app.prepare().then(() => {
             Object.keys(globalCryptoPrices).forEach(symbol => {
               const oldPrice = globalCryptoPrices[symbol]
               globalCryptoPrices[symbol] = Math.max(0.01, Math.round(oldPrice * 1.05 * 100) / 100)
+              // Price history tracking happens in scan:event handler to avoid duplicates
               console.log(`  ${symbol}: €${oldPrice.toFixed(2)} → €${globalCryptoPrices[symbol].toFixed(2)}`)
             })
           } else if (scanAction.effect.includes('Market Crash')) {
@@ -1841,6 +1952,7 @@ app.prepare().then(() => {
             Object.keys(globalCryptoPrices).forEach(symbol => {
               const oldPrice = globalCryptoPrices[symbol]
               globalCryptoPrices[symbol] = Math.max(0.01, Math.round(oldPrice * 0.9 * 100) / 100)
+              // Price history tracking happens in scan:event handler to avoid duplicates
               console.log(`  ${symbol}: €${oldPrice.toFixed(2)} → €${globalCryptoPrices[symbol].toFixed(2)}`)
             })
           } else if (scanAction.effect.includes('Whale Alert')) {
@@ -1856,6 +1968,7 @@ app.prepare().then(() => {
             whaleAlertSymbol = targetSymbol
             const oldPrice = globalCryptoPrices[whaleAlertSymbol]
             globalCryptoPrices[whaleAlertSymbol] = Math.max(0.01, Math.round(oldPrice * 1.5 * 100) / 100)
+            // Price history tracking happens in scan:event handler to avoid duplicates
             console.log(`  ${whaleAlertSymbol}: €${oldPrice.toFixed(2)} → €${globalCryptoPrices[whaleAlertSymbol].toFixed(2)} (+50%)`)
           }
         }
@@ -1895,6 +2008,7 @@ app.prepare().then(() => {
         // Broadcast updated crypto prices to ALL clients in room
         console.log(`📡 Broadcasting updated crypto prices to room ${roomCode}`)
         io.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
+        io.to(roomCode).emit('crypto:priceHistory', roomPriceHistory[roomCode] || {})
         
         // 🔮 CRITICAL: Broadcast scan data with forecast filtering per player
         // Each player gets their own filtered version of playerScanActions
@@ -2046,6 +2160,242 @@ app.prepare().then(() => {
       } catch (e) {
         console.warn('Failed to sync market state from dashboard', e)
       }
+    })
+
+    // Admin: Undo action - reverse a specific action
+    socket.on('admin:undoAction', ({ roomCode, actionId }) => {
+      console.log(`\n🔄 === UNDO ACTION REQUEST ===`)
+      console.log(`🏠 Room: ${roomCode}`)
+      console.log(`🆔 Action ID: ${actionId}`)
+      
+      if (!rooms[roomCode] || !roomScanData[roomCode]) {
+        console.warn(`⚠️ Room ${roomCode} not found`)
+        return
+      }
+      
+      // Find the action in either player or auto scan actions
+      const playerAction = roomScanData[roomCode].playerScanActions.find(a => a.id === actionId)
+      const autoAction = roomScanData[roomCode].autoScanActions.find(a => a.id === actionId)
+      const action = playerAction || autoAction
+      
+      if (!action) {
+        console.warn(`⚠️ Action ${actionId} not found`)
+        return
+      }
+      
+      console.log(`📋 Found action: ${action.effect}`)
+      console.log(`👤 Player: ${action.player}`)
+      console.log(`🎬 Action type: ${action.action}`)
+      
+      // Handle speeljaar (new year) actions
+      if (action.action === 'Nieuwjaar bonus' || action.effect?.includes('START BONUS')) {
+        console.log(`🗓️ Detected speeljaar action - reversing year and cash bonus`)
+        
+        // Extract cash amount from effect (e.g. "START BONUS +€500")
+        const cashMatch = action.effect?.match(/\+€(\d+)/)
+        const cashAmount = cashMatch ? parseInt(cashMatch[1]) : 500
+        
+        // Find the player who triggered this action
+        const playerSocketId = Object.keys(rooms[roomCode].players).find(
+          sid => rooms[roomCode].players[sid].name === action.player
+        )
+        
+        if (playerSocketId && rooms[roomCode].players[playerSocketId]) {
+          const player = rooms[roomCode].players[playerSocketId]
+          
+          // Reverse cash balance
+          const oldCash = player.cashBalance || 0
+          player.cashBalance = Math.max(0, oldCash - cashAmount)
+          
+          console.log(`💰 UNDO: ${action.player} cash ${oldCash.toFixed(2)} → ${player.cashBalance.toFixed(2)} (-€${cashAmount})`)
+          
+          // Broadcast player update to trigger year decrease AND cash update on client
+          io.to(roomCode).emit('player:yearUndo', {
+            playerName: action.player,
+            actionId: actionId,
+            cashAmount: cashAmount
+          })
+          
+          console.log(`🗓️ Sent year undo signal to ${action.player} with cash adjustment -€${cashAmount}`)
+        } else {
+          console.warn(`⚠️ Player ${action.player} not found in room`)
+        }
+      }
+      
+      // Handle koop (buy) actions
+      if (action.action === 'Koop' || action.effect?.includes('gekocht')) {
+        console.log(`🛒 Detected koop action - reversing purchase`)
+        
+        // Extract crypto symbol and amount from effect
+        // Format: "1x DigiSheep gekocht voor €100"
+        const amountMatch = action.effect?.match(/(\d+)x/)
+        const amount = amountMatch ? parseInt(amountMatch[1]) : 1
+        
+        const symbolMatch = action.effect?.match(/\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/) || 
+                           action.effect?.match(/(DigiSheep|Nugget|Lentra|Omlet|Rex|Orlo)/)
+        
+        const nameToSymbol = {
+          'DigiSheep': 'DSHEEP', 'Nugget': 'NGT', 'Lentra': 'LNTR',
+          'Omlet': 'OMLT', 'Rex': 'REX', 'Orlo': 'ORLO'
+        }
+        
+        const cryptoSymbol = symbolMatch ? (nameToSymbol[symbolMatch[0]] || symbolMatch[0]) : null
+        
+        // Extract price from effect
+        const priceMatch = action.effect?.match(/€(\d+(?:\.\d+)?)/)
+        const price = priceMatch ? parseFloat(priceMatch[1]) : 0
+        
+        if (cryptoSymbol && price > 0) {
+          console.log(`🔄 Reversing: ${amount}x ${cryptoSymbol} for €${price}`)
+          
+          io.to(roomCode).emit('player:undoAction', {
+            playerName: action.player,
+            actionId: actionId,
+            actionType: 'buy',
+            cryptoSymbol: cryptoSymbol,
+            amount: amount,
+            cashRefund: price
+          })
+          
+          console.log(`✅ Sent buy undo signal to ${action.player}`)
+        }
+      }
+      
+      // Handle verkoop (sell) actions
+      if (action.action === 'Verkoop' || action.effect?.includes('verkocht')) {
+        console.log(`💰 Detected verkoop action - reversing sale`)
+        
+        // Extract crypto symbol and amount from effect
+        const amountMatch = action.effect?.match(/(\d+)x/)
+        const amount = amountMatch ? parseInt(amountMatch[1]) : 1
+        
+        const symbolMatch = action.effect?.match(/\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/) || 
+                           action.effect?.match(/(DigiSheep|Nugget|Lentra|Omlet|Rex|Orlo)/)
+        
+        const nameToSymbol = {
+          'DigiSheep': 'DSHEEP', 'Nugget': 'NGT', 'Lentra': 'LNTR',
+          'Omlet': 'OMLT', 'Rex': 'REX', 'Orlo': 'ORLO'
+        }
+        
+        const cryptoSymbol = symbolMatch ? (nameToSymbol[symbolMatch[0]] || symbolMatch[0]) : null
+        
+        // Extract price from effect
+        const priceMatch = action.effect?.match(/€(\d+(?:\.\d+)?)/)
+        const price = priceMatch ? parseFloat(priceMatch[1]) : 0
+        
+        if (cryptoSymbol && price > 0) {
+          console.log(`🔄 Reversing: ${amount}x ${cryptoSymbol} for €${price}`)
+          
+          io.to(roomCode).emit('player:undoAction', {
+            playerName: action.player,
+            actionId: actionId,
+            actionType: 'sell',
+            cryptoSymbol: cryptoSymbol,
+            amount: amount,
+            cashDeduction: price
+          })
+          
+          console.log(`✅ Sent sell undo signal to ${action.player}`)
+        }
+      }
+      
+      // Reverse the price change
+      if (action.cryptoSymbol && action.percentageValue !== undefined) {
+        const symbol = action.cryptoSymbol
+        const percentage = action.percentageValue
+        
+        // Reverse the percentage change
+        const reversePercentage = -percentage
+        const oldPrice = globalCryptoPrices[symbol]
+        const newPrice = oldPrice * (1 + reversePercentage / 100)
+        globalCryptoPrices[symbol] = Math.max(0.01, Math.round(newPrice * 100) / 100)
+        
+        console.log(`💰 UNDO: ${symbol} ${oldPrice.toFixed(2)} → ${globalCryptoPrices[symbol].toFixed(2)} (reverse ${percentage}%)`)
+        
+        // Update market change 24h
+        if (roomMarketChange24h[roomCode]) {
+          const prevChange = roomMarketChange24h[roomCode][symbol] || 0
+          roomMarketChange24h[roomCode][symbol] = Math.round((prevChange + reversePercentage) * 10) / 10
+        }
+        
+        // Remove from price history
+        if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][symbol]) {
+          const historyIndex = roomPriceHistory[roomCode][symbol].findIndex(h => 
+            Math.abs(h.timestamp - action.timestamp) < 1000 && h.percentage === percentage
+          )
+          if (historyIndex !== -1) {
+            roomPriceHistory[roomCode][symbol].splice(historyIndex, 1)
+            console.log(`📊 Removed from price history: ${symbol} at index ${historyIndex}`)
+          }
+        }
+      }
+      
+      // Handle market-wide events (Bull Run, Market Crash)
+      if (action.effect.includes('Bull Run')) {
+        Object.keys(globalCryptoPrices).forEach(symbol => {
+          const oldPrice = globalCryptoPrices[symbol]
+          globalCryptoPrices[symbol] = Math.round(oldPrice / 1.05 * 100) / 100
+          
+          if (roomMarketChange24h[roomCode]) {
+            const prevChange = roomMarketChange24h[roomCode][symbol] || 0
+            roomMarketChange24h[roomCode][symbol] = Math.round((prevChange - 5) * 10) / 10
+          }
+          
+          if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][symbol]) {
+            const historyIndex = roomPriceHistory[roomCode][symbol].findIndex(h => 
+              Math.abs(h.timestamp - action.timestamp) < 1000 && h.percentage === 5
+            )
+            if (historyIndex !== -1) {
+              roomPriceHistory[roomCode][symbol].splice(historyIndex, 1)
+            }
+          }
+        })
+        console.log(`🔄 UNDO: Bull Run reversed - All cryptos -5%`)
+      } else if (action.effect.includes('Market Crash')) {
+        Object.keys(globalCryptoPrices).forEach(symbol => {
+          const oldPrice = globalCryptoPrices[symbol]
+          globalCryptoPrices[symbol] = Math.round(oldPrice / 0.9 * 100) / 100
+          
+          if (roomMarketChange24h[roomCode]) {
+            const prevChange = roomMarketChange24h[roomCode][symbol] || 0
+            roomMarketChange24h[roomCode][symbol] = Math.round((prevChange + 10) * 10) / 10
+          }
+          
+          if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][symbol]) {
+            const historyIndex = roomPriceHistory[roomCode][symbol].findIndex(h => 
+              Math.abs(h.timestamp - action.timestamp) < 1000 && h.percentage === -10
+            )
+            if (historyIndex !== -1) {
+              roomPriceHistory[roomCode][symbol].splice(historyIndex, 1)
+            }
+          }
+        })
+        console.log(`🔄 UNDO: Market Crash reversed - All cryptos +10%`)
+      }
+      
+      // Remove action from scan data
+      if (playerAction) {
+        roomScanData[roomCode].playerScanActions = roomScanData[roomCode].playerScanActions.filter(a => a.id !== actionId)
+        console.log(`🗑️ Removed from player scan actions`)
+      }
+      if (autoAction) {
+        roomScanData[roomCode].autoScanActions = roomScanData[roomCode].autoScanActions.filter(a => a.id !== actionId)
+        console.log(`🗑️ Removed from auto scan actions`)
+      }
+      
+      // Broadcast updates to all clients
+      io.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
+      io.to(roomCode).emit('crypto:priceHistory', roomPriceHistory[roomCode] || {})
+      io.to(roomCode).emit('scanData:update', {
+        autoScanActions: roomScanData[roomCode].autoScanActions,
+        playerScanActions: roomScanData[roomCode].playerScanActions
+      })
+      io.to(roomCode).emit('market:stateUpdate', {
+        change24h: roomMarketChange24h[roomCode] || {}
+      })
+      
+      console.log(`✅ Action ${actionId} successfully undone and broadcasted`)
+      console.log(`🔄 === UNDO COMPLETE ===\n`)
     })
 
     // Room verification - debug helper to check room membership

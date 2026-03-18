@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Users, Play, Copy, Check, RefreshCw, Crown, UserPlus, Share, QrCode, GripVertical } from 'lucide-react'
 import { useSocket } from '@/hooks/useSocket'
+import QRCodeLib from 'qrcode'
 
 interface Player {
   id: string
@@ -28,6 +29,8 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
   const [currentTime, setCurrentTime] = useState(new Date())
   const [lastTestMessage, setLastTestMessage] = useState<string | null>(null)
   const [testFeedback, setTestFeedback] = useState<{type: 'success' | 'error', message: string} | null>(null)
+  const [showQRCode, setShowQRCode] = useState(false)
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null)
 
   // Update time every second to show live status
   useEffect(() => {
@@ -161,6 +164,22 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
     const baseUrl = window.location.origin + window.location.pathname
     setShareUrl(`${baseUrl}?rooms=${roomId}`)
   }, [roomId])
+
+  // Generate QR code when modal opens
+  useEffect(() => {
+    if (showQRCode && qrCanvasRef.current && roomId) {
+      QRCodeLib.toCanvas(qrCanvasRef.current, roomId, {
+        width: 256,
+        margin: 2,
+        color: {
+          dark: '#FFFFFF',
+          light: '#1a1a2e'
+        }
+      }).catch((err: Error) => {
+        console.error('Failed to generate QR code:', err)
+      })
+    }
+  }, [showQRCode, roomId])
 
   // Soft auto-rejoin in case socket is connected but room data is missing
   useEffect(() => {
@@ -457,6 +476,22 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
             <div>
               <div className="text-gray-400 text-sm">Lobby ID</div>
               <div className="text-neon-purple font-bold text-2xl font-mono">{roomId}</div>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={copyToClipboard}
+                  className="flex-1 px-3 py-2 bg-neon-purple/20 hover:bg-neon-purple/30 border border-neon-purple/50 text-neon-purple rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
+                >
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? 'Gekopieerd!' : 'Kopieer'}
+                </button>
+                <button
+                  onClick={() => setShowQRCode(true)}
+                  className="flex-1 px-3 py-2 bg-neon-gold/20 hover:bg-neon-gold/30 border-2 border-neon-gold/50 text-neon-gold rounded-lg text-sm font-bold transition-all hover:scale-105 flex items-center justify-center gap-1.5 shadow-[0_0_10px_rgba(251,191,36,0.3)]"
+                >
+                  <QrCode className="w-4 h-4" />
+                  Toon QR
+                </button>
+              </div>
             </div>
             <div>
               <div className="text-gray-400 text-sm">Start Jaar</div>
@@ -729,6 +764,48 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
           </div>
         </div>
       </div>
+
+      {/* QR Code Modal */}
+      {showQRCode && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="crypto-card max-w-md w-full text-center">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-white">Scan om te joinen</h3>
+              <button
+                onClick={() => setShowQRCode(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="bg-white p-4 rounded-lg mb-4">
+              <canvas ref={qrCanvasRef} className="mx-auto" />
+            </div>
+            
+            <div className="text-left space-y-3">
+              <div className="p-3 bg-neon-purple/10 border border-neon-purple/30 rounded-lg">
+                <p className="text-neon-purple font-semibold text-sm mb-1">📱 Voor spelers:</p>
+                <p className="text-gray-300 text-xs">Scan deze QR code met je telefoon om automatisch de lobby code in te vullen</p>
+              </div>
+              
+              <div className="p-3 bg-neon-gold/10 border border-neon-gold/30 rounded-lg">
+                <p className="text-neon-gold font-semibold text-sm mb-1">Lobby Code:</p>
+                <p className="text-white font-mono text-2xl">{roomId}</p>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => setShowQRCode(false)}
+              className="mt-4 w-full py-3 bg-neon-purple/20 hover:bg-neon-purple/30 border border-neon-purple/50 text-white rounded-lg font-semibold transition-colors"
+            >
+              Sluiten
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Loading Overlay when starting game */}
       {isStarting && (

@@ -6,6 +6,7 @@ import { QrCode, TrendingUp, TrendingDown, Coins, User, Zap, BarChart3, ArrowLef
 import Header from './Header'
 import SellConfirmModal from './SellConfirmModal'
 import SellSuccessModal from './SellSuccessModal'
+import CandlestickChart from './CandlestickChart'
 
 interface CryptoCurrency {
   id: string
@@ -19,6 +20,11 @@ interface CryptoCurrency {
   purchasePrice?: number
 }
 
+interface PriceChange {
+  percentage: number
+  timestamp: number
+}
+
 interface GameDashboardProps {
   playerName: string
   playerAvatar: string
@@ -27,6 +33,9 @@ interface GameDashboardProps {
   onSellCrypto?: (cryptoId: string, amount: number) => void
   showSellControls?: boolean
   onEndGame?: () => void
+  priceHistory?: Record<string, PriceChange[]>
+  onEndTurnConfirm?: () => void
+  actionsDisabled?: boolean
 }
 
 export default function GameDashboard({ 
@@ -36,7 +45,10 @@ export default function GameDashboard({
   onBack,
   onSellCrypto,
   showSellControls = false,
-  onEndGame
+  onEndGame,
+  priceHistory = {},
+  onEndTurnConfirm,
+  actionsDisabled = false
 }: GameDashboardProps) {
   const [totalValue, setTotalValue] = useState(0)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
@@ -128,7 +140,13 @@ export default function GameDashboard({
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 p-4">
       <div className="max-w-6xl mx-auto">
-        <Header playerName={playerName} playerAvatar={playerAvatar} onLogoClick={onBack} />
+        <Header 
+          playerName={playerName} 
+          playerAvatar={playerAvatar} 
+          onLogoClick={onBack} 
+          onEndTurnConfirm={onEndTurnConfirm}
+          actionsDisabled={actionsDisabled}
+        />
         
         {/* Page Header */}
         <div className="flex items-center mb-8 space-x-4">
@@ -238,6 +256,36 @@ export default function GameDashboard({
                       {crypto.change24h >= 0 ? '+' : ''}{crypto.change24h.toFixed(1)}%
                     </div>
                   </div>
+
+                  {/* Momentum Indicator */}
+                  {typeof crypto.change24h === 'number' && Math.abs(crypto.change24h) > 0 && (
+                    <div className={`text-[9px] font-semibold mb-0.5 flex items-center space-x-1 ${
+                      Math.abs(crypto.change24h) > 15 
+                        ? crypto.change24h > 0 ? 'text-green-400' : 'text-red-400'
+                        : crypto.change24h > 0 ? 'text-green-500/60' : 'text-red-500/60'
+                    }`}>
+                      {Math.abs(crypto.change24h) > 15 ? (
+                        crypto.change24h > 0 ? (
+                          <>↗️ Sterk stijgend</>
+                        ) : (
+                          <>↘️ Sterk dalend</>
+                        )
+                      ) : (
+                        crypto.change24h > 0 ? (
+                          <>→ Licht stijgend</>
+                        ) : (
+                          <>→ Licht dalend</>
+                        )
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Candlestick Chart */}
+                  <CandlestickChart 
+                    priceHistory={priceHistory[crypto.symbol] || []} 
+                    maxBars={6}
+                    currentPercentage={crypto.change24h || 0}
+                  />
 
                   {/* Aankoopprijs + Winst/Verlies percentage */}
                   <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-white/5">

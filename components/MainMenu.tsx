@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { QrCode, BarChart3, Wallet, Settings, TrendingUp, TrendingDown, Crown, Medal, Trophy, CreditCard, Zap, Users, ListChecks } from 'lucide-react'
+import { QrCode, BarChart3, Wallet, Settings, TrendingUp, TrendingDown, Crown, Medal, Trophy, CreditCard, Zap, Users, ListChecks, Volume2 } from 'lucide-react'
+import { playPositiveSound, playNegativeSound } from '@/utils/soundEffects'
 import { getTileClasses } from '@/utils/styleUtils'
 import Header from './Header'
 import EventPopup, { ScanEffect } from './EventPopup'
@@ -74,6 +75,9 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
   // Calculate portfolio value (with consistent rounding)
   const portfolioValue = Math.round(cryptos.reduce((sum, crypto) => sum + (crypto.price * crypto.amount), 0) * 100) / 100
   const totalValue = Math.round((portfolioValue + cashBalance) * 100) / 100
+  
+  // Show overlay when player has finished their game years
+  const showFinishedOverlay = gameFinished
   
   // Debug logging for consistency check
   console.log(`🔍 MainMenu - Portfolio: €${portfolioValue}, Cash: €${cashBalance}, Total: €${totalValue}`)
@@ -296,10 +300,10 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
 
           {/* Markt - Met alle 6 crypto iconen + percentages */}
           <button
-            onClick={() => onNavigate('market')}
+            onClick={gameFinished ? undefined : () => onNavigate('market')}
             className={getTileClasses(
               true,
-              "crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:border-purple-500/90"
+              `crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 relative overflow-hidden p-0 h-[200px] flex flex-col shadow-lg shadow-purple-500/30 ${gameFinished ? 'opacity-40 pointer-events-none' : 'hover:shadow-purple-500/50 hover:border-purple-500/90'}`
             )}
           >
             {/* Top deel: Icon + Titel */}
@@ -770,8 +774,14 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                   Annuleren
                 </button>
                 <button
-                  className="flex-1 py-3 rounded-lg bg-neon-gold text-black font-bold hover:opacity-90 transition shadow-lg shadow-neon-gold/30"
+                  disabled={gameFinished}
+                  className={`flex-1 py-3 rounded-lg font-bold transition shadow-lg ${
+                    gameFinished 
+                      ? 'bg-gray-500 text-gray-300 cursor-not-allowed opacity-50' 
+                      : 'bg-neon-gold text-black hover:opacity-90 shadow-neon-gold/30'
+                  }`}
                   onClick={() => {
+                    if (gameFinished) return
                     try {
                       onPassStart && onPassStart()
                     } finally {
@@ -779,7 +789,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                     }
                   }}
                 >
-                  Start Jaar {year + 1}
+                  {gameFinished ? 'Speljaren bereikt' : `Start Jaar ${year + 1}`}
                 </button>
               </div>
             </div>
@@ -929,6 +939,29 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           </button>
         </div>
       </div>
+
+      {/* Overlay wanneer speler alle jaren heeft gespeeld */}
+      {showFinishedOverlay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-gradient-to-br from-dark-bg via-purple-900/30 to-blue-900/30 border-2 border-neon-gold rounded-xl p-8 max-w-md mx-4 shadow-[0_0_50px_rgba(251,191,36,0.3)]">
+            <div className="text-center space-y-4">
+              <div className="text-6xl mb-4">🏁</div>
+              <h2 className="text-3xl font-bold text-neon-gold">Speljaren bereikt!</h2>
+              <p className="text-gray-300 text-lg">
+                Je hebt al je speljaren voltooid. Je kunt je portfolio en wallet nog bekijken, maar geen nieuwe acties meer uitvoeren.
+              </p>
+              <p className="text-gray-400 text-sm mt-4">
+                Wacht tot de andere spelers ook klaar zijn...
+              </p>
+              <div className="mt-6 pt-4 border-t border-white/10">
+                <p className="text-neon-purple font-semibold">
+                  Je eindstand: €{totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

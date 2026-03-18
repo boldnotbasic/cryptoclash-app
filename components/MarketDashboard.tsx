@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
-import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks, Power, SkipForward, Clock } from 'lucide-react'
+import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks, Power, SkipForward, Clock, Music, VolumeX } from 'lucide-react'
 import Header from './Header'
 import EventPopup, { ScanEffect } from './EventPopup'
+import CandlestickChart from './CandlestickChart'
+import { playBackgroundMusic, pauseBackgroundMusic } from '@/utils/soundEffects'
 
 interface CryptoCurrency {
   id: string
@@ -52,6 +54,8 @@ interface MarketDashboardProps {
   dashboardToasts?: { id: string; message: string; sender: string }[]
   socket?: any
   onEndGame?: () => void
+  isMarketDashboard?: boolean
+  externalPriceHistory?: Record<string, Array<{percentage: number, timestamp: number}>>
 }
 
 export default function MarketDashboard({ 
@@ -67,7 +71,9 @@ export default function MarketDashboard({
   roomId = '',
   dashboardToasts = [],
   socket = null,
-  onEndGame
+  onEndGame,
+  isMarketDashboard = false,
+  externalPriceHistory = {}
 }: MarketDashboardProps) {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -79,6 +85,17 @@ export default function MarketDashboard({
   const lastShownEventId = useRef<string | null>(null)
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([])
   const [scanCount, setScanCount] = useState(0)
+  const [isMusicPlaying, setIsMusicPlaying] = useState(false)
+  const [priceHistory, setPriceHistory] = useState<{[key: string]: Array<{percentage: number, timestamp: number}>}>({
+    DSHEEP: [],
+    NGT: [],
+    LNTR: [],
+    OMLT: [],
+    REX: [],
+    ORLO: []
+  })
+  const [showUndoModal, setShowUndoModal] = useState(false)
+  const [chartPeriod, setChartPeriod] = useState<'all' | 'last20' | 'last10' | 'last5'>('all')
 
   const getCryptoImagePath = (symbol: string) => {
     switch (symbol) {
@@ -90,6 +107,28 @@ export default function MarketDashboard({
       case 'NGT': return '/Nugget.png'
       default: return null
     }
+  }
+
+  // Filter price history based on selected period
+  const getFilteredPriceHistory = (history: Array<{percentage: number, timestamp: number}>) => {
+    if (chartPeriod === 'all') return history
+    
+    const limit = chartPeriod === 'last20' ? 20 : chartPeriod === 'last10' ? 10 : 5
+    return history.slice(-limit)
+  }
+
+  // Calculate percentage change for selected period
+  const getPercentageForPeriod = (cryptoSymbol: string, totalChange: number) => {
+    if (chartPeriod === 'all') return totalChange
+    
+    const history = externalPriceHistory[cryptoSymbol] || priceHistory[cryptoSymbol] || []
+    const filteredHistory = getFilteredPriceHistory(history)
+    
+    if (filteredHistory.length === 0) return totalChange
+    
+    // Sum all percentage changes in the filtered period
+    const periodChange = filteredHistory.reduce((sum, item) => sum + item.percentage, 0)
+    return periodChange
   }
 
   // Check if event is positive (for color coding in action logs)
@@ -244,6 +283,20 @@ export default function MarketDashboard({
     }, 2000)
   }
 
+  // Handle music toggle
+  const handleMusicToggle = () => {
+    const newMusicState = !isMusicPlaying
+    setIsMusicPlaying(newMusicState)
+    
+    if (newMusicState) {
+      playBackgroundMusic()
+      console.log('🎵 Background music started')
+    } else {
+      pauseBackgroundMusic()
+      console.log('🔇 Background music paused')
+    }
+  }
+
   // Handle timer toggle
   const handleTimerToggle = () => {
     const newTimerState = !timerEnabled
@@ -337,6 +390,27 @@ export default function MarketDashboard({
     }
   }, [socket])
 
+  // Listen for price history updates from server
+  useEffect(() => {
+    if (!socket) return
+
+    const handlePriceHistory = (history: {[key: string]: Array<{percentage: number, timestamp: number}>}) => {
+      console.log(`📊 ===== PRICE HISTORY UPDATE =====`)
+      console.log(`📊 Received price history:`, history)
+      console.log(`📊 DSHEEP history:`, history.DSHEEP || [])
+      console.log(`📊 NGT history:`, history.NGT || [])
+      console.log(`📊 Total symbols:`, Object.keys(history).length)
+      setPriceHistory(history)
+      console.log(`📊 ===== PRICE HISTORY SET =====`)
+    }
+
+    socket.on('crypto:priceHistory', handlePriceHistory)
+
+    return () => {
+      socket.off('crypto:priceHistory', handlePriceHistory)
+    }
+  }, [socket])
+
   // Helper function to sanitize effects
   const sanitizeEffect = (effect: string) => {
     try {
@@ -349,23 +423,47 @@ export default function MarketDashboard({
     }
   }
 
-  // Watch for new events and show event cards (ONLY player events, same as player screens)
+  // Watch for new events and show event cards
   useEffect(() => {
-    // Only use player scan actions (triggered by Event button), NOT auto bot activities
-    // This ensures dashboard shows SAME events as player screens
-    const playerEvents = [...(playerScanActions || [])]
+    // For Market Dashboard: show both player AND auto events
+    // For Player screens: show ONLY player events (not auto beurs events)
+    const eventsToCheck = isMarketDashboard 
+      ? [...(autoScanActions || []), ...(playerScanActions || [])]  // Market Dashboard: both
+      : [...(playerScanActions || [])]  // Player screens: only player events
+    
+    const filteredEvents = eventsToCheck
       .filter((action: any) => !action.isWinAction) // Filter out win actions
+      .filter((action: any) => {
+        // EXTRA SAFETY: Never show auto beurs events on player screens
+        if (!isMarketDashboard) {
+          // Check if this is an auto beurs event by looking for typical patterns
+          const isAutoBeursEvent = action.action && [
+            'Market Move', 'Price Alert', 'Trading Signal', 'Volume Spike'
+          ].includes(action.action)
+          
+          if (isAutoBeursEvent) {
+            console.log('🚫 BLOCKED auto beurs event on Player Screen:', action.effect)
+            return false
+          }
+        }
+        return true
+      })
       .sort((a, b) => b.timestamp - a.timestamp)
 
-    console.log('🎯 DASHBOARD EVENT DETECTION (PLAYER EVENTS ONLY):')
-    console.log('📊 Auto scan actions (EXCLUDED):', autoScanActions?.length || 0)
-    console.log('👤 Player scan actions (INCLUDED):', playerScanActions?.length || 0)
-    console.log('🏆 Win actions (EXCLUDED):', (playerScanActions || []).filter((a: any) => a.isWinAction).length)
-    console.log('🎲 Player events to check:', playerEvents.length)
+    console.log('🎯 DASHBOARD EVENT DETECTION:')
+    console.log('📺 Screen type:', isMarketDashboard ? 'Market Dashboard' : 'Player Screen')
+    console.log('🤖 Auto scan actions:', autoScanActions?.length || 0)
+    console.log('👤 Player scan actions:', playerScanActions?.length || 0)
+    console.log('🎲 Events to check:', filteredEvents.length)
+    
+    // Extra debug: show what auto events are being filtered out
+    if (!isMarketDashboard && autoScanActions && autoScanActions.length > 0) {
+      console.log('🚫 FILTERED OUT auto events (Player Screen):', autoScanActions.map(a => a.effect))
+    }
 
-    if (playerEvents.length === 0) return
+    if (filteredEvents.length === 0) return
 
-    const latestEvent = playerEvents[0] // Most recent player event is first
+    const latestEvent = filteredEvents[0] // Most recent event is first
     if (!latestEvent) return
 
     const effect = sanitizeEffect(latestEvent.effect)
@@ -573,15 +671,17 @@ export default function MarketDashboard({
 
   const totalMarketCap = cryptos.reduce((sum, crypto) => sum + crypto.marketCap, 0)
   const totalVolume = cryptos.reduce((sum, crypto) => sum + crypto.volume, 0)
-  const gainers = cryptos.filter(c => c.change24h > 0).length
-  const losers = cryptos.filter(c => c.change24h < 0).length
+  
+  // Gebruik periode-gefilterde percentages voor statistieken
+  const gainers = cryptos.filter(c => getPercentageForPeriod(c.symbol, c.change24h || 0) > 0).length
+  const losers = cryptos.filter(c => getPercentageForPeriod(c.symbol, c.change24h || 0) < 0).length
 
-  // Special tiles: beste stijger & meest waard
+  // Special tiles: beste stijger & meest waard (gebaseerd op geselecteerde periode)
   const topGainer = cryptos.reduce<CryptoCurrency | null>((best, c) => {
     if (!best) return c
-    if (typeof c.change24h !== 'number') return best
-    if (typeof best.change24h !== 'number') return c
-    return c.change24h > best.change24h ? c : best
+    const cPeriodChange = getPercentageForPeriod(c.symbol, c.change24h || 0)
+    const bestPeriodChange = getPercentageForPeriod(best.symbol, best.change24h || 0)
+    return cPeriodChange > bestPeriodChange ? c : best
   }, null)
 
   const topValueCoin = cryptos.reduce<CryptoCurrency | null>((best, c) => {
@@ -589,14 +689,16 @@ export default function MarketDashboard({
     return c.price > best.price ? c : best
   }, null)
 
-  // Graph helper: grootste absolute procentuele beweging
+  // Graph helper: grootste absolute procentuele beweging (gebaseerd op geselecteerde periode)
   const maxAbsChange = cryptos.reduce((max, c) => {
-    const v = typeof c.change24h === 'number' ? Math.abs(c.change24h) : 0
+    const periodChange = getPercentageForPeriod(c.symbol, c.change24h || 0)
+    const v = Math.abs(periodChange)
     return v > max ? v : max
   }, 0) || 1
 
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 p-3">
       <div className="max-w-6xl mx-auto">
         {playerName !== 'Market Dashboard' && (
@@ -640,7 +742,26 @@ export default function MarketDashboard({
                 )}
                 {roomId && playerName === 'Market Dashboard' && (
                   <div className="flex items-center gap-2">
-                    {/* Timer Toggle - NOW ON THE LEFT */}
+                    {/* Music Toggle */}
+                    <button
+                      onClick={handleMusicToggle}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all active:scale-95 ${
+                        isMusicPlaying 
+                          ? 'bg-blue-500/20 border-blue-500/50 hover:bg-blue-500/30' 
+                          : 'bg-gray-500/20 border-gray-500/50 hover:bg-gray-500/30'
+                      }`}
+                      title={isMusicPlaying ? 'Muziek aan' : 'Muziek uit'}
+                    >
+                      {isMusicPlaying ? (
+                        <Music className="w-3 h-3 text-blue-400" />
+                      ) : (
+                        <VolumeX className="w-3 h-3 text-gray-400" />
+                      )}
+                      <span className={`text-xs font-bold ${isMusicPlaying ? 'text-blue-400' : 'text-gray-400'}`}>
+                        {isMusicPlaying ? 'ON' : 'OFF'}
+                      </span>
+                    </button>
+                    {/* Timer Toggle */}
                     <button
                       onClick={handleTimerToggle}
                       className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all active:scale-95 ${
@@ -784,7 +905,7 @@ export default function MarketDashboard({
                   return (
                     <div
                       key={crypto.id}
-                      className={`crypto-card rounded-xl p-3 flex flex-col items-center h-38 md:h-42 transition-all ${
+                      className={`crypto-card rounded-xl p-3 flex flex-col items-center h-[250px] md:h-[290px] transition-all ${
                         isBothHighlight
                           ? 'border-2 border-neon-gold/80 animate-gold-purple-glow-breathe'
                           : isTopGainerTile
@@ -795,15 +916,23 @@ export default function MarketDashboard({
                       }`}
                     >
                       {/* Coin image boven, nog groter en extra uit de kaart laten steken */}
-                      <div className="w-28 h-28 md:w-32 md:h-32 rounded-xl bg-transparent flex items-center justify-center overflow-visible -mt-7 mb-1">
+                      <div
+                        className={`rounded-xl bg-transparent flex items-center justify-center overflow-visible -mt-8 mb-2 ${
+                          isLentra ? 'w-44 h-44 md:w-48 md:h-48' : 'w-32 h-32 md:w-36 md:h-36'
+                        }`}
+                      >
                         {imagePath ? (
                           <img
                             src={imagePath}
                             alt={crypto.name}
-                            width={140}
-                            height={140}
+                            width={160}
+                            height={160}
                             className={`object-contain drop-shadow-[0_0_32px_rgba(0,0,0,1)] ${
-                              isLentra ? 'scale-175' : 'scale-105'
+                              isLentra
+                                ? 'scale-300'
+                                : crypto.symbol === 'DSHEEP'
+                                  ? 'scale-100'
+                                  : 'scale-125'
                             }`}
                             loading="lazy"
                           />
@@ -826,26 +955,64 @@ export default function MarketDashboard({
 
                           <div className="flex items-center justify-between mt-0">
                             <div className="text-gray-400 text-[10px] sm:text-xs">{crypto.symbol}</div>
-                            {typeof crypto.change24h === 'number' && (
-                              <div
-                                className={`text-[10px] px-1.5 py-0.5 rounded-sm border flex items-center space-x-1 ${
-                                  crypto.change24h >= 0
-                                    ? 'text-green-400 border-green-400/30'
-                                    : 'text-red-400 border-red-400/30'
-                                }`}
-                              >
-                                {crypto.change24h >= 0 ? (
-                                  <TrendingUp className="w-2.5 h-2.5" />
-                                ) : (
-                                  <TrendingDown className="w-2.5 h-2.5" />
-                                )}
-                                <span>
-                                  {crypto.change24h >= 0 ? '+' : ''}
-                                  {crypto.change24h.toFixed(1)}%
-                                </span>
-                              </div>
-                            )}
+                            {typeof crypto.change24h === 'number' && (() => {
+                              const periodPercentage = getPercentageForPeriod(crypto.symbol, crypto.change24h)
+                              return (
+                                <div
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-sm border flex items-center space-x-1 ${
+                                    periodPercentage >= 0
+                                      ? 'text-green-400 border-green-400/30'
+                                      : 'text-red-400 border-red-400/30'
+                                  }`}
+                                >
+                                  {periodPercentage >= 0 ? (
+                                    <TrendingUp className="w-2.5 h-2.5" />
+                                  ) : (
+                                    <TrendingDown className="w-2.5 h-2.5" />
+                                  )}
+                                  <span>
+                                    {periodPercentage >= 0 ? '+' : ''}
+                                    {periodPercentage.toFixed(1)}%
+                                  </span>
+                                </div>
+                              )
+                            })()}
                           </div>
+                          
+                          {/* Momentum Indicator */}
+                          {typeof crypto.change24h === 'number' && (() => {
+                            const periodPercentage = getPercentageForPeriod(crypto.symbol, crypto.change24h)
+                            return Math.abs(periodPercentage) > 0 && (
+                              <div className={`text-[9px] font-semibold mb-0.5 flex items-center space-x-1 ${
+                                Math.abs(periodPercentage) > 15 
+                                  ? periodPercentage > 0 ? 'text-green-400' : 'text-red-400'
+                                  : periodPercentage > 0 ? 'text-green-500/60' : 'text-red-500/60'
+                              }`}>
+                                {Math.abs(periodPercentage) > 15 ? (
+                                  periodPercentage > 0 ? (
+                                    <>↗️ Sterk stijgend</>
+                                  ) : (
+                                    <>↘️ Sterk dalend</>
+                                  )
+                                ) : (
+                                  periodPercentage > 0 ? (
+                                    <>→ Licht stijgend</>
+                                  ) : (
+                                    <>→ Licht dalend</>
+                                  )
+                                )}
+                              </div>
+                            )
+                          })()}
+                          
+                          {/* Candlestick Chart */}
+                          <CandlestickChart 
+                            priceHistory={getFilteredPriceHistory(externalPriceHistory[crypto.symbol] || priceHistory[crypto.symbol] || [])} 
+                            maxBars={6}
+                            currentPercentage={getPercentageForPeriod(crypto.symbol, crypto.change24h || 0)}
+                            currentPrice={crypto.price}
+                            showStartPoint={chartPeriod === 'all'}
+                          />
                         </div>
                       </div>
                     </div>
@@ -858,32 +1025,52 @@ export default function MarketDashboard({
             <div className="flex flex-col h-full">
               {(topGainer || topValueCoin) && (
                 <div className="crypto-card border border-neon-purple/40 shadow-[0_0_18px_rgba(192,132,252,0.45)] bg-gradient-to-br from-dark-bg/95 via-dark-bg/92 to-purple-900/20 p-3 flex flex-col h-full">
+                  {/* Periode Selector - boven Statistieken */}
+                  <div className="mb-3 pb-3 border-b border-white/10">
+                    <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-2">Periode</p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        onClick={() => setChartPeriod('all')}
+                        className={`px-2 py-1.5 rounded-md text-[10px] font-semibold transition-all ${
+                          chartPeriod === 'all'
+                            ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
+                            : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
+                        }`}
+                      >
+                        Sinds start
+                      </button>
+                      <button
+                        onClick={() => setChartPeriod('last10')}
+                        className={`px-2 py-1.5 rounded-md text-[10px] font-semibold transition-all ${
+                          chartPeriod === 'last10'
+                            ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
+                            : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
+                        }`}
+                      >
+                        10 beurten
+                      </button>
+                      <button
+                        onClick={() => setChartPeriod('last5')}
+                        className={`px-2 py-1.5 rounded-md text-[10px] font-semibold transition-all ${
+                          chartPeriod === 'last5'
+                            ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
+                            : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
+                        }`}
+                      >
+                        5 beurten
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Sectie: Beste stijger */}
                   {topGainer && (
                     <div className="flex flex-col pb-1.5 mb-1">
-                      <p className="text-[11px] uppercase tracking-wide text-neon-gold font-semibold mb-0">Beste stijger</p>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <div>
-                          <p className="text-white font-bold text-xs sm:text-sm">{topGainer.name}</p>
-                          <p className="text-gray-400 text-[10px]">{topGainer.symbol}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-neon-gold font-bold text-xs sm:text-sm">
-                            €{topGainer.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </p>
-                          {typeof topGainer.change24h === 'number' && (
-                            <p className="text-[11px] text-green-400 flex items-center justify-end space-x-1">
-                              <TrendingUp className="w-3 h-3" />
-                              <span>+{topGainer.change24h.toFixed(1)}%</span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
                       {cryptos.length > 0 && (
-                        <div className="mt-0 pt-0 mb-0.5">
+                        <div className="mt-1 pt-0">
+                          <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-3">Statistieken</p>
                           <div className="flex items-end space-x-1 h-20">
                             {cryptos.map(c => {
-                              const v = typeof c.change24h === 'number' ? c.change24h : 0
+                              const v = getPercentageForPeriod(c.symbol, c.change24h || 0)
                               const height = Math.max(4, Math.round((Math.abs(v) / maxAbsChange) * 24))
                               const isPositive = v >= 0
                               const coinImage = getCryptoImagePath(c.symbol)
@@ -921,38 +1108,11 @@ export default function MarketDashboard({
                   {/* Sectie: Meest waard */}
                   {topValueCoin && (
                     <div className="flex flex-col mt-1">
-                      <p className="text-[11px] uppercase tracking-wide text-neon-purple font-semibold mb-1">Meest waard</p>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div>
-                          <p className="text-white font-bold text-xs sm:text-sm">{topValueCoin.name}</p>
-                          <p className="text-gray-400 text-[10px]">{topValueCoin.symbol}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-neon-purple font-bold text-xs sm:text-sm">
-                            €{topValueCoin.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </p>
-                          {typeof topValueCoin.change24h === 'number' && (
-                            <p className={`text-[11px] flex items-center justify-end space-x-1 ${
-                              topValueCoin.change24h >= 0 ? 'text-green-400' : 'text-red-400'
-                            }`}>
-                              {topValueCoin.change24h >= 0 ? (
-                                <TrendingUp className="w-3 h-3" />
-                              ) : (
-                                <TrendingDown className="w-3 h-3" />
-                              )}
-                              <span>
-                                {topValueCoin.change24h >= 0 ? '+' : ''}
-                                {topValueCoin.change24h.toFixed(1)}%
-                              </span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
                       {cryptos.length > 0 && (
-                        <div className="mt-0.5 pt-0">
+                        <div className="mt-1 pt-0">
                           <div className="space-y-1 pr-1">
                             {cryptos.map(c => {
-                              const v = typeof c.change24h === 'number' ? c.change24h : 0
+                              const v = getPercentageForPeriod(c.symbol, c.change24h || 0)
                               const width = Math.max(6, Math.round((Math.abs(v) / maxAbsChange) * 100))
                               const isPositive = v >= 0
                               return (
@@ -966,9 +1126,6 @@ export default function MarketDashboard({
                                       style={{ width: `${width}%` }}
                                     />
                                   </div>
-                                  <span className={`text-[10px] ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-                                    {v >= 0 ? '+' : ''}{v.toFixed(1)}%
-                                  </span>
                                 </div>
                               )
                             })}
@@ -977,6 +1134,102 @@ export default function MarketDashboard({
                       )}
                     </div>
                   )}
+
+                  {/* Miniaturen naast elkaar onderaan */}
+                  {(topGainer || topValueCoin) && (
+                    <div className="mt-3 pt-3 border-t border-white/10">
+                      <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-3">Top picks</p>
+                      {/* Check if same crypto is both top gainer AND top value */}
+                      {topGainer && topValueCoin && topGainer.id === topValueCoin.id ? (
+                        <div className="flex flex-col p-2 bg-dark-bg/40 rounded-lg border-2 border-neon-gold/50">
+                          <div className="flex items-center space-x-2">
+                            <img
+                              src={getCryptoImagePath(topGainer.symbol)}
+                              alt={topGainer.name}
+                              className="w-8 h-8 object-contain"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-bold text-[11px] truncate">{topGainer.symbol}</p>
+                              <p className="text-neon-gold text-[10px] font-bold">
+                                🏆 Top Performer
+                              </p>
+                              <div className="flex items-center space-x-2 mt-0.5">
+                                <p className="text-green-400 text-[8px]">
+                                  +{getPercentageForPeriod(topGainer.symbol, topGainer.change24h || 0).toFixed(1)}%
+                                </p>
+                                <p className="text-neon-purple text-[8px]">
+                                  €{topGainer.price.toFixed(0)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Beste stijger */}
+                          {topGainer && (
+                            <div className="flex flex-col p-2 bg-dark-bg/40 rounded-lg border border-neon-gold/30">
+                              <div className="flex items-center space-x-2">
+                                <img
+                                  src={getCryptoImagePath(topGainer.symbol)}
+                                  alt={topGainer.name}
+                                  className="w-6 h-6 object-contain"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-white font-bold text-[10px] truncate">{topGainer.symbol}</p>
+                                  <p className="text-neon-gold text-[9px] font-bold">
+                                    Beste stijger
+                                  </p>
+                                  <p className="text-neon-gold text-[8px]">
+                                    +{getPercentageForPeriod(topGainer.symbol, topGainer.change24h || 0).toFixed(1)}%
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Meest waard */}
+                          {topValueCoin && (
+                            <div className="flex flex-col p-2 bg-dark-bg/40 rounded-lg border border-neon-purple/30">
+                              <div className="flex items-center space-x-2">
+                                <img
+                                  src={getCryptoImagePath(topValueCoin.symbol)}
+                                  alt={topValueCoin.name}
+                                  className="w-6 h-6 object-contain"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-white font-bold text-[10px] truncate">{topValueCoin.symbol}</p>
+                                  <p className="text-neon-purple text-[9px] font-bold">
+                                    Meest waard
+                                  </p>
+                                  <p className="text-neon-purple text-[8px]">
+                                    €{topValueCoin.price.toFixed(0)}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Market Forecast Countdown */}
+                  <div className="mt-3 pt-3 border-t border-white/10">
+                    <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-3">Market Forecast</p>
+                    <div className="flex items-center justify-between p-2 bg-dark-bg/40 rounded-lg border border-neon-blue/30">
+                      <div className="flex items-center space-x-3">
+                        <div className="text-2xl font-bold text-neon-blue">
+                          {10 - (scanCount % 10)}
+                        </div>
+                        <div className="text-xs text-gray-400 uppercase tracking-wide">scans</div>
+                      </div>
+                      <div className="text-[9px] text-gray-500 text-right">
+                        tot volgende market forecast
+                      </div>
+                    </div>
+                  </div>
+
                 </div>
               )}
             </div>
@@ -1058,8 +1311,19 @@ export default function MarketDashboard({
                 <ListChecks className="w-5 h-5 text-neon-purple" />
                 <span>Acties</span>
               </h3>
-              <div className="bg-neon-purple/20 px-2 py-1 rounded-full border border-neon-purple/50">
-                <span className="text-neon-purple text-xs font-bold">{playerScanActions.length} acties</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowUndoModal(true)}
+                  className="p-1.5 rounded-lg transition-all bg-orange-500/10 hover:bg-orange-500/20 active:scale-95"
+                  title="Draai actie terug"
+                >
+                  <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                  </svg>
+                </button>
+                <div className="bg-neon-purple/20 px-2 py-1 rounded-full border border-neon-purple/50">
+                  <span className="text-neon-purple text-xs font-bold">{playerScanActions.length} acties</span>
+                </div>
               </div>
             </div>
             <div className="flex items-center justify-end mb-2">
@@ -1183,38 +1447,6 @@ export default function MarketDashboard({
           </div>
         )}
       </div>
-      
-      {showEndGameModal && playerName === 'Market Dashboard' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="crypto-card max-w-sm w-full p-6 text-center">
-            <h3 className="text-lg font-bold text-white mb-2">Spel definitief afsluiten?</h3>
-            <p className="text-gray-300 text-sm mb-5">
-              Hiermee wordt het huidige spel volledig beëindigd en wordt alle spelgeschiedenis gewist. Weet je het zeker?
-            </p>
-            <div className="flex items-center justify-between gap-3">
-              <button
-                type="button"
-                className="flex-1 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 transition-colors text-sm font-semibold"
-                onClick={() => setShowEndGameModal(false)}
-              >
-                Annuleren
-              </button>
-              <button
-                type="button"
-                className="flex-1 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors text-sm font-semibold"
-                onClick={() => {
-                  setShowEndGameModal(false)
-                  if (onEndGame) {
-                    onEndGame()
-                  }
-                }}
-              >
-                Ja, afsluiten
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       
       {/* Dashboard Toasts for Test Messages - stacked vertically */}
       {dashboardToasts && dashboardToasts.length > 0 && (
@@ -1654,21 +1886,133 @@ export default function MarketDashboard({
         </div>
       )}
 
-      {/* Event Overlay - uses EventPopup component for consistency */}
-      {showKansEvent && currentKansEvent && (
-        <EventPopup
-          externalScenario={currentKansEvent}
-          onClose={() => {
-            setShowKansEvent(false)
-            setCurrentKansEvent(null)
-          }}
-          onApplyEffect={(effect) => {
-            console.log('Event applied on dashboard:', effect)
-            setShowKansEvent(false)
-            setCurrentKansEvent(null)
-          }}
-        />
-      )}
+
     </div>
+
+    {/* End Game Modal */}
+    {showEndGameModal && playerName === 'Market Dashboard' && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="crypto-card max-w-sm w-full p-6 text-center">
+          <h3 className="text-lg font-bold text-white mb-2">Spel definitief afsluiten?</h3>
+          <p className="text-gray-300 text-sm mb-5">
+            Hiermee wordt het huidige spel volledig beëindigd en wordt alle spelgeschiedenis gewist. Weet je het zeker?
+          </p>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              className="flex-1 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 transition-colors text-sm font-semibold"
+              onClick={() => setShowEndGameModal(false)}
+            >
+              Annuleren
+            </button>
+            <button
+              type="button"
+              className="flex-1 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors text-sm font-semibold"
+              onClick={() => {
+                setShowEndGameModal(false)
+                if (onEndGame) {
+                  onEndGame()
+                }
+              }}
+            >
+              Ja, afsluiten
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Undo Modal */}
+    {showUndoModal && (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-gradient-to-br from-dark-card via-dark-bg to-dark-card border-2 border-neon-purple/30 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
+          <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 border-b border-orange-500/30 p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+                Actie Terugdraaien
+              </h2>
+              <button
+                onClick={() => setShowUndoModal(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          
+          <div className="p-4 overflow-y-auto max-h-[60vh]">
+            <p className="text-gray-300 text-sm mb-4">Selecteer een actie om terug te draaien:</p>
+            
+            <div className="space-y-2">
+              {[...playerScanActions, ...autoScanActions]
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .slice(0, 10)
+                .map((action, index) => (
+                  <button
+                    key={action.id}
+                    onClick={() => {
+                      if (socket && roomId) {
+                        socket.emit('admin:undoAction', { roomCode: roomId, actionId: action.id })
+                        setShowUndoModal(false)
+                      }
+                    }}
+                    className="w-full p-3 bg-dark-bg/50 hover:bg-dark-bg/80 border border-white/10 hover:border-orange-400/50 rounded-lg transition-all text-left group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="text-2xl">{action.player === 'Bot' ? '🤖' : (action.avatar || '👤')}</div>
+                        <div>
+                          <p className="text-white font-semibold text-sm">{action.player}</p>
+                          <p className="text-gray-400 text-xs">{action.action}</p>
+                          <p className="text-gray-300 text-sm mt-1">{action.effect}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-gray-400 text-xs">
+                          {new Date(action.timestamp).toLocaleTimeString('nl-NL')}
+                        </p>
+                        <div className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="text-orange-400 text-xs font-semibold">Terugdraaien</span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+            </div>
+          </div>
+          
+          <div className="bg-dark-bg/30 border-t border-white/10 p-4">
+            <button
+              onClick={() => setShowUndoModal(false)}
+              className="w-full py-2 bg-gray-600/20 hover:bg-gray-600/30 text-white rounded-lg transition-all"
+            >
+              Annuleren
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Event Overlay - uses EventPopup component for consistency */}
+    {showKansEvent && currentKansEvent && (
+      <EventPopup
+        externalScenario={currentKansEvent}
+        onClose={() => {
+          setShowKansEvent(false)
+          setCurrentKansEvent(null)
+        }}
+        onApplyEffect={(effect) => {
+          console.log('Event applied on dashboard:', effect)
+          setShowKansEvent(false)
+          setCurrentKansEvent(null)
+        }}
+      />
+    )}
+    </>
   )
 }

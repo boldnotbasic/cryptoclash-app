@@ -75,7 +75,7 @@ export default function Header({ playerName, playerAvatar, onLogoClick, onEndTur
       </div>
 
       {isEndTurnModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-dark-bg/95 border border-white/10 rounded-lg p-5 w-80">
             <h3 className="text-white font-bold text-lg mb-2 text-center">Je bent klaar?</h3>
             <p className="text-gray-300 text-sm mb-4 text-center">

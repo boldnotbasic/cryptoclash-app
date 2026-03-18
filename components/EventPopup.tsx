@@ -9,6 +9,9 @@ interface ScanResultProps {
   onApplyEffect: (effect: ScanEffect) => void
   externalScenario?: ScanEffect  // Optional: use external scenario instead of random
   cryptos?: Array<{symbol: string, name: string, price: number, icon: string}>  // Voor whale alert selectie
+  nonForecastDurationMs?: number
+  forecastDurationMs?: number
+  transitionEase?: string
 }
 
 export interface ScanEffect {
@@ -126,10 +129,10 @@ const scanScenarios: ScanScenarioTemplate[] = [
   }
 ]
 
-export default function ScanResult({ onClose, onApplyEffect, externalScenario, cryptos }: ScanResultProps) {
+export default function ScanResult({ onClose, onApplyEffect, externalScenario, cryptos, nonForecastDurationMs, forecastDurationMs, transitionEase }: ScanResultProps) {
   const [currentScenario, setCurrentScenario] = useState<ScanEffect | null>(null)
   const [isVisible, setIsVisible] = useState(false)
-  const [remainingSeconds, setRemainingSeconds] = useState(5) // Timer for forecast
+  const [remainingSeconds, setRemainingSeconds] = useState(6) // Timer for forecast
   const initializedRef = useRef(false)
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null)
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -315,13 +318,17 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
       clearInterval(countdownIntervalRef.current)
     }
     
-    // Forecast events: 5 seconds with countdown, others: 3 seconds
-    const displayTime = currentScenario.type === 'forecast' ? 5000 : 3000
+    // All events: minimum 6 seconds display time
+    const defaultNonForecast = 6000
+    const defaultForecast = 6000
+    const displayTime = currentScenario.type === 'forecast' 
+      ? (typeof forecastDurationMs === 'number' ? forecastDurationMs : defaultForecast)
+      : (typeof nonForecastDurationMs === 'number' ? nonForecastDurationMs : defaultNonForecast)
     
     // Start countdown for forecast
     if (currentScenario.type === 'forecast') {
-      setRemainingSeconds(5)
-      let countdownValue = 5
+      setRemainingSeconds(6)
+      let countdownValue = 6
       countdownIntervalRef.current = setInterval(() => {
         countdownValue -= 1
         setRemainingSeconds(countdownValue)
@@ -461,9 +468,16 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
     }
   }
 
+  // Compute progress duration and easing for progress bar and transitions
+  const defaultNonForecast = 6000
+  const defaultForecast = 6000
+  const progressMs = currentScenario.type === 'forecast'
+    ? (typeof forecastDurationMs === 'number' ? forecastDurationMs : defaultForecast)
+    : (typeof nonForecastDurationMs === 'number' ? nonForecastDurationMs : defaultNonForecast)
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">     
-      <div className={`transform transition-all duration-500 ${
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">     
+      <div className={`transform transition-all duration-500 ease-in-out ${
         isVisible ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
       }`}>
         <div className={`crypto-card ${getBorderColor()} bg-gradient-to-br ${getBackgroundColor()} max-w-md w-full text-center p-8 relative`}>
@@ -642,9 +656,12 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
               {/* Progress bar */}
               <div className="flex-1">
                 <div className="w-full bg-gray-700 rounded-full h-1">
-                  <div 
-                    className="bg-neon-gold h-1 rounded-full transition-all duration-5000 ease-linear"
-                    style={{ width: isVisible ? '0%' : '100%' }}
+                  <div
+                    className="bg-neon-gold h-1 rounded-full"
+                    style={{
+                      width: isVisible ? '0%' : '100%',
+                      transition: `width ${progressMs}ms ease-in-out`
+                    }}
                   ></div>
                 </div>
               </div>
