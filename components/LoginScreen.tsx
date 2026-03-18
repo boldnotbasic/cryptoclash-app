@@ -51,12 +51,14 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
     
     if (videoRef.current) {
       try {
-        console.log('Starting QR scanner...')
+        console.log('🎥 Starting QR scanner...')
         const qrScanner = new QrScanner(
           videoRef.current,
           (result) => {
-            console.log('QR Code detected:', result.data)
-            setRoomCode(result.data.toUpperCase())
+            console.log('✅ QR Code detected!', result.data)
+            const code = result.data.trim().toUpperCase()
+            console.log('📝 Processed code:', code)
+            setRoomCode(code)
             stopScanner()
             setStep('profile')
           },
@@ -64,7 +66,17 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
             returnDetailedScanResult: true,
             highlightScanRegion: true,
             highlightCodeOutline: true,
-            preferredCamera: 'environment', // Use back camera on mobile
+            preferredCamera: 'environment',
+            maxScansPerSecond: 5, // Scan 5 times per second
+            calculateScanRegion: (video) => {
+              // Scan entire video area for better detection
+              return {
+                x: 0,
+                y: 0,
+                width: video.videoWidth,
+                height: video.videoHeight,
+              }
+            },
           }
         )
         
@@ -78,9 +90,10 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
         }
         
         await qrScanner.start()
-        console.log('QR scanner started successfully')
+        console.log('✅ QR scanner started successfully')
+        console.log('📱 Richt je camera op de QR code...')
       } catch (err: any) {
-        console.error('Scanner error:', err)
+        console.error('❌ Scanner error:', err)
         if (err.name === 'NotAllowedError') {
           setScanError('Camera toegang geweigerd. Geef toestemming om de camera te gebruiken.')
         } else if (err.name === 'NotFoundError') {

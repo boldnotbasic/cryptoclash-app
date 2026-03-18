@@ -168,15 +168,19 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
   // Generate QR code when modal opens
   useEffect(() => {
     if (showQRCode && qrCanvasRef.current && roomId) {
+      console.log('🔲 Generating QR code for room:', roomId)
       QRCodeLib.toCanvas(qrCanvasRef.current, roomId, {
         width: 256,
-        margin: 2,
+        margin: 4, // Meer margin voor betere detectie
+        errorCorrectionLevel: 'H', // Hoogste error correctie
         color: {
           dark: '#FFFFFF',
           light: '#1a1a2e'
         }
+      }).then(() => {
+        console.log('✅ QR code generated successfully')
       }).catch((err: Error) => {
-        console.error('Failed to generate QR code:', err)
+        console.error('❌ Failed to generate QR code:', err)
       })
     }
   }, [showQRCode, roomId])
