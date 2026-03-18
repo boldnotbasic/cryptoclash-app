@@ -285,6 +285,7 @@ export default function GameDashboard({
                     priceHistory={priceHistory[crypto.symbol] || []} 
                     maxBars={6}
                     currentPercentage={crypto.change24h || 0}
+                    currentPrice={crypto.price}
                   />
 
                   {/* Aankoopprijs + Winst/Verlies percentage */}
