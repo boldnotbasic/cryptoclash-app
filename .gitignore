@@ -1,5 +1,5 @@
 node_modules
 .next
 .DS_Store
-public/sounds/*.mp3
-sounds/*.mp3
+public/sounds/background_music.mp3
+sounds/background_music.mp3
