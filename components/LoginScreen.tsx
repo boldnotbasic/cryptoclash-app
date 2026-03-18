@@ -64,19 +64,10 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
           },
           {
             returnDetailedScanResult: true,
-            highlightScanRegion: true,
-            highlightCodeOutline: true,
+            highlightScanRegion: false, // Disable overlay voor betere performance
+            highlightCodeOutline: false,
             preferredCamera: 'environment',
-            maxScansPerSecond: 5, // Scan 5 times per second
-            calculateScanRegion: (video) => {
-              // Scan entire video area for better detection
-              return {
-                x: 0,
-                y: 0,
-                width: video.videoWidth,
-                height: video.videoHeight,
-              }
-            },
+            maxScansPerSecond: 3, // Lager voor screen scanning (minder moiré)
           }
         )
         

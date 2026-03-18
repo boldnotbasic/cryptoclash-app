@@ -170,12 +170,12 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
     if (showQRCode && qrCanvasRef.current && roomId) {
       console.log('🔲 Generating QR code for room:', roomId)
       QRCodeLib.toCanvas(qrCanvasRef.current, roomId, {
-        width: 256,
-        margin: 4, // Meer margin voor betere detectie
-        errorCorrectionLevel: 'H', // Hoogste error correctie
+        width: 300, // Groter voor betere screen-to-screen scanning
+        margin: 4,
+        errorCorrectionLevel: 'M', // Medium - betere balans voor schermen
         color: {
-          dark: '#FFFFFF',
-          light: '#1a1a2e'
+          dark: '#000000',  // ZWART op WIT - standaard en best scanbaar
+          light: '#FFFFFF'
         }
       }).then(() => {
         console.log('✅ QR code generated successfully')
