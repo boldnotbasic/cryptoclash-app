@@ -260,6 +260,8 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
                 <video
                   ref={videoRef}
                   className="w-full aspect-square object-cover"
+                  autoPlay
+                  muted
                   playsInline
                 />
                 
