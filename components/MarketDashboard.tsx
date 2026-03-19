@@ -489,15 +489,9 @@ export default function MarketDashboard({
     console.log('  🔮 Is forecast:', isForecast)
     console.log('  📈 Is market event:', isMarketEvent)
     console.log('  💰 Is individual event:', isIndividualEvent)
-    console.log('  🎯 Should show event:', isMarketEvent || isIndividualEvent)
+    console.log('  🎯 Should show event:', isForecast || isMarketEvent || isIndividualEvent)
     
-    // Don't show forecast on dashboard - it's only for the trigger player
-    if (isForecast) {
-      console.log('🔮 Forecast event - skipping on dashboard')
-      return
-    }
-    
-    if (isMarketEvent || isIndividualEvent) {
+    if (isForecast || isMarketEvent || isIndividualEvent) {
       // Check if we already showed this event (prevent duplicate cards)
       if (lastShownEventId.current === latestEvent.id) return
       
@@ -624,13 +618,13 @@ export default function MarketDashboard({
       console.log('  🎯 Icon:', icon)
       console.log('  🎲 Source: PLAYER KANS EVENT (not auto beurs event)')
 
-      // Auto-hide after 3.1 seconds (same as ScanResult)
+      // Auto-hide after 6 seconds (synchronized with ScanResult and EventPopup)
       setTimeout(() => {
         setShowKansEvent(false)
         setTimeout(() => {
           setCurrentKansEvent(null)
-        }, 300) // Wait for fade out animation (same as ScanResult)
-      }, 3100)
+        }, 300) // Wait for fade out animation
+      }, 6300)
     } else {
       console.log('❌ Event NOT shown on dashboard:', effect)
       console.log('   Reason: Not recognized as market or individual event')

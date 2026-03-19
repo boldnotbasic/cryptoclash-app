@@ -476,9 +476,11 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
     : (typeof nonForecastDurationMs === 'number' ? nonForecastDurationMs : defaultNonForecast)
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">     
-      <div className={`transform transition-all duration-500 ease-in-out ${
-        isVisible ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
+    <div className={`fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300 ease-in-out ${
+      isVisible ? 'opacity-100' : 'opacity-0'
+    }`}>     
+      <div className={`transform transition-all duration-500 ease-out ${
+        isVisible ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
       }`}>
         <div className={`crypto-card ${getBorderColor()} bg-gradient-to-br ${getBackgroundColor()} max-w-md w-full text-center p-8 relative`}>
 
@@ -659,8 +661,8 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
                   <div
                     className="bg-neon-gold h-1 rounded-full"
                     style={{
-                      width: isVisible ? '0%' : '100%',
-                      transition: `width ${progressMs}ms ease-in-out`
+                      width: isVisible ? '100%' : '0%',
+                      transition: `width ${progressMs}ms linear`
                     }}
                   ></div>
                 </div>

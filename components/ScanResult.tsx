@@ -155,6 +155,9 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
   const initializedRef = useRef(false)
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null)
   const hasClosedRef = useRef(false)
+  
+  // All events: 6 seconds display time (synchronized with EventPopup)
+  const displayTime = 6000
 
   // Simulate next 10 events to calculate top gainer and loser
   const simulateFutureEvents = (numEvents: number = 10): { topGainer: { symbol: string; percentage: number }; topLoser: { symbol: string; percentage: number } } => {
@@ -315,9 +318,6 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
       clearTimeout(autoCloseTimerRef.current)
     }
     
-    // Forecast events stay longer (5 seconds), others 3 seconds
-    const displayTime = currentScenario.type === 'forecast' ? 5000 : 3000
-    
     autoCloseTimerRef.current = setTimeout(() => {
       if (hasClosedRef.current) {
         console.log('⚠️ Already closed, skipping')
@@ -428,9 +428,11 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">     
-      <div className={`transform transition-all duration-500 ${
-        isVisible ? 'scale-100 opacity-100' : 'scale-75 opacity-0'
+    <div className={`fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300 ease-in-out ${
+      isVisible ? 'opacity-100' : 'opacity-0'
+    }`}>     
+      <div className={`transform transition-all duration-500 ease-out ${
+        isVisible ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
       }`}>
         <div className={`crypto-card ${getBorderColor()} bg-gradient-to-br ${getBackgroundColor()} max-w-md w-full text-center p-8`}>
 
@@ -589,8 +591,11 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
           <div className="text-gray-400 text-sm">
             <div className="w-full bg-gray-700 rounded-full h-1 mb-2">
               <div 
-                className="bg-neon-gold h-1 rounded-full transition-all duration-5000 ease-linear"
-                style={{ width: isVisible ? '0%' : '100%' }}
+                className="bg-neon-gold h-1 rounded-full"
+                style={{ 
+                  width: isVisible ? '100%' : '0%',
+                  transition: `width ${displayTime}ms linear`
+                }}
               ></div>
             </div>
             Wordt automatisch toegepast...

@@ -2063,13 +2063,11 @@ export default function Home() {
         console.log('🔊 Playing sound for event:', scanEffect.message)
         playEventSound(scanEffect.message)
         
-        // Auto-close after component handles it
-        // Forecast: 5 seconds (with timer), other events: 4 seconds
-        const closeDelay = eventType === 'forecast' ? 5500 : 4000
+        // Auto-close after 6 seconds (synchronized with ScanResult, EventPopup, and MarketDashboard)
         setTimeout(() => {
           setShowOtherPlayerEvent(false)
           setOtherPlayerEventData(null)
-        }, closeDelay)
+        }, 6300)
       }
 
       console.log('✅ Scan data normalized and sorted from server')
