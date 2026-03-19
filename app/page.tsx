@@ -1911,11 +1911,12 @@ export default function Home() {
           return
         }
         
-        // Only show pop-ups for actual game events (Test Scan, Kans, Event)
+        // Only show pop-ups for actual game events (Test Scan, Kans, Event, Forecast)
         const isEventAction = newestEvent.action && (
           newestEvent.action.includes('Test Scan') || 
           newestEvent.action.includes('Kans') ||
-          newestEvent.action.includes('Event')
+          newestEvent.action.includes('Event') ||
+          newestEvent.action.includes('Forecast')
         )
         
         if (!isEventAction) {
