@@ -31,6 +31,7 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
   const [testFeedback, setTestFeedback] = useState<{type: 'success' | 'error', message: string} | null>(null)
   const [showQRCode, setShowQRCode] = useState(false)
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
+  const qrWidgetCanvasRef = useRef<HTMLCanvasElement>(null)
 
   // Update time every second to show live status
   useEffect(() => {
@@ -165,22 +166,42 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
     setShareUrl(`${baseUrl}?rooms=${roomId}`)
   }, [roomId])
 
-  // Generate QR code when modal opens
+  // Generate QR code for widget (always visible)
   useEffect(() => {
-    if (showQRCode && qrCanvasRef.current && roomId) {
-      console.log('🔲 Generating QR code for room:', roomId)
-      QRCodeLib.toCanvas(qrCanvasRef.current, roomId, {
-        width: 300, // Groter voor betere screen-to-screen scanning
-        margin: 4,
-        errorCorrectionLevel: 'M', // Medium - betere balans voor schermen
+    if (qrWidgetCanvasRef.current && roomId) {
+      console.log('🔲 Generating QR code widget for room:', roomId)
+      QRCodeLib.toCanvas(qrWidgetCanvasRef.current, roomId, {
+        width: 200,
+        margin: 3,
+        errorCorrectionLevel: 'M',
         color: {
-          dark: '#000000',  // ZWART op WIT - standaard en best scanbaar
+          dark: '#000000',
           light: '#FFFFFF'
         }
       }).then(() => {
-        console.log('✅ QR code generated successfully')
+        console.log('✅ QR code widget generated successfully')
       }).catch((err: Error) => {
-        console.error('❌ Failed to generate QR code:', err)
+        console.error('❌ Failed to generate QR code widget:', err)
+      })
+    }
+  }, [roomId])
+
+  // Generate QR code when modal opens
+  useEffect(() => {
+    if (showQRCode && qrCanvasRef.current && roomId) {
+      console.log('🔲 Generating QR code for modal:', roomId)
+      QRCodeLib.toCanvas(qrCanvasRef.current, roomId, {
+        width: 300,
+        margin: 4,
+        errorCorrectionLevel: 'M',
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      }).then(() => {
+        console.log('✅ QR code modal generated successfully')
+      }).catch((err: Error) => {
+        console.error('❌ Failed to generate QR code modal:', err)
       })
     }
   }, [showQRCode, roomId])
@@ -473,10 +494,12 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
           </div>
         )}
 
-        {/* Spel Overzicht (styled like previous screen) */}
-        <div className="crypto-card mb-6">
-          <h3 className="text-xl font-bold text-white mb-4">Spel Overzicht</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* Spel Overzicht + QR Code Widget */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Spel Overzicht */}
+          <div className="crypto-card lg:col-span-2">
+            <h3 className="text-xl font-bold text-white mb-4">Spel Overzicht</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div>
               <div className="text-gray-400 text-sm">Lobby ID</div>
               <div className="text-neon-purple font-bold text-2xl font-mono">{roomId}</div>
@@ -518,13 +541,23 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
             <p className="text-white font-semibold">
               🎯 Doel: Bouw de grootste crypto portefeuille op in {room?.settings?.gameDuration || 1} jaar!
             </p>
-            <p className="text-gray-400 text-sm mt-1">
+            <p className="text-gray-400 text-sm mt-2">
               Alleen echte spelers kunnen joinen. Start het spel wanneer alle gewenste spelers klaar zijn.
             </p>
           </div>
         </div>
 
-        
+        {/* QR Code Widget */}
+        <div className="crypto-card flex flex-col items-center justify-center">
+          <h3 className="text-lg font-bold text-white mb-3">📱 Scan om te Joinen</h3>
+          <div className="bg-white p-4 rounded-xl shadow-[0_0_20px_rgba(251,191,36,0.4)]">
+            <canvas ref={qrWidgetCanvasRef} className="max-w-full h-auto" />
+          </div>
+          <p className="text-gray-400 text-xs mt-3 text-center">
+            Scan deze QR code met je telefoon om automatisch te joinen
+          </p>
+        </div>
+      </div>
 
         {/* Players Overview (Lobby Overzicht) */}
         <div className="crypto-card mb-6">
