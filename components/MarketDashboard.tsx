@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
 import { TrendingUp, TrendingDown, DollarSign, Users, Activity, Clock, ListChecks, RefreshCw, VolumeX, Music, QrCode, Zap, SkipForward, Power } from 'lucide-react'
-import EventPopup from './EventPopup'
+import EventPopup, { ScanEffect } from './EventPopup'
 import CryptoDetail from './CryptoDetail'
 import CandlestickChart from './CandlestickChart'
 import Header from './Header'
