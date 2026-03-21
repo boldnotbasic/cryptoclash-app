@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   stripe_customer_id TEXT,
   stripe_subscription_id TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('active', 'cancelled', 'expired', 'pending')),
+  lobby_code TEXT UNIQUE,
   current_period_start TIMESTAMPTZ,
   current_period_end TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -18,6 +19,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_lobby_code ON subscriptions(lobby_code);
 
 -- Enable Row Level Security
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;

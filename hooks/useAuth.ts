@@ -149,6 +149,7 @@ export function useAuth() {
 
   return {
     ...authState,
+    lobbyCode: authState.subscription?.lobby_code || null,
     sendMagicLink,
     signOut,
     refreshSubscription

@@ -13,6 +13,7 @@ export interface Subscription {
   stripe_customer_id: string | null
   stripe_subscription_id: string | null
   status: 'active' | 'cancelled' | 'expired' | 'pending'
+  lobby_code: string | null
   current_period_start: string | null
   current_period_end: string | null
   created_at: string

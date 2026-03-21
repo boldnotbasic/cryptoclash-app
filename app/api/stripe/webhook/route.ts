@@ -9,6 +9,16 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+// Generate unique 6-character lobby code
+function generateLobbyCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // Exclude confusing chars like 0/O, 1/I
+  let code = ''
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return code
+}
+
 export async function POST(request: Request) {
   const body = await request.text()
   const signature = request.headers.get('stripe-signature')
@@ -40,6 +50,16 @@ export async function POST(request: Request) {
           // Get subscription details
           const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any
           
+          // Check if user already has a lobby code
+          const { data: existingSub } = await supabaseAdmin
+            .from('subscriptions')
+            .select('lobby_code')
+            .eq('user_id', userId)
+            .single()
+          
+          // Generate new lobby code only if user doesn't have one
+          const lobbyCode = existingSub?.lobby_code || generateLobbyCode()
+          
           // Upsert subscription in database
           await supabaseAdmin.from('subscriptions').upsert({
             user_id: userId,
@@ -47,6 +67,7 @@ export async function POST(request: Request) {
             stripe_customer_id: customerId,
             stripe_subscription_id: subscriptionId,
             status: 'active',
+            lobby_code: lobbyCode,
             current_period_start: subscription.current_period_start ? new Date(subscription.current_period_start * 1000).toISOString() : null,
             current_period_end: subscription.current_period_end ? new Date(subscription.current_period_end * 1000).toISOString() : null,
             updated_at: new Date().toISOString()
