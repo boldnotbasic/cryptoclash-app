@@ -24,10 +24,25 @@ interface CryptoDetailProps {
   priceHistory: PriceChange[]
   onBack: () => void
   initialChartPeriod?: 'all' | 'last10' | 'last5'
+  externalChartPeriod?: 'all' | 'last10' | 'last5'
+  onChartPeriodChange?: (period: 'all' | 'last10' | 'last5') => void
+  hidePeriodSelector?: boolean
 }
 
-export default function CryptoDetail({ crypto, priceHistory, onBack, initialChartPeriod = 'all' }: CryptoDetailProps) {
-  const [chartPeriod, setChartPeriod] = useState<'all' | 'last10' | 'last5'>(initialChartPeriod)
+export default function CryptoDetail({ 
+  crypto, 
+  priceHistory, 
+  onBack, 
+  initialChartPeriod = 'all',
+  externalChartPeriod,
+  onChartPeriodChange,
+  hidePeriodSelector = false
+}: CryptoDetailProps) {
+  const [internalChartPeriod, setInternalChartPeriod] = useState<'all' | 'last10' | 'last5'>(initialChartPeriod)
+  
+  // Use external period if provided, otherwise use internal
+  const chartPeriod = externalChartPeriod !== undefined ? externalChartPeriod : internalChartPeriod
+  const setChartPeriod = onChartPeriodChange || setInternalChartPeriod
 
   // Filter price history based on selected period
   const getFilteredPriceHistory = (history: PriceChange[]) => {
@@ -82,67 +97,51 @@ export default function CryptoDetail({ crypto, priceHistory, onBack, initialChar
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 flex flex-col p-4">
-      <div className="w-full flex flex-col flex-1">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+    <div className="crypto-card border border-neon-purple/40 shadow-[0_0_18px_rgba(192,132,252,0.45)] bg-gradient-to-br from-dark-bg/95 via-dark-bg/92 to-purple-900/20 p-4 w-full">
+      <div className="w-full flex flex-col">
+        {/* Header: alles op één regel */}
+        <div className="flex items-center gap-3 mb-2">
           <button
             onClick={onBack}
-            className="p-3 rounded-lg bg-neon-purple/20 hover:bg-neon-purple/30 text-neon-purple border border-neon-purple transition-colors"
+            className="p-2 rounded-lg bg-neon-purple/20 hover:bg-neon-purple/30 text-neon-purple border border-neon-purple transition-colors flex-shrink-0"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="text-neon-turquoise text-sm font-semibold">
-            {crypto.symbol}
-          </div>
-          <div className="w-10"></div>
-        </div>
-
-        {/* Crypto Info */}
-        <div className="mb-4">
-          <div className="flex items-center space-x-3 mb-2">
-            {imagePath && (
-              <img
-                src={imagePath}
-                alt={crypto.name}
-                className="w-16 h-16 object-contain"
-              />
-            )}
-            <h1 className="text-3xl font-bold text-white">{crypto.name}</h1>
+          
+          {imagePath && (
+            <img
+              src={imagePath}
+              alt={crypto.name}
+              className="w-12 h-12 object-contain flex-shrink-0"
+            />
+          )}
+          
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-2xl font-bold text-white">{crypto.name}</h1>
+            <span className="text-neon-turquoise text-sm font-semibold">{crypto.symbol}</span>
           </div>
           
-          <div className="flex items-baseline space-x-3">
-            <div className="text-5xl font-bold text-white">
+          <div className="flex items-baseline space-x-2 ml-auto">
+            <div className="text-3xl font-bold text-white">
               €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <div className={`flex items-center space-x-1 px-3 py-1.5 rounded-md border ${
+            <div className={`flex items-center space-x-1 px-2 py-1 rounded-md border ${
               isPositive ? 'bg-green-400/10 border-green-400/30 text-green-400' : 'bg-red-400/10 border-red-400/30 text-red-400'
             }`}>
               {isPositive ? (
-                <TrendingUp className="w-5 h-5" />
+                <TrendingUp className="w-4 h-4" />
               ) : (
-                <TrendingDown className="w-5 h-5" />
+                <TrendingDown className="w-4 h-4" />
               )}
-              <span className="text-base font-semibold">
+              <span className="text-sm font-semibold">
                 {isPositive ? '+' : ''}{periodPercentage.toFixed(2)}%
               </span>
             </div>
           </div>
-          
-          <div className="text-gray-400 text-sm mt-2">
-            Vertraagd: {new Date().toLocaleString('nl-NL', { 
-              day: '2-digit', 
-              month: '2-digit', 
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit'
-            })}
-          </div>
         </div>
 
-        {/* Chart - Compact maar duidelijk */}
-        <div className="crypto-card border border-neon-purple/40 shadow-[0_0_18px_rgba(192,132,252,0.45)] bg-gradient-to-br from-dark-bg/95 via-dark-bg/92 to-purple-900/20 rounded-xl p-4 mb-4" style={{ height: '280px' }}>
+        {/* Chart - grotere hoogte om ruimte te vullen */}
+        <div className="crypto-card border border-neon-purple/40 shadow-[0_0_18px_rgba(192,132,252,0.45)] bg-gradient-to-br from-dark-bg/95 via-dark-bg/92 to-purple-900/20 rounded-xl p-3 mb-2" style={{ height: '400px' }}>
           <DetailChart
             priceHistory={getFilteredPriceHistory(priceHistory)}
             currentPrice={crypto.price}
@@ -150,51 +149,53 @@ export default function CryptoDetail({ crypto, priceHistory, onBack, initialChar
           />
         </div>
 
-        {/* Period Selector */}
-        <div className="flex justify-center space-x-2 mb-6">
-          <button
-            onClick={() => setChartPeriod('all')}
-            className={`flex-1 px-4 py-2 rounded-md text-sm font-semibold transition-all ${
-              chartPeriod === 'all'
-                ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
-                : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
-            }`}
-          >
-            Sinds start
-          </button>
-          <button
-            onClick={() => setChartPeriod('last10')}
-            className={`flex-1 px-4 py-2 rounded-md text-sm font-semibold transition-all ${
-              chartPeriod === 'last10'
-                ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
-                : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
-            }`}
-          >
-            10 beurten
-          </button>
-          <button
-            onClick={() => setChartPeriod('last5')}
-            className={`flex-1 px-4 py-2 rounded-md text-sm font-semibold transition-all ${
-              chartPeriod === 'last5'
-                ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
-                : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
-            }`}
-          >
-            5 beurten
-          </button>
-        </div>
+        {/* Period Selector - verborgen als controlled van buitenaf */}
+        {!hidePeriodSelector && (
+          <div className="flex justify-center space-x-2 mb-3">
+            <button
+              onClick={() => setChartPeriod('all')}
+              className={`flex-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                chartPeriod === 'all'
+                  ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
+                  : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
+              }`}
+            >
+              Sinds start
+            </button>
+            <button
+              onClick={() => setChartPeriod('last10')}
+              className={`flex-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                chartPeriod === 'last10'
+                  ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
+                  : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
+              }`}
+            >
+              10 beurten
+            </button>
+            <button
+              onClick={() => setChartPeriod('last5')}
+              className={`flex-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                chartPeriod === 'last5'
+                  ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
+                  : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
+              }`}
+            >
+              5 beurten
+            </button>
+          </div>
+        )}
 
         {/* Additional Info */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="crypto-card border border-neon-purple/30 bg-dark-bg/40 rounded-lg p-4">
-            <div className="text-gray-400 text-xs mb-1">Volume</div>
-            <div className="text-white font-semibold">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="crypto-card border border-neon-purple/30 bg-dark-bg/40 rounded-lg p-3">
+            <div className="text-gray-400 text-xs mb-0.5">Volume</div>
+            <div className="text-white text-sm font-semibold">
               €{crypto.volume.toLocaleString('nl-NL')}
             </div>
           </div>
-          <div className="crypto-card border border-neon-purple/30 bg-dark-bg/40 rounded-lg p-4">
-            <div className="text-gray-400 text-xs mb-1">Marktwaarde</div>
-            <div className="text-white font-semibold">
+          <div className="crypto-card border border-neon-purple/30 bg-dark-bg/40 rounded-lg p-3">
+            <div className="text-gray-400 text-xs mb-0.5">Marktwaarde</div>
+            <div className="text-white text-sm font-semibold">
               €{crypto.marketCap.toLocaleString('nl-NL')}
             </div>
           </div>

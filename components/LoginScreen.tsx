@@ -6,7 +6,7 @@ import QrScanner from 'qr-scanner'
 
 // List of 20 random avatars
 const avatars = [
-  '🤡', '🚀', '💎', '⚡️', '💀', '🦊', '🦄', '🤖', '👾', '👽', 
+  '🤡', '🚀', '💎', '⚡️', '💀', '🦊', '🦄', '🌝', '👾', '👽', 
   '👻', '🦁', '🐲', '🦉', '🦅', '🦈', '🐙', '🤯', '😎', '🤠'
 ];
 
@@ -308,13 +308,32 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
                 <div className="grid grid-cols-5 gap-3">
                   {avatars.map((avatar) => {
                     // Check if this avatar is already taken by another player
-                    const isTaken = room?.players ? Object.values(room.players).some((p: any) => p.avatar === avatar) : false
+                    const isTaken = room?.players ? Object.values(room.players).some((p: any) => {
+                      // Don't count disconnected players
+                      if (p.disconnected) return false
+                      // Don't count the host
+                      if (p.isHost) return false
+                      // Check if avatar matches
+                      return p.avatar === avatar
+                    }) : false
+                    
+                    // Debug logging
+                    if (isTaken) {
+                      console.log(`🚫 Avatar ${avatar} is taken by another player`)
+                    }
                     
                     return (
                       <button
                         key={avatar}
                         type="button"
-                        onClick={() => !isTaken && setSelectedAvatar(avatar)}
+                        onClick={() => {
+                          if (!isTaken) {
+                            console.log(`✅ Selected avatar: ${avatar}`)
+                            setSelectedAvatar(avatar)
+                          } else {
+                            console.log(`❌ Cannot select ${avatar} - already taken`)
+                          }
+                        }}
                         disabled={isTaken}
                         className={`text-3xl p-2 rounded-lg transition-all duration-200 ${ 
                           isTaken

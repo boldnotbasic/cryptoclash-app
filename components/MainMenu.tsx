@@ -259,6 +259,14 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           onEndTurnConfirm={onEndTurnConfirm}
         />
 
+        {/* Totaal Vermogen Widget - zelfde stijl als Crypto Wallet widget */}
+        <div className="crypto-card text-center mb-4">
+          <h2 className="text-lg font-semibold text-gray-400 mb-2">Totaal Vermogen</h2>
+          <p className="text-4xl font-bold text-neon-gold">
+            €{totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+        </div>
+
         {/* Overlay wanneer speler alle jaren heeft gespeeld */}
         {gameFinished && (
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm">

@@ -2,7 +2,8 @@
 
 import React, { useMemo, useState } from 'react'
 import Header from './Header'
-import { CreditCard } from 'lucide-react'
+import CandlestickChart from './CandlestickChart'
+import { CreditCard, TrendingUp, TrendingDown } from 'lucide-react'
 
 type Crypto = {
   id: string
@@ -15,6 +16,11 @@ type Crypto = {
   change24h?: number
 }
 
+interface PriceChange {
+  percentage: number
+  timestamp: number
+}
+
 interface BuyCryptoProps {
   playerName: string
   playerAvatar: string
@@ -24,9 +30,10 @@ interface BuyCryptoProps {
   onConfirmBuy: (symbol: string, quantity: number) => void
   onEndTurnConfirm?: () => void
   actionsDisabled?: boolean
+  priceHistory?: Record<string, PriceChange[]>
 }
 
-export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalance, onBack, onConfirmBuy, onEndTurnConfirm, actionsDisabled = false }: BuyCryptoProps) {
+export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalance, onBack, onConfirmBuy, onEndTurnConfirm, actionsDisabled = false, priceHistory = {} }: BuyCryptoProps) {
   const getCryptoImagePath = (symbol: string): string | null => {
     switch (symbol) {
       case 'DSHEEP': return '/dsheep.png'
@@ -125,18 +132,69 @@ export default function BuyCrypto({ playerName, playerAvatar, cryptos, cashBalan
                         <span className="text-4xl">{c.icon}</span>
                       )}
                     </div>
-                    <div className="w-full">
-                      <div className="flex items-center justify-between">
-                        <div className="text-white font-semibold truncate mr-2">{c.name}</div>
-                        <div className="text-neon-turquoise font-bold whitespace-nowrap">€{c.price.toFixed(2)}</div>
-                      </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <div className="text-gray-400 text-xs">{c.symbol}</div>
-                        {typeof c.change24h === 'number' && (
-                          <div className={`text-[10px] px-1.5 py-0.5 rounded-sm border ${c.change24h >= 0 ? 'text-green-400 border-green-400/30' : 'text-red-400 border-red-400/30'}`}>
-                            {c.change24h >= 0 ? '+' : ''}{c.change24h.toFixed(1)}%
+                    <div className="w-full mt-auto">
+                      <div className="rounded-lg bg-dark-bg/80 px-2 py-0.5">
+                        <div className="flex items-center justify-between">
+                          <div className="text-white font-semibold truncate mr-2">{c.name}</div>
+                          <div className="text-neon-turquoise font-bold whitespace-nowrap">€{c.price.toFixed(2)}</div>
+                        </div>
+                        {/* Info blok onderaan gelijk aan Markt-tiles */}
+                        <div className="flex items-center justify-between mt-0">
+                          <div className="text-gray-400 text-xs">{c.symbol}</div>
+                          {typeof c.change24h === 'number' && (
+                            <div
+                              className={`text-xs px-1.5 py-0.5 rounded-sm border flex items-center space-x-1 ${
+                                (c.change24h || 0) >= 0
+                                  ? 'text-green-400 border-green-400/30'
+                                  : 'text-red-400 border-red-400/30'
+                              }`}
+                            >
+                              {(c.change24h || 0) >= 0 ? (
+                                <TrendingUp className="w-3 h-3" />
+                              ) : (
+                                <TrendingDown className="w-3 h-3" />
+                              )}
+                              <span>
+                                {(c.change24h || 0) >= 0 ? '+' : ''}
+                                {(c.change24h || 0).toFixed(1)}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {typeof c.change24h === 'number' && Math.abs(c.change24h) > 0 && (
+                          <div
+                            className={`text-[9px] font-semibold mb-0.5 flex items-center space-x-1 ${
+                              Math.abs(c.change24h) > 15
+                                ? c.change24h > 0
+                                  ? 'text-green-400'
+                                  : 'text-red-400'
+                                : c.change24h > 0
+                                  ? 'text-green-500/60'
+                                  : 'text-red-500/60'
+                            }`}
+                          >
+                            {Math.abs(c.change24h) > 15 ? (
+                              c.change24h > 0 ? (
+                                <>↗️ Sterk stijgend</>
+                              ) : (
+                                <>↘️ Sterk dalend</>
+                              )
+                            ) : c.change24h > 0 ? (
+                              <>→ Licht stijgend</>
+                            ) : (
+                              <>→ Licht dalend</>
+                            )}
                           </div>
                         )}
+
+                        <CandlestickChart
+                          priceHistory={priceHistory[c.symbol] || []}
+                          maxBars={6}
+                          currentPercentage={c.change24h || 0}
+                          currentPrice={c.price}
+                          showStartPoint={true}
+                        />
                       </div>
                     </div>
                   </div>

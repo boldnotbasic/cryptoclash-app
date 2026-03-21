@@ -152,6 +152,7 @@ const scanScenarios: ScanScenarioTemplate[] = [
 export default function ScanResult({ onClose, onApplyEffect, externalScenario }: ScanResultProps) {
   const [currentScenario, setCurrentScenario] = useState<ScanEffect | null>(null)
   const [isVisible, setIsVisible] = useState(false)
+  const [progressStarted, setProgressStarted] = useState(false)
   const initializedRef = useRef(false)
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null)
   const hasClosedRef = useRef(false)
@@ -302,6 +303,10 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
       console.log('Setting visible to true')
       setIsVisible(true)
       await playAudio()
+      // Start progress bar after fade-in completes
+      setTimeout(() => {
+        setProgressStarted(true)
+      }, 500) // Wait for fade-in animation to complete
     }, 100)
     
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -333,7 +338,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
         onApplyEffect(currentScenario)
         onClose()
       }, 300)
-    }, displayTime + 100) // 100ms fade-in + display time
+    }, displayTime) // Exact display time, no extra delay
 
     // Cleanup: only clear timer on unmount, not on re-render
     return () => {
@@ -593,8 +598,8 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
               <div 
                 className="bg-neon-gold h-1 rounded-full"
                 style={{ 
-                  width: isVisible ? '100%' : '0%',
-                  transition: `width ${displayTime}ms linear`
+                  width: progressStarted ? '0%' : '100%',
+                  transition: progressStarted ? `width ${displayTime}ms ease-out` : 'none'
                 }}
               ></div>
             </div>

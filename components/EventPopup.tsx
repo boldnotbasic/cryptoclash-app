@@ -23,6 +23,7 @@ export interface ScanEffect {
   color: string
   topGainer?: { symbol: string; percentage: number }
   topLoser?: { symbol: string; percentage: number }
+  isUndo?: boolean  // Indicates this is an undo/correction action
 }
 
 interface ScanScenarioTemplate {
@@ -129,14 +130,16 @@ const scanScenarios: ScanScenarioTemplate[] = [
   }
 ]
 
-export default function ScanResult({ onClose, onApplyEffect, externalScenario, cryptos, nonForecastDurationMs, forecastDurationMs, transitionEase }: ScanResultProps) {
+export default function EventPopup({ onClose, onApplyEffect, externalScenario, cryptos, nonForecastDurationMs, forecastDurationMs, transitionEase }: ScanResultProps) {
   const [currentScenario, setCurrentScenario] = useState<ScanEffect | null>(null)
   const [isVisible, setIsVisible] = useState(false)
+  const [progressStarted, setProgressStarted] = useState(false)
   const [remainingSeconds, setRemainingSeconds] = useState(6) // Timer for forecast
   const initializedRef = useRef(false)
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null)
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const hasClosedRef = useRef(false)
+  const scenarioIdRef = useRef(0) // Unique ID for each popup instance
   
 
   // Simulate next 10 events to calculate top gainer and loser
@@ -255,6 +258,31 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
   }
 
   useEffect(() => {
+    // React 18 StrictMode runt effects twee keer in dev; zorg dat we maar één keer initialiseren
+    if (initializedRef.current) return
+    initializedRef.current = true
+    
+    // CRITICAL: Reset all state and increment scenario ID for new popup
+    scenarioIdRef.current += 1
+    const currentScenarioId = scenarioIdRef.current
+    console.log(`🆕 New EventPopup instance #${currentScenarioId}`)
+    
+    // Reset all state
+    setIsVisible(false)
+    setProgressStarted(false)
+    setRemainingSeconds(6)
+    hasClosedRef.current = false
+    
+    // Clear any existing timers from previous popup
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current)
+      autoCloseTimerRef.current = null
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = null
+    }
+    
     console.log('EventPopup effect triggered')
     console.log('External scenario provided:', externalScenario)
     console.log('🔮 Forecast data check in EventPopup:', {
@@ -280,42 +308,37 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
       topGainer: scenario.topGainer,
       topLoser: scenario.topLoser
     })
-    console.log('🐋 WHALE ALERT DEBUG:', {
-      message: scenario.message,
-      includesWhaleAlert: scenario.message.includes('Whale Alert'),
-      type: scenario.type,
-      scenario
-    })
     
     setCurrentScenario(scenario)
 
     // Show animation
-    if (!initializedRef.current) {
-      initializedRef.current = true
-      setTimeout(() => {
-        console.log('Setting visible to true')
-        setIsVisible(true)
-      }, 100)
-    } else {
-      // If already initialized, show immediately
+    setTimeout(() => {
+      console.log(`Setting visible to true for scenario #${currentScenarioId}`)
       setIsVisible(true)
-    }
+      // Start progress bar after fade-in completes
+      setTimeout(() => {
+        setProgressStarted(true)
+      }, 500)
+    }, 100)
     
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [externalScenario]) // Re-run when externalScenario changes!
+  }, []) // Only run once on mount
 
   // Separate effect for auto-close timer that depends on currentScenario being set
   useEffect(() => {
     if (!currentScenario || hasClosedRef.current) return
     
-    console.log('🕒 Starting auto-close timer for scenario:', currentScenario.message)
+    const currentScenarioId = scenarioIdRef.current
+    console.log(`🕒 Starting auto-close timer for scenario #${currentScenarioId}:`, currentScenario.message)
     
     // Clear any existing timers
     if (autoCloseTimerRef.current) {
       clearTimeout(autoCloseTimerRef.current)
+      autoCloseTimerRef.current = null
     }
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current)
+      countdownIntervalRef.current = null
     }
     
     // All events: minimum 6 seconds display time
@@ -325,42 +348,69 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
       ? (typeof forecastDurationMs === 'number' ? forecastDurationMs : defaultForecast)
       : (typeof nonForecastDurationMs === 'number' ? nonForecastDurationMs : defaultNonForecast)
     
-    // Start countdown for forecast
+    // Start countdown for forecast - same total time as other events (6600ms)
     if (currentScenario.type === 'forecast') {
-      setRemainingSeconds(6)
-      let countdownValue = 6
-      countdownIntervalRef.current = setInterval(() => {
-        countdownValue -= 1
-        setRemainingSeconds(countdownValue)
+      // Wait for fade-in + delay before starting countdown (600ms)
+      setTimeout(() => {
+        // Check if this is still the current scenario
+        if (scenarioIdRef.current !== currentScenarioId) {
+          console.log(`⚠️ Scenario #${currentScenarioId} is outdated, skipping countdown`)
+          return
+        }
         
-        // When countdown reaches 0, close the popup
-        if (countdownValue <= 0) {
-          if (countdownIntervalRef.current) {
-            clearInterval(countdownIntervalRef.current)
+        setRemainingSeconds(6)
+        let countdownValue = 6
+        countdownIntervalRef.current = setInterval(() => {
+          // Check if this is still the current scenario
+          if (scenarioIdRef.current !== currentScenarioId) {
+            console.log(`⚠️ Scenario #${currentScenarioId} is outdated, clearing interval`)
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current)
+              countdownIntervalRef.current = null
+            }
+            return
           }
           
-          if (!hasClosedRef.current) {
-            console.log('🔥 Timer reached 0 - CLOSING forecast popup')
-            hasClosedRef.current = true
-            setIsVisible(false)
+          countdownValue -= 1
+          setRemainingSeconds(countdownValue)
+          
+          // When countdown reaches 0, close the popup
+          if (countdownValue <= 0) {
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current)
+              countdownIntervalRef.current = null
+            }
             
-            setTimeout(() => {
-              console.log('🔥 APPLYING EFFECT and closing')
-              onApplyEffect(currentScenario)
-              onClose()
-            }, 300)
+            if (!hasClosedRef.current && scenarioIdRef.current === currentScenarioId) {
+              console.log(`🔥 Timer reached 0 - CLOSING forecast popup #${currentScenarioId}`)
+              hasClosedRef.current = true
+              setIsVisible(false)
+              
+              setTimeout(() => {
+                console.log('🔥 APPLYING EFFECT and closing')
+                onApplyEffect(currentScenario)
+                onClose()
+              }, 300)
+            }
           }
-        }
-      }, 1000)
+        }, 1000)
+      }, 600) // 100ms fade-in + 500ms delay
     } else {
-      // For non-forecast events, use the old timer logic
+      // For non-forecast events, close AFTER progress bar is completely empty
+      // 100ms fade-in + 500ms delay + 6000ms progress + 300ms buffer = 6900ms
       autoCloseTimerRef.current = setTimeout(() => {
+        // Check if this is still the current scenario
+        if (scenarioIdRef.current !== currentScenarioId) {
+          console.log(`⚠️ Scenario #${currentScenarioId} is outdated, skipping auto-close`)
+          return
+        }
+        
         if (hasClosedRef.current) {
           console.log('⚠️ Already closed, skipping')
           return
         }
         
-        console.log('🔥 FORCE CLOSING scan result NOW')
+        console.log(`🔥 FORCE CLOSING scan result #${currentScenarioId} NOW`)
         hasClosedRef.current = true
         setIsVisible(false)
         
@@ -369,7 +419,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
           onApplyEffect(currentScenario)
           onClose()
         }, 300)
-      }, displayTime + 100) // 100ms fade-in + display time
+      }, 6900) // Wait for progress bar to be completely empty
     }
 
     // Cleanup: only clear timers on unmount, not on re-render
@@ -401,7 +451,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
     }
   }
 
-  // Custom images for event-scenario's (Bull Run, Market Crash, Whale Alert)
+  // Custom images for event-scenario's (Bull Run, Bear Market, Whale Alert)
   // Gebruikt jouw bestaande files in /public:
   //  - /Bull-run.png
   //  - /Beurscrash.png
@@ -410,7 +460,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
     if (currentScenario.type !== 'event') return null
     const msg = currentScenario.message || ''
     if (msg.includes('Bull Run')) return '/Bull-run.png'
-    if (msg.includes('Market Crash')) return '/Beurscrash.png'
+    if (msg.includes('Bear Market') || msg.includes('Market Crash')) return '/Beurscrash.png'
     if (msg.includes('Whale Alert')) return '/Whala-alert.png'
     return null
   }
@@ -476,13 +526,31 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
     : (typeof nonForecastDurationMs === 'number' ? nonForecastDurationMs : defaultNonForecast)
 
   return (
-    <div className={`fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300 ease-in-out ${
-      isVisible ? 'opacity-100' : 'opacity-0'
-    }`}>     
-      <div className={`transform transition-all duration-500 ease-out ${
-        isVisible ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
-      }`}>
+    <div 
+      className={`fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity duration-300 ease-in-out ${
+        isVisible ? 'opacity-100' : 'opacity-0'
+      }`}
+      onClick={onClose}
+    >     
+      <div 
+        className={`transform transition-all duration-500 ease-out ${
+          isVisible ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className={`crypto-card ${getBorderColor()} bg-gradient-to-br ${getBackgroundColor()} max-w-md w-full text-center p-8 relative`}>
+
+          {/* CORRECTIE Header - alleen tonen bij undo acties */}
+          {currentScenario.isUndo && (
+            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-orange-500/90 px-6 py-2 rounded-full border-2 border-orange-400 shadow-lg">
+              <div className="flex items-center gap-2">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+                <span className="text-white font-bold text-sm tracking-wider">CORRECTIE</span>
+              </div>
+            </div>
+          )}
 
           {/* Crypto Icon */}
           <div className="mb-6">
@@ -536,12 +604,13 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
 
           {/* Effect Message - Show for Forecast and Market-wide events */}
           <div className="mb-6">
-            {/* Show message for forecast AND market-wide events (Bull Run, Market Crash, Whale Alert) */}
+            {/* Show message for forecast AND market-wide events (Bull Run, Bear Market, Whale Alert) */}
             {(currentScenario.type === 'forecast' || currentScenario.type === 'event') && (
               <div className="flex items-center justify-center">
                 <h3 className={`text-3xl font-bold ${getTextColor()}`}>
                   {currentScenario.message.includes('Bull Run') ? 'Bull Run!' : 
-                   currentScenario.message.includes('Market Crash') ? 'Market Crash!' : 
+                   currentScenario.message.includes('Bear Market') ? 'Bear Market!' :
+                   currentScenario.message.includes('Market Crash') ? 'Bear Market!' : 
                    currentScenario.message}
                 </h3>
               </div>
@@ -635,8 +704,8 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
                     {currentScenario.percentage > 0 ? '+' : ''}{currentScenario.percentage}%
                   </span>
                 </div>
-                {/* Show "Alle munten" for Bull Run and Market Crash */}
-                {(currentScenario.message.includes('Bull Run') || currentScenario.message.includes('Market Crash')) && (
+                {/* Show "Alle munten" for Bull Run and Bear Market */}
+                {(currentScenario.message.includes('Bull Run') || currentScenario.message.includes('Bear Market') || currentScenario.message.includes('Market Crash')) && (
                   <div className="text-lg text-gray-300 mt-2">Alle munten</div>
                 )}
               </div>
@@ -661,8 +730,8 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario, c
                   <div
                     className="bg-neon-gold h-1 rounded-full"
                     style={{
-                      width: isVisible ? '100%' : '0%',
-                      transition: `width ${progressMs}ms linear`
+                      width: progressStarted ? '0%' : '100%',
+                      transition: progressStarted ? `width ${progressMs}ms ease-out` : 'none'
                     }}
                   ></div>
                 </div>

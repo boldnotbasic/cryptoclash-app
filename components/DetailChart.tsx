@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 interface PriceChange {
   percentage: number
   timestamp: number
@@ -12,6 +14,7 @@ interface DetailChartProps {
 }
 
 export default function DetailChart({ priceHistory, currentPrice, showStartPoint = true }: DetailChartProps) {
+  const [selectedPointIndex, setSelectedPointIndex] = useState<number | null>(null)
   const hasEvents = priceHistory.length > 0
 
   // Reconstruct absolute prices working backwards from currentPrice
@@ -125,7 +128,10 @@ export default function DetailChart({ priceHistory, currentPrice, showStartPoint
             </linearGradient>
           </defs>
 
-          {/* Horizontal grid lines */}
+          {/* Area fill first to keep grid lines visible on top */}
+          {areaD && <path d={areaD} fill={`url(#${gradientId})`} />}
+
+          {/* Horizontal grid lines on top of area */}
           {gridValues.map((val, i) => (
             <line
               key={i}
@@ -133,13 +139,10 @@ export default function DetailChart({ priceHistory, currentPrice, showStartPoint
               y1={toY(val)}
               x2={leftPad + chartW}
               y2={toY(val)}
-              stroke="rgba(255,255,255,0.2)"
+              stroke="rgba(255,255,255,0.25)"
               strokeWidth="2"
             />
           ))}
-
-          {/* Area fill */}
-          {areaD && <path d={areaD} fill={`url(#${gradientId})`} />}
 
           {/* Line */}
           <path
@@ -151,17 +154,67 @@ export default function DetailChart({ priceHistory, currentPrice, showStartPoint
             strokeLinejoin="round"
           />
 
-          {/* Data points */}
+          {/* Data points with click and hover labels */}
           {displayPoints.map((p, i) => {
             const isFirst = i === 0 && showStartPoint
+            const isLast = i === displayPoints.length - 1
+            const isSelected = selectedPointIndex === i
             const cx = toX(p.index)
             const cy = toY(p.price)
             const dotColor = isFirst ? 'white' : lineColor
+            const priceLabel = `€${p.price.toFixed(2)}`
+            
             return (
-              <g key={i}>
-                <circle cx={cx} cy={cy} r="10" fill="rgba(15,23,42,0.9)" stroke={dotColor} strokeWidth="3" />
-                <circle cx={cx} cy={cy} r="5" fill={dotColor} />
-                <title>{isFirst ? `Start: €${p.price.toFixed(2)}` : `€${p.price.toFixed(2)} (${p.percentage >= 0 ? '+' : ''}${p.percentage.toFixed(1)}%)`}</title>
+              <g key={i} className="chart-point-group">
+                {/* Hover label OR selected label - show on all points except last (which has permanent label) */}
+                {!isLast && (
+                  <g className={isSelected ? 'opacity-100' : 'opacity-0 hover:opacity-100 transition-opacity pointer-events-none'}>
+                    <rect 
+                      x={cx - 60} 
+                      y={cy - 35} 
+                      width={120} 
+                      height={22} 
+                      rx="4" 
+                      fill="rgba(251,191,36,0.95)" 
+                      stroke={lineColor} 
+                      strokeWidth="1.5" 
+                    />
+                    <text 
+                      x={cx} 
+                      y={cy - 18} 
+                      textAnchor="middle" 
+                      fill="rgba(15,23,42,0.95)" 
+                      fontSize="15" 
+                      fontWeight="bold"
+                    >
+                      {priceLabel}
+                    </text>
+                  </g>
+                )}
+                
+                {/* Dot circles - clickable */}
+                <circle 
+                  cx={cx} 
+                  cy={cy} 
+                  r="10" 
+                  fill="rgba(15,23,42,0.9)" 
+                  stroke={dotColor} 
+                  strokeWidth={isSelected ? "4" : "3"}
+                  className="cursor-pointer hover:stroke-[5] transition-all"
+                  onClick={() => setSelectedPointIndex(isSelected ? null : i)}
+                />
+                <circle 
+                  cx={cx} 
+                  cy={cy} 
+                  r="5" 
+                  fill={dotColor} 
+                  className="cursor-pointer"
+                  onClick={() => setSelectedPointIndex(isSelected ? null : i)}
+                  style={{ pointerEvents: 'none' }}
+                />
+                
+                {/* SVG title for native tooltip fallback */}
+                <title>{isFirst ? `Start: ${priceLabel}` : `${priceLabel} (${p.percentage >= 0 ? '+' : ''}${p.percentage.toFixed(1)}%)`}</title>
               </g>
             )
           })}

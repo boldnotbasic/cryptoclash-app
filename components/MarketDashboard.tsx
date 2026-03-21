@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
-import { TrendingUp, TrendingDown, BarChart3, Activity, QrCode, Users, Bell, Zap, RefreshCw, ListChecks, Power, SkipForward, Clock, Music, VolumeX } from 'lucide-react'
-import Header from './Header'
-import EventPopup, { ScanEffect } from './EventPopup'
+import { TrendingUp, TrendingDown, DollarSign, Users, Activity, Clock, ListChecks, RefreshCw, VolumeX, Music, QrCode, Zap, SkipForward, Power } from 'lucide-react'
+import EventPopup from './EventPopup'
+import CryptoDetail from './CryptoDetail'
 import CandlestickChart from './CandlestickChart'
+import Header from './Header'
+import AnimatedNumber from './AnimatedNumber'
 import { playBackgroundMusic, pauseBackgroundMusic } from '@/utils/soundEffects'
 
 interface CryptoCurrency {
@@ -56,6 +58,7 @@ interface MarketDashboardProps {
   onEndGame?: () => void
   isMarketDashboard?: boolean
   externalPriceHistory?: Record<string, Array<{percentage: number, timestamp: number}>>
+  isGamePaused?: boolean
 }
 
 export default function MarketDashboard({ 
@@ -73,13 +76,46 @@ export default function MarketDashboard({
   socket = null,
   onEndGame,
   isMarketDashboard = false,
-  externalPriceHistory = {}
+  externalPriceHistory = {},
+  isGamePaused: externalGamePaused = false
 }: MarketDashboardProps) {
-  const [currentTime, setCurrentTime] = useState(new Date())
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [isSyncing, setIsSyncing] = useState(false)
   const [showEndGameModal, setShowEndGameModal] = useState(false)
   const [timerEnabled, setTimerEnabled] = useState(true)
+  const [isGamePaused, setIsGamePaused] = useState(externalGamePaused)
+  const [showPauseModal, setShowPauseModal] = useState(false)
+  
+  // Debug: Log socket and roomId availability
+  useEffect(() => {
+    console.log('🔍 MarketDashboard Debug:')
+    console.log('  - socket:', socket ? 'Connected' : 'NULL')
+    console.log('  - roomId:', roomId || 'EMPTY')
+    console.log('  - playerName:', playerName)
+    console.log('  - isGamePaused:', isGamePaused)
+  }, [socket, roomId, playerName, isGamePaused])
+  
+  // Listen for game pause/resume events from server
+  useEffect(() => {
+    if (!socket) return
+    
+    const handleGamePaused = () => {
+      console.log('⏸️ MarketDashboard received game:paused event')
+      setIsGamePaused(true)
+    }
+    
+    const handleGameResumed = () => {
+      console.log('▶️ MarketDashboard received game:resumed event')
+      setIsGamePaused(false)
+    }
+    
+    socket.on('game:paused', handleGamePaused)
+    socket.on('game:resumed', handleGameResumed)
+    
+    return () => {
+      socket.off('game:paused', handleGamePaused)
+      socket.off('game:resumed', handleGameResumed)
+    }
+  }, [socket])
   const [showKansEvent, setShowKansEvent] = useState(false)
   const [currentKansEvent, setCurrentKansEvent] = useState<ScanEffect | null>(null)
   const lastShownEventId = useRef<string | null>(null)
@@ -94,8 +130,25 @@ export default function MarketDashboard({
     REX: [],
     ORLO: []
   })
-  const [showUndoModal, setShowUndoModal] = useState(false)
+  const [showUndoModal, setShowUndoModal] = useState<'beurs' | 'acties' | null>(null)
   const [chartPeriod, setChartPeriod] = useState<'all' | 'last20' | 'last10' | 'last5'>('all')
+  const [selectedCrypto, setSelectedCrypto] = useState<CryptoCurrency | null>(null)
+  const [currentTime, setCurrentTime] = useState(Date.now())
+
+  // Sync local pause state with external prop
+  useEffect(() => {
+    setIsGamePaused(externalGamePaused)
+  }, [externalGamePaused])
+
+  // Update timer every second for live timestamps - pause when game is paused
+  useEffect(() => {
+    if (isGamePaused) return // Don't update timer when paused
+    
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now())
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [isGamePaused])
 
   const getCryptoImagePath = (symbol: string) => {
     switch (symbol) {
@@ -141,106 +194,6 @@ export default function MarketDashboard({
     return effect.includes('+') || effect.includes('stijgt') || effect.includes('rally') || effect.includes('move')
   }
 
-  // Simple test scan function triggered from dashboard Scans widget
-  const handleDashboardTestScan = () => {
-    console.log('\n🧪 === DASHBOARD TEST SCAN BUTTON CLICKED ===')
-    console.log('📺 Dashboard playerName:', playerName)
-    console.log('😀 Dashboard avatar:', playerAvatar)
-    console.log('🏠 Room ID:', roomId)
-    console.log('🔌 Socket connected:', !!socket && socket.connected)
-
-    if (!socket || !roomId || roomId === 'solo-mode') {
-      console.warn('⚠️ Cannot send dashboard test scan - missing socket or not in multiplayer room')
-      return
-    }
-
-    const generateTestScan = () => {
-      console.log('\n🧪 === GENERATING DASHBOARD TEST SCAN ===')
-      
-      // 15% chance for market events, 85% chance for regular coin scan
-      const eventRoll = Math.random()
-      
-      let testScanAction
-      
-      if (eventRoll < 0.05) {
-        console.log('📉 Generating Market Crash event!')
-        testScanAction = {
-          id: Date.now().toString(),
-          timestamp: Date.now(),
-          player: playerName || 'Market Screen',
-          action: 'Test Scan',
-          effect: 'Market Crash! Alle munten -10%!',
-          avatar: playerAvatar,
-          cryptoSymbol: undefined, // No specific crypto for market events
-          percentageValue: undefined // No specific percentage for market events
-        }
-      } else if (eventRoll < 0.10) {
-        console.log('🚀 Generating Bull Run event!')
-        testScanAction = {
-          id: Date.now().toString(),
-          timestamp: Date.now(),
-          player: playerName || 'Market Screen',
-          action: 'Test Scan',
-          effect: 'Bull Run!',
-          avatar: playerAvatar,
-          cryptoSymbol: undefined,
-          percentageValue: undefined
-        }
-      } else if (eventRoll < 0.15) {
-        console.log('🐋 Generating Whale Alert event!')
-        testScanAction = {
-          id: Date.now().toString(),
-          timestamp: Date.now(),
-          player: playerName || 'Market Screen',
-          action: 'Test Scan',
-          effect: 'Whale Alert! Random munt +50%!',
-          avatar: playerAvatar,
-          cryptoSymbol: undefined,
-          percentageValue: undefined
-        }
-      } else {
-        const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
-        const randomCoin = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
-        
-        const bound = 2
-        const randomPercentageStr = (Math.random() * (2 * bound) - bound).toFixed(1)
-        const randomPercentage = parseFloat(randomPercentageStr)
-        const sign = randomPercentage >= 0 ? '+' : ''
-
-        console.log(`🎯 Generating regular coin scan: ${randomCoin} ${sign}${randomPercentageStr}%`)
-        testScanAction = {
-          id: Date.now().toString(),
-          timestamp: Date.now(),
-          player: playerName || 'Market Screen',
-          action: 'Test Scan',
-          effect: `${randomCoin} ${sign}${randomPercentageStr}%`,
-          avatar: playerAvatar,
-          cryptoSymbol: randomCoin,
-          percentageValue: randomPercentage
-        }
-      }
-
-      console.log('📊 Generated dashboard test scan:', testScanAction)
-
-      // Optimistic local update so het direct zichtbaar is
-      // Server stuurt later de authoritative scanData:update
-      try {
-        // Emit to server so all clients (incl. dashboard) krijgen deze scan
-        socket.emit('player:scanAction', {
-          roomCode: roomId,
-          scanAction: testScanAction
-        })
-        console.log('📤 Dashboard test scan emitted to server')
-      } catch (e) {
-        console.warn('⚠️ Failed to emit dashboard test scan', e)
-      }
-
-      console.log('🧪 === DASHBOARD TEST SCAN COMPLETE ===\n')
-    }
-
-    generateTestScan()
-  }
-
   // Force next turn function for debugging/fixing turn bugs
   const handleForceNextTurn = () => {
     console.log('\n⏭️ === FORCE NEXT TURN FROM DASHBOARD ===')
@@ -256,31 +209,6 @@ export default function MarketDashboard({
     console.log('📡 Emitting turn:end to force next player turn')
     socket.emit('turn:end', { roomCode: roomId })
     console.log('✅ Force next turn request sent')
-  }
-
-  // Manual sync function to refresh all player data
-  const handleManualSync = () => {
-    console.log('\n🔄 === MANUAL SYNC TRIGGERED ===')
-    console.log('📺 Dashboard playerName:', playerName)
-    console.log('🏠 Room ID:', roomId)
-    console.log('🔌 Socket connected:', !!socket && socket.connected)
-
-    if (!socket || !roomId || roomId === 'solo-mode') {
-      console.warn('⚠️ Cannot sync - missing socket or not in multiplayer room')
-      return
-    }
-
-    setIsSyncing(true)
-    console.log('📡 Requesting full data refresh from all players')
-    
-    // Request fresh data from server
-    socket.emit('dashboard:requestRefresh', { roomCode: roomId })
-    
-    // Visual feedback - stop syncing animation after 2 seconds
-    setTimeout(() => {
-      setIsSyncing(false)
-      console.log('✅ Sync complete')
-    }, 2000)
   }
 
   // Handle music toggle
@@ -332,13 +260,6 @@ export default function MarketDashboard({
     console.log(`⏱️ === TIMER TOGGLE COMPLETE ===\n`)
   }
 
-  // Update time every second
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [])
 
   // Auto request a refresh on mount so we immediately get fresh totals from all players
   useEffect(() => {
@@ -513,7 +434,7 @@ export default function MarketDashboard({
       } else if (effect.includes('Bull Run')) {
         message = effect  // Use original effect: "Bull Run!"
         icon = '🚀'
-        color = 'green-500'  // Positive event = GREEN
+        color = 'neon-gold'  // Bull Run = ORANJE
         eventType = 'event'
         percentage = 5
       } else if (effect.includes('Market Crash')) {
@@ -613,18 +534,12 @@ export default function MarketDashboard({
       console.log('✅ SHOWING PLAYER KANS EVENT ON DASHBOARD:')
       console.log('  📊 Message:', message)
       console.log('  💰 Symbol:', cryptoSymbol)
-      console.log('  📈 Percentage:', percentage)
-      console.log('  🎨 Color:', color)
-      console.log('  🎯 Icon:', icon)
-      console.log('  🎲 Source: PLAYER KANS EVENT (not auto beurs event)')
+      console.log('  📊 Type:', eventType)
+      console.log('  📊 Percentage:', percentage)
+      console.log('  💁 Player:', playerName)
 
-      // Auto-hide after 6 seconds (synchronized with ScanResult and EventPopup)
-      setTimeout(() => {
-        setShowKansEvent(false)
-        setTimeout(() => {
-          setCurrentKansEvent(null)
-        }, 300) // Wait for fade out animation
-      }, 6300)
+      // REMOVED: External auto-close timer
+      // EventPopup component handles its own 6900ms timer
     } else {
       console.log('❌ Event NOT shown on dashboard:', effect)
       console.log('   Reason: Not recognized as market or individual event')
@@ -723,17 +638,6 @@ export default function MarketDashboard({
                 </h1>
               </div>
               <div className="text-right space-y-2">
-                {/* Connection Status Indicator */}
-                {playerName === 'Market Dashboard' && (
-                  <div className="flex items-center justify-end space-x-2">
-                    {/* LIVE dot */}
-                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} title={isConnected ? 'LIVE' : 'OFFLINE'}></div>
-                    {/* Players badge */}
-                    <div className="px-2 py-1 rounded-full bg-white/10 border border-white/10">
-                      <span className="text-xs text-gray-300 font-bold">{connectedPlayers} spelers</span>
-                    </div>
-                  </div>
-                )}
                 {roomId && playerName === 'Market Dashboard' && (
                   <div className="flex items-center gap-2">
                     {/* Music Toggle */}
@@ -770,33 +674,13 @@ export default function MarketDashboard({
                         {timerEnabled ? 'AAN' : 'UIT'}
                       </span>
                     </button>
-                    <div className="bg-neon-purple/20 px-3 py-1 rounded-full border border-neon-purple/50">
-                      <span className="text-neon-purple text-xs font-bold">Room: {roomId}</span>
-                    </div>
+                    {roomId && roomId !== 'solo-mode' && (
+                      <div className="px-3 py-1.5 rounded-full bg-neon-purple/10 border border-neon-purple/30">
+                        <span className="text-xs text-neon-purple font-bold">Room: {roomId}</span>
+                      </div>
+                    )}
                   </div>
                 )}
-                <div className="flex items-center gap-2">
-                  <div>
-                    <p className="text-gray-400 text-xs">Laatste update</p>
-                    <p className="text-neon-gold font-semibold text-sm">
-                      {currentTime.toLocaleTimeString('nl-NL')}
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleManualSync}
-                    disabled={isSyncing}
-                    className={`p-2 rounded-lg transition-all ${
-                      isSyncing 
-                        ? 'bg-neon-blue/20 cursor-not-allowed' 
-                        : 'bg-neon-blue/10 hover:bg-neon-blue/20 active:scale-95'
-                    }`}
-                    title="Sync alle speler data"
-                  >
-                    <RefreshCw 
-                      className={`w-4 h-4 text-neon-blue ${isSyncing ? 'animate-spin' : ''}`}
-                    />
-                  </button>
-                </div>
               </div>
             </div>
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -863,7 +747,12 @@ export default function MarketDashboard({
                       </div>
                       <div className="text-right">
                         <p className="text-neon-gold font-bold text-sm">
-                          €{(player.totalValue || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <AnimatedNumber 
+                            value={player.totalValue || 0}
+                            prefix="€"
+                            decimals={2}
+                            locale="nl-NL"
+                          />
                         </p>
                       </div>
                     </div>
@@ -876,16 +765,22 @@ export default function MarketDashboard({
 
         {/* Markt overzicht + highlight-tiles in één widget */}
         <div className="crypto-card mb-3">
-          <h2 className="text-base sm:text-lg font-bold text-white mb-2 flex items-center space-x-2">
-            <TrendingUp className="w-4 h-4 text-neon-turquoise" />
-            <span>Markt</span>
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-2"></div>
-          </h2>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            {/* Links: coin-tiles in 2x3 grid, iets smaller */}
-            <div className="lg:col-span-2">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
+            {/* Links: coin-tiles in 2x3 grid OF detail view */}
+            <div className="lg:col-span-2 h-full flex">
+              {selectedCrypto ? (
+                <div className="w-full h-full flex">
+                  <CryptoDetail
+                    crypto={selectedCrypto}
+                    priceHistory={externalPriceHistory[selectedCrypto.symbol] || priceHistory[selectedCrypto.symbol] || []}
+                    onBack={() => setSelectedCrypto(null)}
+                    externalChartPeriod={chartPeriod === 'last20' ? 'last10' : chartPeriod}
+                    onChartPeriodChange={setChartPeriod}
+                    hidePeriodSelector={true}
+                  />
+                </div>
+              ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 h-full w-full">
                 {cryptos.map((crypto) => {
                   const imagePath = getCryptoImagePath(crypto.symbol)
                   const isTopGainerTile = topGainer && crypto.id === topGainer.id
@@ -899,7 +794,8 @@ export default function MarketDashboard({
                   return (
                     <div
                       key={crypto.id}
-                      className={`crypto-card rounded-xl p-3 flex flex-col items-center h-[250px] md:h-[290px] transition-all ${
+                      onClick={() => setSelectedCrypto(crypto)}
+                      className={`crypto-card rounded-xl p-3 flex flex-col items-center h-full min-h-[250px] md:min-h-[290px] transition-all cursor-pointer hover:scale-[1.02] ${
                         isBothHighlight
                           ? 'border-2 border-neon-gold/80 animate-gold-purple-glow-breathe'
                           : isTopGainerTile
@@ -1013,12 +909,20 @@ export default function MarketDashboard({
                   )
                 })}
               </div>
+              )}
             </div>
 
             {/* Rechts: gecombineerde highlight-widget met paarse glow en 2 secties */}
             <div className="flex flex-col h-full">
               {(topGainer || topValueCoin) && (
                 <div className="crypto-card border border-neon-purple/40 shadow-[0_0_18px_rgba(192,132,252,0.45)] bg-gradient-to-br from-dark-bg/95 via-dark-bg/92 to-purple-900/20 p-3 flex flex-col h-full">
+                  <div className="mb-3 pb-3 border-b border-white/10">
+                    <h3 className="text-base font-bold text-white flex items-center space-x-2">
+                      <TrendingUp className="w-4 h-4 text-neon-turquoise" />
+                      <span>Markt</span>
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></div>
+                    </h3>
+                  </div>
                   {/* Periode Selector - boven Statistieken */}
                   <div className="mb-3 pb-3 border-b border-white/10">
                     <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-2">Periode</p>
@@ -1060,9 +964,9 @@ export default function MarketDashboard({
                   {topGainer && (
                     <div className="flex flex-col pb-1.5 mb-1">
                       {cryptos.length > 0 && (
-                        <div className="mt-1 pt-0">
-                          <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-3">Statistieken</p>
-                          <div className="flex items-end space-x-1 h-20">
+                        <div className="pt-0">
+                          <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-0.5">Statistieken</p>
+                          <div className="flex items-end space-x-1 h-16 mb-0.5">
                             {cryptos.map(c => {
                               const v = getPercentageForPeriod(c.symbol, c.change24h || 0)
                               const height = Math.max(4, Math.round((Math.abs(v) / maxAbsChange) * 24))
@@ -1075,11 +979,11 @@ export default function MarketDashboard({
                                   title={`${c.symbol} ${v >= 0 ? '+' : ''}${v.toFixed(1)}%`}
                                 >
                                   {coinImage && (
-                                    <div className="mb-1 w-6 h-6 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
+                                    <div className="mb-0.5 w-5 h-5 rounded-full bg-transparent flex items-center justify-center overflow-hidden">
                                       <img
                                         src={coinImage}
                                         alt={c.name}
-                                        className="w-6 h-6 object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.7)]"
+                                        className="w-5 h-5 object-contain drop-shadow-[0_0_8px_rgba(0,0,0,0.7)]"
                                         loading="lazy"
                                       />
                                     </div>
@@ -1090,6 +994,22 @@ export default function MarketDashboard({
                                     }`}
                                     style={{ height: `${height}px` }}
                                   />
+                                </div>
+                              )
+                            })}
+                          </div>
+                          
+                          {/* Percentages onder bars */}
+                          <div className="flex items-center space-x-1">
+                            {cryptos.map(c => {
+                              const v = getPercentageForPeriod(c.symbol, c.change24h || 0)
+                              const isPositive = v >= 0
+                              return (
+                                <div key={c.id} className="flex-1 flex flex-col items-center">
+                                  <p className="text-[7px] text-gray-400 leading-none mb-0.5">{c.symbol}</p>
+                                  <p className={`text-[8px] leading-none font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                                    {isPositive ? '+' : ''}{v.toFixed(1)}%
+                                  </p>
                                 </div>
                               )
                             })}
@@ -1110,8 +1030,8 @@ export default function MarketDashboard({
                               const width = Math.max(6, Math.round((Math.abs(v) / maxAbsChange) * 100))
                               const isPositive = v >= 0
                               return (
-                                <div key={c.id} className="flex items-center space-x-1">
-                                  <span className="text-[10px] text-gray-400 w-8">{c.symbol}</span>
+                                <div key={c.id} className="flex items-center space-x-2">
+                                  <span className="text-[10px] text-gray-400 w-10">{c.symbol}</span>
                                   <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
                                     <div
                                       className={`h-full ${
@@ -1240,8 +1160,17 @@ export default function MarketDashboard({
                 <span className="animate-pulse">🔔</span>
                 <span>Beurs</span>
               </h3>
-              <div className="bg-neon-purple/20 px-2 py-1 rounded-full border border-neon-purple/50">
-                <span className="text-neon-purple text-xs font-bold">{autoScanActions.length} acties</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowUndoModal('beurs')}
+                  className="p-1.5 rounded-lg transition-all bg-neon-purple/10 hover:bg-neon-purple/20 active:scale-95"
+                  title="Beurs geschiedenis"
+                >
+                  <Clock className="w-5 h-5 text-neon-purple" />
+                </button>
+                <div className="bg-neon-purple/20 px-2 py-1 rounded-full border border-neon-purple/50">
+                  <span className="text-neon-purple text-xs font-bold">{autoScanActions.length} acties</span>
+                </div>
               </div>
             </div>
             <div className="flex items-center justify-end mb-2">
@@ -1259,7 +1188,7 @@ export default function MarketDashboard({
             
             <div className="space-y-2">
               {autoScanActions.slice(0, playerName === 'Market Dashboard' ? 5 : 2).map((action) => {
-                const timeAgo = Math.floor((Date.now() - action.timestamp) / 1000)
+                const timeAgo = Math.floor((currentTime - action.timestamp) / 1000)
                 const minutes = Math.floor(timeAgo / 60)
                 const seconds = timeAgo % 60
                 
@@ -1267,9 +1196,11 @@ export default function MarketDashboard({
                   <div key={action.id} className="flex items-center justify-between p-2 bg-dark-bg/30 rounded-lg">
                     <div className="flex items-center space-x-2">
                       <span className="text-sm">
-                        {action.player === 'Bot' ? '🤖' : 
-                         action.player === 'CryptoMaster' ? '🚀' : 
-                         action.player === 'BlockchainBoss' ? '💎' : '⚡'}
+                        {action.avatar || (
+                          action.player === 'Bot' ? '🤖' : 
+                          action.player === 'CryptoMaster' ? '🚀' : 
+                          action.player === 'BlockchainBoss' ? '💎' : '👤'
+                        )}
                       </span>
                       <span className="text-sm text-white font-medium">{action.player}</span>
                       <span className="text-xs text-gray-400">•</span>
@@ -1307,13 +1238,11 @@ export default function MarketDashboard({
               </h3>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setShowUndoModal(true)}
-                  className="p-1.5 rounded-lg transition-all bg-orange-500/10 hover:bg-orange-500/20 active:scale-95"
-                  title="Draai actie terug"
+                  onClick={() => setShowUndoModal('acties')}
+                  className="p-1.5 rounded-lg transition-all bg-neon-purple/10 hover:bg-neon-purple/20 active:scale-95"
+                  title="Acties geschiedenis"
                 >
-                  <svg className="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                  </svg>
+                  <Clock className="w-5 h-5 text-neon-purple" />
                 </button>
                 <div className="bg-neon-purple/20 px-2 py-1 rounded-full border border-neon-purple/50">
                   <span className="text-neon-purple text-xs font-bold">{playerScanActions.length} acties</span>
@@ -1329,13 +1258,6 @@ export default function MarketDashboard({
                 className="text-neon-blue hover:text-neon-purple text-sm font-semibold transition-colors"
               >
                 Toon volledig transcript →
-              </button>
-              <button
-                onClick={handleDashboardTestScan}
-                className="text-green-400 hover:text-green-300 text-sm font-semibold transition-colors flex items-center space-x-1"
-              >
-                <span>🧪</span>
-                <span>Test Scan</span>
               </button>
             </div>
             
@@ -1366,7 +1288,7 @@ export default function MarketDashboard({
                 }
 
                 return uniqueScans.map((action, index) => {
-                  const timeAgo = Math.floor((Date.now() - action.timestamp) / 1000)
+                  const timeAgo = Math.floor((currentTime - action.timestamp) / 1000)
                   const minutes = Math.floor(timeAgo / 60)
                   const seconds = timeAgo % 60
 
@@ -1377,7 +1299,7 @@ export default function MarketDashboard({
                       <div className="flex items-center space-x-3">
                         <div className="flex items-center space-x-2">
                           <span className="text-lg">
-                            {action.avatar || (action.player === playerName ? playerAvatar : '⚡')}
+                            {action.avatar || (action.player === playerName ? playerAvatar : '👤')}
                           </span>
                           <div>
                             <p className="text-sm font-semibold text-white">{action.player}</p>
@@ -1859,7 +1781,7 @@ export default function MarketDashboard({
       {/* Dashboard controls - alleen zichtbaar op host Market Dashboard, onder Markt Impact Analyse */}
       {playerName === 'Market Dashboard' && (
         <div className="max-w-6xl mx-auto mt-4 mb-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <button
               type="button"
               onClick={handleForceNextTurn}
@@ -1867,6 +1789,14 @@ export default function MarketDashboard({
             >
               <SkipForward className="w-4 h-4" />
               <span>Volgende Beurt</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPauseModal(true)}
+              className="py-3 rounded-xl bg-gradient-to-r from-yellow-600 via-yellow-700 to-yellow-800 hover:from-yellow-700 hover:via-yellow-800 hover:to-yellow-900 text-white font-semibold text-sm shadow-lg shadow-yellow-900/40 border border-yellow-400/60 transition-transform duration-200 hover:scale-[1.01] flex items-center justify-center gap-2"
+            >
+              <Clock className="w-4 h-4" />
+              <span>Spel pauzeren</span>
             </button>
             <button
               type="button"
@@ -1916,20 +1846,199 @@ export default function MarketDashboard({
       </div>
     )}
 
-    {/* Undo Modal */}
-    {showUndoModal && (
+    {/* Pause Game Modal */}
+    {showPauseModal && playerName === 'Market Dashboard' && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="crypto-card max-w-sm w-full p-6 text-center">
+          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-600/20 border border-yellow-600/60">
+            <Clock className="w-8 h-8 text-yellow-400" />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-2">Spel pauzeren?</h3>
+          <p className="text-gray-300 text-sm mb-5">
+            Het spel wordt gepauzeerd. Alle timers en automatische events stoppen. Alleen jij kunt het spel hervatten.
+          </p>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              className="flex-1 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 transition-colors text-sm font-semibold"
+              onClick={() => setShowPauseModal(false)}
+            >
+              Annuleren
+            </button>
+            <button
+              type="button"
+              className="flex-1 py-2 rounded-lg bg-yellow-600 text-white hover:bg-yellow-700 transition-colors text-sm font-semibold"
+              onClick={() => {
+                console.log('\n⏸️ === PAUSE BUTTON CLICKED ===')
+                console.log('🏠 Room ID:', roomId)
+                console.log('🔌 Socket:', socket ? 'Connected' : 'Not connected')
+                console.log('⏸️ Setting local pause state to TRUE')
+                setIsGamePaused(true)
+                setShowPauseModal(false)
+                if (socket && roomId) {
+                  console.log('📡 Emitting game:pause event to server')
+                  socket.emit('game:pause', { roomCode: roomId })
+                  console.log('✅ game:pause event emitted')
+                } else {
+                  console.error('❌ Cannot emit pause - socket or roomId missing')
+                }
+              }}
+            >
+              Pauzeren
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Game Paused Overlay */}
+    {isGamePaused && (
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div className="crypto-card max-w-md w-full p-8 text-center">
+          <div className="flex items-center justify-center w-20 h-20 mx-auto mb-6 rounded-full bg-yellow-600/20 border border-yellow-600/60 animate-pulse">
+            <Clock className="w-10 h-10 text-yellow-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-3">Spel gepauzeerd</h2>
+          <p className="text-gray-300 text-sm mb-6">
+            Het spel is momenteel gepauzeerd. Alle timers en automatische events zijn gestopt.
+          </p>
+          {playerName === 'Market Dashboard' && (
+            <button
+              type="button"
+              className="w-full py-3 rounded-lg bg-yellow-600 text-white hover:bg-yellow-700 transition-colors font-semibold"
+              onClick={() => {
+                console.log('\n▶️ === RESUME BUTTON CLICKED ===')
+                console.log('🏠 Room ID:', roomId)
+                console.log('🔌 Socket:', socket ? 'Connected' : 'Not connected')
+                console.log('▶️ Setting local pause state to FALSE')
+                setIsGamePaused(false)
+                if (socket && roomId) {
+                  console.log('📡 Emitting game:resume event to server')
+                  socket.emit('game:resume', { roomCode: roomId })
+                  console.log('✅ game:resume event emitted')
+                } else {
+                  console.error('❌ Cannot emit resume - socket or roomId missing')
+                }
+              }}
+            >
+              Spel hervatten
+            </button>
+          )}
+          {playerName !== 'Market Dashboard' && (
+            <p className="text-yellow-400 text-sm">
+              Wacht tot de Market Dashboard het spel hervat...
+            </p>
+          )}
+        </div>
+      </div>
+    )}
+
+    {/* Event Overlay - uses EventPopup component for consistency */}
+    {showKansEvent && currentKansEvent && (
+      <EventPopup
+        key={`dashboard-event-${lastShownEventId.current}`}
+        externalScenario={currentKansEvent}
+        onClose={() => {
+          // DISABLED: Manual close not allowed - popup must complete full timer
+          console.log('⚠️ Manual close disabled on dashboard - popup will complete full timer')
+        }}
+        onApplyEffect={(effect) => {
+          console.log('✅ Event auto-applied on dashboard after timer completion')
+          setShowKansEvent(false)
+          setCurrentKansEvent(null)
+        }}
+      />
+    )}
+
+    {/* Undo Modal - Beurs */}
+    {showUndoModal === 'beurs' && (
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div className="bg-gradient-to-br from-dark-card via-dark-bg to-dark-card border-2 border-neon-purple/30 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
-          <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 border-b border-orange-500/30 p-4">
+          <div className="bg-gradient-to-r from-neon-purple/20 to-purple-500/20 border-b border-neon-purple/30 p-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <svg className="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                </svg>
-                Actie Terugdraaien
+              <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+                <Clock className="w-6 h-6 text-neon-purple" />
+                <span>Beurs Geschiedenis</span>
               </h2>
               <button
-                onClick={() => setShowUndoModal(false)}
+                onClick={() => setShowUndoModal(null)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          
+          <div className="p-4 overflow-y-auto max-h-[60vh]">
+            <p className="text-gray-300 text-sm mb-4">Selecteer een beurs event om terug te draaien:</p>
+            
+            <div className="space-y-2">
+              {autoScanActions
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .slice(0, 10)
+                .map((action) => (
+                  <button
+                    key={action.id}
+                    onClick={() => {
+                      if (socket && roomId) {
+                        socket.emit('admin:undoAction', { roomCode: roomId, actionId: action.id })
+                        setShowUndoModal(null)
+                      }
+                    }}
+                    className="w-full p-3 bg-dark-bg/50 hover:bg-dark-bg/80 border border-white/10 hover:border-neon-purple/50 rounded-lg transition-all text-left group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-lg">
+                          {action.avatar || '🤖'}
+                        </span>
+                        <div>
+                          <p className="text-white font-semibold">{action.player}</p>
+                          <p className="text-gray-400 text-sm">{action.action}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-bold ${
+                          action.effect.includes('+') ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {action.effect}
+                        </p>
+                        <p className="text-gray-500 text-xs">
+                          {new Date(action.timestamp).toLocaleTimeString('nl-NL')}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+            </div>
+          </div>
+          
+          <div className="bg-dark-bg/30 border-t border-white/10 p-4">
+            <button
+              onClick={() => setShowUndoModal(null)}
+              className="w-full py-2 bg-gray-600/20 hover:bg-gray-600/30 text-white rounded-lg transition-all"
+            >
+              Annuleren
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Undo Modal - Acties */}
+    {showUndoModal === 'acties' && (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-gradient-to-br from-dark-card via-dark-bg to-dark-card border-2 border-neon-blue/30 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl">
+          <div className="bg-gradient-to-r from-neon-blue/20 to-blue-500/20 border-b border-neon-blue/30 p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+                <Clock className="w-6 h-6 text-neon-blue" />
+                <span>Acties Geschiedenis</span>
+              </h2>
+              <button
+                onClick={() => setShowUndoModal(null)}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1943,36 +2052,39 @@ export default function MarketDashboard({
             <p className="text-gray-300 text-sm mb-4">Selecteer een actie om terug te draaien:</p>
             
             <div className="space-y-2">
-              {[...playerScanActions, ...autoScanActions]
+              {playerScanActions
                 .sort((a, b) => b.timestamp - a.timestamp)
                 .slice(0, 10)
-                .map((action, index) => (
+                .map((action) => (
                   <button
                     key={action.id}
                     onClick={() => {
                       if (socket && roomId) {
                         socket.emit('admin:undoAction', { roomCode: roomId, actionId: action.id })
-                        setShowUndoModal(false)
+                        setShowUndoModal(null)
                       }
                     }}
-                    className="w-full p-3 bg-dark-bg/50 hover:bg-dark-bg/80 border border-white/10 hover:border-orange-400/50 rounded-lg transition-all text-left group"
+                    className="w-full p-3 bg-dark-bg/50 hover:bg-dark-bg/80 border border-white/10 hover:border-neon-blue/50 rounded-lg transition-all text-left group"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="text-2xl">{action.player === 'Bot' ? '🤖' : (action.avatar || '👤')}</div>
+                      <div className="flex items-center space-x-3">
+                        <span className="text-lg">
+                          {action.avatar || '👤'}
+                        </span>
                         <div>
-                          <p className="text-white font-semibold text-sm">{action.player}</p>
-                          <p className="text-gray-400 text-xs">{action.action}</p>
-                          <p className="text-gray-300 text-sm mt-1">{action.effect}</p>
+                          <p className="text-white font-semibold">{action.player}</p>
+                          <p className="text-gray-400 text-sm">{action.action}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-gray-400 text-xs">
+                        <p className={`font-bold ${
+                          action.effect.includes('+') ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {action.effect}
+                        </p>
+                        <p className="text-gray-500 text-xs">
                           {new Date(action.timestamp).toLocaleTimeString('nl-NL')}
                         </p>
-                        <div className="mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <span className="text-orange-400 text-xs font-semibold">Terugdraaien</span>
-                        </div>
                       </div>
                     </div>
                   </button>
@@ -1982,7 +2094,7 @@ export default function MarketDashboard({
           
           <div className="bg-dark-bg/30 border-t border-white/10 p-4">
             <button
-              onClick={() => setShowUndoModal(false)}
+              onClick={() => setShowUndoModal(null)}
               className="w-full py-2 bg-gray-600/20 hover:bg-gray-600/30 text-white rounded-lg transition-all"
             >
               Annuleren
@@ -1990,22 +2102,6 @@ export default function MarketDashboard({
           </div>
         </div>
       </div>
-    )}
-
-    {/* Event Overlay - uses EventPopup component for consistency */}
-    {showKansEvent && currentKansEvent && (
-      <EventPopup
-        externalScenario={currentKansEvent}
-        onClose={() => {
-          setShowKansEvent(false)
-          setCurrentKansEvent(null)
-        }}
-        onApplyEffect={(effect) => {
-          console.log('Event applied on dashboard:', effect)
-          setShowKansEvent(false)
-          setCurrentKansEvent(null)
-        }}
-      />
     )}
     </>
   )

@@ -189,25 +189,25 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
         />
         
         {/* Page Header */}
-        <div className="flex items-center mb-8 space-x-4">
-          <button
-            onClick={onBack}
-            className="p-3 rounded-lg bg-neon-purple/20 hover:bg-neon-purple/30 text-neon-purple border border-neon-purple transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <div className="flex-1 flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-white flex items-center space-x-2">
-              <TrendingUp className="w-6 h-6 text-neon-turquoise" />
-              <span>Markt</span>
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></div>
-            </h1>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white flex items-center space-x-2 mb-4">
+            <TrendingUp className="w-6 h-6 text-neon-turquoise" />
+            <span>Markt</span>
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></div>
+          </h1>
+          <div className="flex items-center justify-between gap-4">
+            <button
+              onClick={onBack}
+              className="p-3 rounded-lg bg-neon-purple/20 hover:bg-neon-purple/30 text-neon-purple border border-neon-purple transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
             
             {/* Periode Selector */}
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2 flex-1 ml-auto">
               <button
                 onClick={() => setChartPeriod('all')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                className={`w-full px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                   chartPeriod === 'all'
                     ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
                     : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
@@ -217,7 +217,7 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
               </button>
               <button
                 onClick={() => setChartPeriod('last10')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                className={`w-full px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                   chartPeriod === 'last10'
                     ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
                     : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
@@ -227,7 +227,7 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
               </button>
               <button
                 onClick={() => setChartPeriod('last5')}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                className={`w-full px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                   chartPeriod === 'last5'
                     ? 'bg-neon-blue/20 border border-neon-blue text-neon-blue'
                     : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
@@ -447,7 +447,7 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
             <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-3">Statistieken</p>
             
             {/* Verticale bars */}
-            <div className="flex items-end space-x-1 h-20 mb-4">
+            <div className="flex items-end space-x-1 h-20 mb-2">
               {cryptos.map(c => {
                 const v = getPercentageForPeriod(c.symbol, c.change24h || 0)
                 const height = Math.max(4, Math.round((Math.abs(v) / maxAbsChange) * 24))
@@ -475,6 +475,22 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
                       }`}
                       style={{ height: `${height}px` }}
                     />
+                  </div>
+                )
+              })}
+            </div>
+            
+            {/* Percentages onder bars */}
+            <div className="flex items-center space-x-1 mb-4">
+              {cryptos.map(c => {
+                const v = getPercentageForPeriod(c.symbol, c.change24h || 0)
+                const isPositive = v >= 0
+                return (
+                  <div key={c.id} className="flex-1 flex flex-col items-center">
+                    <p className="text-[8px] text-gray-400 mb-0.5">{c.symbol}</p>
+                    <p className={`text-[9px] font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                      {isPositive ? '+' : ''}{v.toFixed(1)}%
+                    </p>
                   </div>
                 )
               })}

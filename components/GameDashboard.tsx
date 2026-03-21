@@ -229,86 +229,91 @@ export default function GameDashboard({
                   </div>
                 </div>
 
-                <div className="w-full mt-1">
-                  {/* Naam + prijs */}
-                  <div className="flex items-center justify-between">
-                    <div className="text-white font-semibold truncate mr-2">{crypto.name}</div>
-                    <div className="text-neon-turquoise font-bold whitespace-nowrap">
-                      €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="w-full mt-auto">
+                  <div className="rounded-lg bg-dark-bg/80 px-2 py-0.5">
+                    {/* Naam + prijs */}
+                    <div className="flex items-center justify-between">
+                      <div className="text-white font-semibold truncate mr-2">{crypto.name}</div>
+                      <div className="text-neon-turquoise font-bold whitespace-nowrap">
+                        €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Symbool + 24u badge */}
-                  <div className="flex items-center justify-between mt-1">
-                    <div className="text-gray-400 text-xs">{crypto.symbol}</div>
-                    <div
-                      className={`text-[10px] px-1.5 py-0.5 rounded-sm border flex items-center ${
-                        crypto.change24h >= 0
-                          ? 'text-green-400 border-green-400/30'
-                          : 'text-red-400 border-red-400/30'
-                      }`}
-                    >
-                      {crypto.change24h >= 0 ? (
-                        <TrendingUp className="w-3 h-3 mr-1" />
-                      ) : (
-                        <TrendingDown className="w-3 h-3 mr-1" />
-                      )}
-                      {crypto.change24h >= 0 ? '+' : ''}{crypto.change24h.toFixed(1)}%
-                    </div>
-                  </div>
-
-                  {/* Momentum Indicator */}
-                  {typeof crypto.change24h === 'number' && Math.abs(crypto.change24h) > 0 && (
-                    <div className={`text-[9px] font-semibold mb-0.5 flex items-center space-x-1 ${
-                      Math.abs(crypto.change24h) > 15 
-                        ? crypto.change24h > 0 ? 'text-green-400' : 'text-red-400'
-                        : crypto.change24h > 0 ? 'text-green-500/60' : 'text-red-500/60'
-                    }`}>
-                      {Math.abs(crypto.change24h) > 15 ? (
-                        crypto.change24h > 0 ? (
-                          <>↗️ Sterk stijgend</>
+                    {/* Symbool + 24u badge */}
+                    <div className="flex items-center justify-between mt-0">
+                      <div className="text-gray-400 text-xs">{crypto.symbol}</div>
+                      <div
+                        className={`text-xs px-1.5 py-0.5 rounded-sm border flex items-center space-x-1 ${
+                          crypto.change24h >= 0
+                            ? 'text-green-400 border-green-400/30'
+                            : 'text-red-400 border-red-400/30'
+                        }`}
+                      >
+                        {crypto.change24h >= 0 ? (
+                          <TrendingUp className="w-3 h-3" />
                         ) : (
-                          <>↘️ Sterk dalend</>
-                        )
-                      ) : (
-                        crypto.change24h > 0 ? (
-                          <>→ Licht stijgend</>
-                        ) : (
-                          <>→ Licht dalend</>
-                        )
-                      )}
+                          <TrendingDown className="w-3 h-3" />
+                        )}
+                        <span>
+                          {crypto.change24h >= 0 ? '+' : ''}
+                          {crypto.change24h.toFixed(1)}%
+                        </span>
+                      </div>
                     </div>
-                  )}
-                  
-                  {/* Candlestick Chart */}
-                  <CandlestickChart 
-                    priceHistory={priceHistory[crypto.symbol] || []} 
-                    maxBars={6}
-                    currentPercentage={crypto.change24h || 0}
-                    currentPrice={crypto.price}
-                  />
 
-                  {/* Aankoopprijs + Winst/Verlies percentage */}
-                  <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-white/5">
-                    <div className="text-gray-500 text-[10px]">
-                      Aankoop: <span className="text-gray-400">
-                        {(crypto as any).purchasePrice 
-                          ? `€${(crypto as any).purchasePrice.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                          : '-'
-                        }
-                      </span>
-                    </div>
-                    <div className="text-[10px]">
-                      {(crypto as any).purchasePrice ? (() => {
-                        const profitLossPercentage = ((crypto.price - (crypto as any).purchasePrice) / (crypto as any).purchasePrice) * 100
-                        return (
-                          <span className={`font-bold ${profitLossPercentage >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {profitLossPercentage >= 0 ? '+' : ''}{profitLossPercentage.toFixed(1)}%
-                          </span>
-                        )
-                      })() : (
-                        <span className="text-gray-400">-</span>
-                      )}
+                    {/* Momentum Indicator */}
+                    {typeof crypto.change24h === 'number' && Math.abs(crypto.change24h) > 0 && (
+                      <div className={`text-[9px] font-semibold mb-0.5 flex items-center space-x-1 ${
+                        Math.abs(crypto.change24h) > 15 
+                          ? crypto.change24h > 0 ? 'text-green-400' : 'text-red-400'
+                          : crypto.change24h > 0 ? 'text-green-500/60' : 'text-red-500/60'
+                      }`}>
+                        {Math.abs(crypto.change24h) > 15 ? (
+                          crypto.change24h > 0 ? (
+                            <>↗️ Sterk stijgend</>
+                          ) : (
+                            <>↘️ Sterk dalend</>
+                          )
+                        ) : (
+                          crypto.change24h > 0 ? (
+                            <>→ Licht stijgend</>
+                          ) : (
+                            <>→ Licht dalend</>
+                          )
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Chart */}
+                    <CandlestickChart 
+                      priceHistory={priceHistory[crypto.symbol] || []} 
+                      maxBars={6}
+                      currentPercentage={crypto.change24h || 0}
+                      currentPrice={crypto.price}
+                    />
+
+                    {/* Aankoopprijs + Winst/Verlies percentage */}
+                    <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-white/5">
+                      <div className="text-gray-500 text-[10px]">
+                        Aankoop: <span className="text-gray-400">
+                          {(crypto as any).purchasePrice 
+                            ? `€${(crypto as any).purchasePrice.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : '-'
+                          }
+                        </span>
+                      </div>
+                      <div className="text-[10px]">
+                        {(crypto as any).purchasePrice ? (() => {
+                          const profitLossPercentage = ((crypto.price - (crypto as any).purchasePrice) / (crypto as any).purchasePrice) * 100
+                          return (
+                            <span className={`font-bold ${profitLossPercentage >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {profitLossPercentage >= 0 ? '+' : ''}{profitLossPercentage.toFixed(1)}%
+                            </span>
+                          )
+                        })() : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </div>
                     </div>
                   </div>
 

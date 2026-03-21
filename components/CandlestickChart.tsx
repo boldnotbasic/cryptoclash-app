@@ -80,8 +80,8 @@ export default function CandlestickChart({ priceHistory, maxBars = 6, currentPer
   
   // Dynamic spacing: distribute points evenly across full width
   const viewBoxHeight = 64 // Nog grotere hoogte voor betere zichtbaarheid
-  const leftPadding = 12 // Padding voor eerste punt
-  const rightPadding = 12 // Padding voor laatste punt
+  const leftPadding = 6 // Kleinere padding zodat chart breder oogt
+  const rightPadding = 6 // Kleinere padding zodat chart breder oogt
   const viewBoxWidth = 200 // Fixed width
   
   // Calculate spacing based on number of points to distribute evenly
@@ -155,7 +155,7 @@ export default function CandlestickChart({ priceHistory, maxBars = 6, currentPer
   const gradientId = `gradient-${Math.random().toString(36).substr(2, 9)}`
 
   return (
-    <div className="h-16 mt-1.5 px-1 relative w-full">
+    <div className="h-16 mt-1.5 px-0 relative w-full">
       <svg 
         className="h-full w-full" 
         viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`} 

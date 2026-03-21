@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Image from 'next/image'
 import StartScreen from '@/components/StartScreen'
 import LoginScreen from '@/components/LoginScreen'
-import { playPositiveSound, playNegativeSound, playEventSound } from '@/utils/soundEffects'
+import { playPositiveSound, playNegativeSound, playEventSound, playForecastSound } from '@/utils/soundEffects'
 import GameSetup from '@/components/GameSetup'
 import HostSetup from '@/components/HostSetup'
 import RoleSelection from '@/components/RoleSelection'
@@ -68,20 +68,53 @@ export default function Home() {
   const [connectedPlayers, setConnectedPlayers] = useState<number>(0)
   const [dashboardToasts, setDashboardToasts] = useState<{ id: string, message: string, sender: string }[]>([])
   const [joinNotification, setJoinNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, isRejoining: boolean } | null>(null)
-  const [turnNotification, setTurnNotification] = useState<{ id: string, message: string, playerName: string } | null>(null)
+  const [turnNotification, setTurnNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string } | null>(null)
   const [swapNotification, setSwapNotification] = useState<{ id: string, message: string, fromPlayerName: string, fromPlayerAvatar: string, receivedCrypto: string, lostCrypto: string } | null>(null)
   const [showOtherPlayerEvent, setShowOtherPlayerEvent] = useState<boolean>(false)
   const [otherPlayerEventData, setOtherPlayerEventData] = useState<ScanEffect | null>(null)
+  const [currentEventId, setCurrentEventId] = useState<string>('') // Stable key for EventPopup
+  const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null) // Track auto-close timer
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear())
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
+  const [playerFinishRank, setPlayerFinishRank] = useState<number | null>(null)
+  const [showFinishNotification, setShowFinishNotification] = useState<boolean>(false)
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
   const [isFirstTurn, setIsFirstTurn] = useState<boolean>(true) // Track if this is the first turn
+  const [isGamePaused, setIsGamePaused] = useState<boolean>(false)
+  
+  // Debug: Log pause state changes
+  useEffect(() => {
+    console.log(`🎮 isGamePaused state changed to: ${isGamePaused}`)
+  }, [isGamePaused])
+  const hasNotifiedFinishRef = useRef<boolean>(false) // Prevent duplicate finish notifications
   
   // Track shown events to prevent duplicates
   const shownEventIdsRef = useRef<Set<string>>(new Set())
   
   // Get socket connection for game events (room state only; we don't rely on socket.id for turn logic)
   const { socket, room } = useSocket()
+
+  // 🚨 HELPER: Safe emit player data - blocks zero/invalid values
+  const safeEmitPlayerData = useCallback((playerData: any, context: string = 'unknown') => {
+    if (!socket || !roomId || roomId === 'solo-mode') {
+      return false
+    }
+
+    const totalValue = playerData.totalValue
+    
+    // Block zero or invalid values
+    if (typeof totalValue !== 'number' || isNaN(totalValue) || totalValue <= 0) {
+      console.warn(`⚠️ BLOCKED ${context} - Invalid totalValue: €${totalValue}`)
+      return false
+    }
+
+    console.log(`📡 ${context}: Emitting player data with totalValue €${totalValue.toFixed(2)}`)
+    socket.emit('player:updateData', {
+      roomCode: roomId,
+      playerData
+    })
+    return true
+  }, [socket, roomId])
 
   // Find my socket ID in the room players
   const mySocketId = useMemo(() => {
@@ -694,6 +727,12 @@ export default function Home() {
     const localTotalValue = Math.round((localPortfolioValue + cashBalance) * 100) / 100
 
     const sendUnifiedUpdate = (force = false) => {
+      // 🚨 CRITICAL: Never send zero or invalid values
+      if (localTotalValue <= 0 || isNaN(localTotalValue)) {
+        console.warn(`⚠️ BLOCKING SYNC - Invalid totalValue: €${localTotalValue}`)
+        return
+      }
+      
       const timestamp = new Date().toLocaleTimeString()
       console.log(`\n🎯 === UNIFIED DATA SYNC [${timestamp}] ===`)
       console.log(`👤 Player: ${playerName}`)
@@ -766,8 +805,11 @@ export default function Home() {
 
     console.log(`🔄 Starting periodic sync for ${playerName}`)
 
-    // Send update every 3 seconds to ensure dashboard is always in sync
+    // Send update every 3 seconds to ensure dashboard is always in sync - pause when game is paused
     const periodicSyncInterval = setInterval(() => {
+      // Skip sync when game is paused
+      if (isGamePaused) return
+      
       // 🚨 CRITICAL: Access CURRENT state via refs (not stale closure values)
       const currentCryptos = cryptosRef.current
       const currentCash = cashBalanceRef.current
@@ -775,6 +817,12 @@ export default function Home() {
       
       const localPortfolioValue = Math.round(currentCryptos.reduce((sum, crypto) => sum + (crypto.price * crypto.amount), 0) * 100) / 100
       const localTotalValue = Math.round((localPortfolioValue + currentCash) * 100) / 100
+
+      // 🚨 CRITICAL: Never send zero or invalid values
+      if (localTotalValue <= 0 || isNaN(localTotalValue)) {
+        console.warn(`⚠️ PERIODIC SYNC BLOCKED - Invalid totalValue: €${localTotalValue}`)
+        return
+      }
 
       console.log(`\n🔄 === PERIODIC SYNC ===`)
       console.log(`👤 Player: ${playerName}`)
@@ -1116,12 +1164,16 @@ export default function Home() {
           setIsFirstTurn(false)
         }
         
-        // Show notification popup
+        // Show notification popup - find player avatar
         const notificationId = `turn-${Date.now()}`
+        const newTurnPlayer = players.find(p => p.name === newTurnPlayerName)
+        const newTurnPlayerAvatar = newTurnPlayer?.avatar || '👤'
+        
         setTurnNotification({
           id: notificationId,
           message: `Beurt nu aan ${newTurnPlayerName}`,
-          playerName: newTurnPlayerName
+          playerName: newTurnPlayerName,
+          playerAvatar: newTurnPlayerAvatar
         })
         
         // Auto-hide notification after 4 seconds
@@ -1130,6 +1182,25 @@ export default function Home() {
         }, 4000)
         
         console.log('⏭️ === TURN CHANGED EVENT END ===')
+      })
+
+      // Handle game pause/resume events
+      socket.on('game:paused', () => {
+        console.log('\n⏸️ === GAME PAUSED EVENT RECEIVED ===')
+        console.log('🏠 Room:', roomId)
+        console.log('🔌 Socket ID:', socket.id)
+        console.log('⏸️ Setting isGamePaused to TRUE')
+        setIsGamePaused(true)
+        console.log('✅ Game pause state updated')
+      })
+
+      socket.on('game:resumed', () => {
+        console.log('\n▶️ === GAME RESUMED EVENT RECEIVED ===')
+        console.log('🏠 Room:', roomId)
+        console.log('🔌 Socket ID:', socket.id)
+        console.log('▶️ Setting isGamePaused to FALSE')
+        setIsGamePaused(false)
+        console.log('✅ Game resume state updated')
       })
       
       // Handle incoming swap from another player
@@ -1239,6 +1310,39 @@ export default function Home() {
           console.log(`📊 Host/Dashboard detected - ignoring reset message (they initiated it)`)
         }
         console.log(`🔄 === GAME RESET PROCESSED ===\n`)
+      })
+      
+      // Handle player finish confirmation from server
+      socket.on('player:finishConfirmed', ({ rank, yearsPlayed, finishTime }: any) => {
+        console.log(`\n🏁 === PLAYER FINISH CONFIRMED ===`)
+        console.log(`🏆 Rank: ${rank}`)
+        console.log(`📅 Years played: ${yearsPlayed}`)
+        console.log(`⏰ Finish time: ${new Date(finishTime).toLocaleTimeString()}`)
+        
+        setPlayerFinishRank(rank)
+        setShowFinishNotification(true)
+        
+        // Auto-hide notification after 10 seconds
+        setTimeout(() => {
+          setShowFinishNotification(false)
+        }, 10000)
+        
+        console.log(`🏁 === FINISH CONFIRMED PROCESSED ===\n`)
+      })
+      
+      // Handle other player finishing (for notifications)
+      socket.on('player:finished', ({ playerName: finishedPlayerName, playerAvatar: finishedPlayerAvatar, rank, totalPlayers }: any) => {
+        console.log(`\n🏁 === PLAYER FINISHED NOTIFICATION ===`)
+        console.log(`👤 Player: ${finishedPlayerName}`)
+        console.log(`🏆 Rank: ${rank}/${totalPlayers}`)
+        
+        // Only show notification if it's not the current player
+        if (finishedPlayerName !== playerName) {
+          // Could add a toast notification here
+          console.log(`📢 ${finishedPlayerName} heeft het spel afgerond! Rank ${rank}/${totalPlayers}`)
+        }
+        
+        console.log(`🏁 === PLAYER FINISHED PROCESSED ===\n`)
       })
       
       // Handle game ended - when host ends the game completely
@@ -1355,6 +1459,8 @@ export default function Home() {
         socket.off('player:swapReceived')
         socket.off('game:reset')
         socket.off('game:ended')
+        socket.off('game:paused')
+        socket.off('game:resumed')
         socket.off('test:messageReceived', handleTestMessageReceived)
         socket.off('market:stateUpdate')
         socket.off('crypto:priceUpdate')
@@ -1387,12 +1493,15 @@ export default function Home() {
     if (playerName !== 'Market Dashboard') return
 
     const interval = setInterval(() => {
+      // Skip refresh when game is paused
+      if (isGamePaused) return
+      
       console.log('⏱️ Dashboard requesting periodic refresh (10s)')
       socket.emit('dashboard:requestRefresh', { roomCode: roomId })
     }, 10000)
 
     return () => clearInterval(interval)
-  }, [socket, roomId, playerName])
+  }, [socket, roomId, playerName, isGamePaused])
 
   // Request scan data when joining a room
   useEffect(() => {
@@ -1990,12 +2099,23 @@ export default function Home() {
             }
             
             console.log('👁️ Other player forecast - showing eye icon ONLY')
+            
+            // Clear any existing auto-close timer
+            if (autoCloseTimerRef.current) {
+              clearTimeout(autoCloseTimerRef.current)
+              autoCloseTimerRef.current = null
+            }
+            
+            setCurrentEventId(eventId)
             setOtherPlayerEventData(scanEffect)
             setShowOtherPlayerEvent(true)
             
-            setTimeout(() => {
+            // Short auto-close for forecast eye icon (3 seconds)
+            autoCloseTimerRef.current = setTimeout(() => {
               setShowOtherPlayerEvent(false)
               setOtherPlayerEventData(null)
+              setCurrentEventId('')
+              autoCloseTimerRef.current = null
             }, 3000)
             return
           }
@@ -2056,22 +2176,60 @@ export default function Home() {
           })
         }
         
+        // Clear any existing auto-close timer before showing new popup
+        if (autoCloseTimerRef.current) {
+          clearTimeout(autoCloseTimerRef.current)
+          autoCloseTimerRef.current = null
+        }
+        
+        setCurrentEventId(eventId)
         setOtherPlayerEventData(scanEffect)
         setShowOtherPlayerEvent(true)
         
-        // Play sound based on event effect
-        console.log('🔊 Playing sound for event:', scanEffect.message)
-        playEventSound(scanEffect.message)
+        // Play sound based on event type
+        console.log('🔊 Playing sound for event:', scanEffect.type, scanEffect.message)
+        if (scanEffect.type === 'forecast') {
+          playForecastSound()
+        } else {
+          playEventSound(scanEffect.message)
+        }
         
-        // Auto-close after 6 seconds (synchronized with ScanResult, EventPopup, and MarketDashboard)
-        setTimeout(() => {
-          setShowOtherPlayerEvent(false)
-          setOtherPlayerEventData(null)
-        }, 6300)
+        // REMOVED: Auto-close timer - EventPopup component handles its own timing
+        // This prevents popups from auto-closing when player manually dismisses them
       }
 
       console.log('✅ Scan data normalized and sorted from server')
       console.log('📊 === SERVER SCAN DATA UPDATE END ===\n')
+    }
+
+    // Handle undo action - show CORRECTIE popup
+    const handleActionUndone = ({ action, isUndo }: any) => {
+      console.log('\n🔄 === ACTION UNDONE EVENT ===')
+      console.log('Action:', action)
+      
+      // Create event scenario for EventPopup
+      const undoScenario: ScanEffect = {
+        type: action.effect?.includes('Bull Run') || action.effect?.includes('Bear Market') || action.effect?.includes('Market Crash') ? 'event' : 'boost',
+        message: action.effect || 'Actie teruggedraaid',
+        icon: action.effect?.includes('Bull Run') ? '🐂' : 
+              action.effect?.includes('Bear Market') || action.effect?.includes('Market Crash') ? '🐻' : 
+              '↩️',
+        color: action.percentageValue && action.percentageValue > 0 ? 'neon-gold' : 'red-500',
+        percentage: action.percentageValue ? -action.percentageValue : undefined, // Reverse percentage
+        cryptoSymbol: action.cryptoSymbol,
+        isUndo: true // Mark as undo for CORRECTIE header
+      }
+      
+      // Clear any existing auto-close timer
+      if (autoCloseTimerRef.current) {
+        clearTimeout(autoCloseTimerRef.current)
+        autoCloseTimerRef.current = null
+      }
+      
+      const undoEventId = `undo-${action.id}-${Date.now()}`
+      setCurrentEventId(undoEventId)
+      setOtherPlayerEventData(undoScenario)
+      setShowOtherPlayerEvent(true)
     }
 
     // 📊 Core event listeners (clean architecture)
@@ -2080,6 +2238,7 @@ export default function Home() {
     socket.on('room:verificationResult', handleRoomVerificationResult)
     socket.on('dashboard:refreshRequested', handleDashboardRefresh)
     socket.on('scanData:update', handleScanDataUpdate)
+    socket.on('action:undone', handleActionUndone)
 
     return () => {
       socket.off('test:messageReceived', handleTestMessageReceived)
@@ -2087,6 +2246,7 @@ export default function Home() {
       socket.off('room:verificationResult', handleRoomVerificationResult)
       socket.off('dashboard:refreshRequested', handleDashboardRefresh)
       socket.off('scanData:update', handleScanDataUpdate)
+      socket.off('action:undone', handleActionUndone)
     }
   }, [socket])
 
@@ -2112,6 +2272,8 @@ export default function Home() {
     // Solo mode only: Generate activities locally after 30s delay
     console.log(`🎮 Solo mode: Starting local activities in 30 seconds...`)
     
+    let activityInterval: NodeJS.Timeout | null = null
+    
     const startDelay = setTimeout(() => {
       console.log(`🎮 Solo mode: Now generating local activities`)
       
@@ -2123,6 +2285,9 @@ export default function Home() {
       }
 
       const generateActivity = () => {
+        // Don't generate activities when game is paused
+        if (isGamePaused) return
+        
         const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
         const randomCrypto = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
         
@@ -2137,44 +2302,10 @@ export default function Home() {
         const randomActionType = actions[Math.floor(Math.random() * actions.length)]
         
         // Create consistent message format matching server events
-        const cryptoNames: { [key: string]: string } = {
-          'DSHEEP': 'DigiSheep',
-          'NGT': 'Nugget',
-          'LNTR': 'Lentra',
-          'OMLT': 'Omlet',
-          'REX': 'Rex',
-          'ORLO': 'Orlo'
-        }
-        const cryptoName = cryptoNames[randomCrypto] || randomCrypto
+        const activityMessage = `${randomActionType}: ${randomCrypto} ${sign}${percentage}%`
+        console.log(`📊 Generated activity: ${activityMessage}`)
         
-        // Use same format as server events: "Nugget rally +2.5%" or "Rex dip -1.8%"
-        let effectMessage = ''
-        if (isPositive) {
-          const actionWords = ['stijgt', 'rally', 'move']
-          const action = actionWords[Math.floor(Math.random() * actionWords.length)]
-          effectMessage = `${cryptoName} ${action} ${sign}${percentage}%`
-        } else {
-          const actionWords = ['daalt', 'crash', 'dip']
-          const action = actionWords[Math.floor(Math.random() * actionWords.length)]
-          effectMessage = `${cryptoName} ${action} ${sign}${percentage}%`
-        }
-        
-        const newScanAction = {
-          id: Date.now().toString(),
-          timestamp: Date.now(),
-          player: 'Bot',
-          action: randomActionType,
-          effect: effectMessage,
-          cryptoSymbol: randomCrypto,
-          percentageValue: percentageValue
-        }
-        
-        console.log(`🎯 Solo activity: ${newScanAction.effect}`)
-        
-        // Add to auto scan actions
-        setAutoScanActions(prev => [newScanAction, ...prev.slice(0, 4)])
-        
-        // Update crypto prices directly
+        // Update cryptos state for UI display
         setCryptos(prev => prev.map(crypto => {
           if (crypto.symbol === randomCrypto) {
             const newPrice = crypto.price * (1 + percentageValue / 100)
@@ -2198,20 +2329,20 @@ export default function Home() {
       // Generate first activity immediately
       generateActivity()
       
-      const interval = setInterval(() => {
+      // Start recurring activities
+      activityInterval = setInterval(() => {
         generateActivity()
       }, 30000) // Update every 30 seconds
-
-      return () => {
-        console.log(`🛑 Stopping solo mode activity generation`)
-        clearInterval(interval)
-      }
-    }, 30000) // 30 second delay
-
+    }, 30000)
+    
     return () => {
       clearTimeout(startDelay)
+      if (activityInterval) {
+        clearInterval(activityInterval)
+        console.log(`🎮 Stopped local activity generation`)
+      }
     }
-  }, [gameState, socket, roomId, currentScreen])
+  }, [selectedVolatility, roomId, isGamePaused])
 
   // Helper function to navigate and scroll to top
   const navigateToScreen = (screen: Screen) => {
@@ -2476,7 +2607,9 @@ export default function Home() {
       setPlayerScanActions(prev => [newScanAction, ...prev.slice(0, 9)])
       
       // Play sound based on event type
-      if (effect.percentage !== undefined) {
+      if (effect.type === 'forecast') {
+        playForecastSound()
+      } else if (effect.percentage !== undefined) {
         if (effect.percentage > 0) {
           playPositiveSound()
         } else if (effect.percentage < 0) {
@@ -2827,6 +2960,7 @@ export default function Home() {
                     // CRITICAL: Check if player has already finished
                     if (isGameFinishedForPlayer) {
                       console.log('🛑 Player already finished - blocking action')
+                      alert('Je hebt al je speljaren voltooid! Je kunt niet verder spelen.')
                       return
                     }
                     
@@ -2839,18 +2973,45 @@ export default function Home() {
                       console.log(`   currentYear: ${currentYear}`)
                       console.log(`   yearsPlayedSoFar: ${yearsPlayedSoFar}`)
                       console.log(`   gameDuration: ${gameState.gameDuration}`)
-                      console.log(`   Can we add another year? ${yearsPlayedSoFar < gameState.gameDuration}`)
+                      
+                      // CRITICAL: Check of we NA deze increment over de limiet gaan
+                      // We moeten checken of next year (currentYear + 1) de limiet overschrijdt
+                      const yearsAfterThisIncrement = (currentYear + 1) - gameState.startYear
+                      console.log(`   yearsAfterThisIncrement: ${yearsAfterThisIncrement}`)
+                      console.log(`   Would exceed limit? ${yearsAfterThisIncrement > gameState.gameDuration}`)
                       
                       // Als we al gameDuration jaren hebben gespeeld, stop
                       // Voorbeeld: startYear=2024, gameDuration=2
-                      // - currentYear=2024: yearsPlayedSoFar=0, can add year (go to 2025) ✓
-                      // - currentYear=2025: yearsPlayedSoFar=1, can add year (go to 2026) ✓
-                      // - currentYear=2026: yearsPlayedSoFar=2, CANNOT add year (would be 3rd year) ✗
-                      if (yearsPlayedSoFar >= gameState.gameDuration) {
+                      // - currentYear=2024: yearsPlayedSoFar=0, yearsAfter=1, OK (go to 2025) ✓
+                      // - currentYear=2025: yearsPlayedSoFar=1, yearsAfter=2, OK (go to 2026) ✓
+                      // - currentYear=2026: yearsPlayedSoFar=2, yearsAfter=3, STOP! (would be year 3) ✗
+                      if (yearsAfterThisIncrement > gameState.gameDuration) {
                         console.log('🛑 Speler heeft al alle jaren voltooid, kan niet verder')
                         console.log(`   Je hebt ${yearsPlayedSoFar} jaar gespeeld van ${gameState.gameDuration} toegestaan`)
                         setIsGameFinishedForPlayer(true)
+                        
+                        // Notify server that player has finished (if not already done)
+                        if (socket && roomId && roomId !== 'solo-mode' && !hasNotifiedFinishRef.current) {
+                          hasNotifiedFinishRef.current = true
+                          console.log('📡 Notifying server that player finished')
+                          socket.emit('player:finishGame', {
+                            roomCode: roomId,
+                            playerName,
+                            playerAvatar,
+                            yearsPlayed: yearsPlayedSoFar
+                          })
+                        }
+                        
+                        alert(`Je hebt al ${yearsPlayedSoFar} jaar gespeeld van de ${gameState.gameDuration} toegestane jaren. Het spel is voor jou afgelopen!`)
                         return // Stop hier, geen jaar-verhoging
+                      }
+                      
+                      // Check of dit het LAATSTE toegestane jaar wordt
+                      if (yearsAfterThisIncrement === gameState.gameDuration) {
+                        console.log('⚠️ Dit wordt het LAATSTE toegestane jaar!')
+                        console.log(`   Na deze increment: ${yearsAfterThisIncrement} jaar van ${gameState.gameDuration}`)
+                        // We laten de increment doorgaan, maar markeren dit als laatste jaar
+                        // De finish notification komt NA de increment
                       }
                     } else {
                       console.log('⚠️ Geen gameState - jaren check overslaan (mag doorgaan)')
@@ -2875,6 +3036,18 @@ export default function Home() {
                         console.log('🏁 Dit was het laatste toegestane jaar!')
                         console.log(`   Je hebt nu ${yearsPlayedAfterIncrement} jaar gespeeld van ${gameState.gameDuration} toegestaan`)
                         setIsGameFinishedForPlayer(true)
+                        
+                        // Notify server that player has finished
+                        if (socket && roomId && roomId !== 'solo-mode' && !hasNotifiedFinishRef.current) {
+                          hasNotifiedFinishRef.current = true
+                          console.log('📡 Notifying server that player finished')
+                          socket.emit('player:finishGame', {
+                            roomCode: roomId,
+                            playerName,
+                            playerAvatar,
+                            yearsPlayed: yearsPlayedAfterIncrement
+                          })
+                        }
                       }
                     }
 
@@ -2954,6 +3127,7 @@ export default function Home() {
                 onEndGame={handleEndGame}
                 isMarketDashboard={isHost}
                 externalPriceHistory={priceHistory}
+                isGamePaused={isGamePaused}
               />
             )
           
@@ -3137,6 +3311,7 @@ export default function Home() {
                 playerAvatar={playerAvatar}
                 cryptos={cryptos}
                 cashBalance={cashBalance}
+                priceHistory={priceHistory}
                 onBack={() => navigateToScreen('main-menu')}
                 onEndTurnConfirm={() => {
                   console.log('\n🔥 === END TURN CLICKED (Buy) ===')
@@ -3229,6 +3404,7 @@ export default function Home() {
                 playerName={playerName}
                 playerAvatar={playerAvatar}
                 cryptos={cryptos}
+                priceHistory={priceHistory}
                 onBack={() => navigateToScreen('main-menu')}
                 showSellControls={true}
                 onEndTurnConfirm={() => {
@@ -3630,17 +3806,13 @@ export default function Home() {
             {/* Top accent bar */}
             <div className="h-1.5 w-full bg-gradient-to-r from-neon-gold via-neon-purple to-neon-gold" />
 
-            <div className="px-6 pt-5 pb-6 flex items-start space-x-4">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-neon-gold/15 border border-neon-gold/60 shadow-inner">
-                <span className="text-2xl">⚡</span>
+            <div className="px-6 pt-5 pb-6 flex items-center justify-center space-x-4">
+              <div className="flex items-center justify-center w-16 h-16 rounded-full bg-neon-gold/15 border border-neon-gold/60 shadow-inner">
+                <span className="text-3xl">{turnNotification.playerAvatar}</span>
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-neon-gold tracking-wide uppercase mb-1">Beurt gewisseld</p>
-                <p className="text-xl font-extrabold text-white mb-2">
+              <div className="flex-1 text-center">
+                <p className="text-2xl font-extrabold text-white">
                   Beurt nu aan <span className="text-neon-gold">{turnNotification.playerName}</span>
-                </p>
-                <p className="text-sm text-gray-300">
-                  Wacht even op de acties van deze speler. Zodra hij zijn beurt beëindigt, ben jij weer aan zet.
                 </p>
               </div>
             </div>
@@ -3696,21 +3868,109 @@ export default function Home() {
       )}
     </div>
 
+    {/* Game Paused Overlay - shown for ALL players except Market Dashboard */}
+    {isGamePaused && currentScreen !== 'market-dashboard' && (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div className="crypto-card max-w-md w-full p-8 text-center">
+          <div className="flex items-center justify-center w-20 h-20 mx-auto mb-6 rounded-full bg-yellow-600/20 border border-yellow-600/60 animate-pulse">
+            <svg className="w-10 h-10 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-3">Spel gepauzeerd</h2>
+          <p className="text-gray-300 text-sm mb-6">
+            Het spel is momenteel gepauzeerd. Alle timers en automatische events zijn gestopt.
+          </p>
+          <p className="text-yellow-400 text-sm">
+            Wacht tot de Market Dashboard het spel hervat...
+          </p>
+        </div>
+      </div>
+    )}
+
     {/* Event from other player - NIET tonen op Market Dashboard om dubbele overlay te vermijden */}
     {currentScreen !== 'market-dashboard' && showOtherPlayerEvent && otherPlayerEventData && (
       <EventPopup
+        key={currentEventId}
         externalScenario={otherPlayerEventData}
         onClose={() => {
+          // ENABLED: Player kan popup wegklikken op eigen scherm
+          // Dit sluit ALLEEN lokaal, niet op andere schermen of dashboard
+          console.log('👆 Player clicked to close popup locally')
+          
+          // Clear auto-close timer
+          if (autoCloseTimerRef.current) {
+            clearTimeout(autoCloseTimerRef.current)
+            autoCloseTimerRef.current = null
+          }
+          
+          // Close popup ONLY on this player's screen
           setShowOtherPlayerEvent(false)
           setOtherPlayerEventData(null)
+          setCurrentEventId('')
+          
+          console.log('✅ Popup closed locally - still visible on other screens')
         }}
         onApplyEffect={(effect) => {
-          console.log('Event from other player applied:', effect)
+          console.log('✅ Event auto-applied after timer completion')
+          // Clear auto-close timer
+          if (autoCloseTimerRef.current) {
+            clearTimeout(autoCloseTimerRef.current)
+            autoCloseTimerRef.current = null
+          }
           // Effect is already applied by server, just close
           setShowOtherPlayerEvent(false)
           setOtherPlayerEventData(null)
+          setCurrentEventId('')
         }}
       />
+    )}
+
+    {/* Player Finish Notification */}
+    {showFinishNotification && playerFinishRank && (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-gradient-to-br from-dark-card via-dark-bg to-dark-card border-2 border-neon-gold rounded-2xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-500">
+          <div className="bg-gradient-to-r from-neon-gold/20 to-yellow-500/20 border-b border-neon-gold/30 p-6">
+            <div className="text-center">
+              <div className="text-6xl mb-4">🏁</div>
+              <h2 className="text-3xl font-bold text-neon-gold">Speljaren Bereikt!</h2>
+            </div>
+          </div>
+          
+          <div className="p-6 text-center space-y-4">
+            <div className="bg-neon-gold/10 border border-neon-gold/30 rounded-lg p-4">
+              <p className="text-gray-400 text-sm mb-2">Jouw Positie</p>
+              <p className="text-5xl font-bold text-neon-gold">#{playerFinishRank}</p>
+            </div>
+            
+            <p className="text-gray-300 text-lg">
+              Je hebt al je speljaren voltooid!
+            </p>
+            
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+              <p className="text-blue-300 text-sm">
+                ✅ Je portfolio en wallet zijn opgeslagen
+              </p>
+              <p className="text-blue-300 text-sm mt-2">
+                ⏳ Andere spelers kunnen nog doorspelen
+              </p>
+            </div>
+            
+            <p className="text-gray-400 text-sm">
+              Je kunt je portfolio en wallet nog bekijken, maar geen nieuwe acties meer uitvoeren.
+            </p>
+          </div>
+          
+          <div className="bg-dark-bg/30 border-t border-white/10 p-4">
+            <button
+              onClick={() => setShowFinishNotification(false)}
+              className="w-full py-3 bg-neon-gold/20 hover:bg-neon-gold/30 text-neon-gold rounded-lg transition-all font-bold"
+            >
+              Begrepen
+            </button>
+          </div>
+        </div>
+      </div>
     )}
     </>
   )

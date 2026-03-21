@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { ArrowLeft, Clock, User } from 'lucide-react'
 import Header from './Header'
 
@@ -27,7 +28,14 @@ export default function ScanTranscript({
   autoScanActions, 
   onBack 
 }: ScanTranscriptProps) {
-  // Combine and sort all scan actions
+  const [activeTab, setActiveTab] = useState<'beurs' | 'acties'>('beurs')
+  
+  // Sort actions separately
+  const sortedAutoScans = [...autoScanActions].sort((a, b) => b.timestamp - a.timestamp)
+  const sortedPlayerScans = [...playerScanActions].sort((a, b) => b.timestamp - a.timestamp)
+  
+  // Current view based on active tab
+  const currentScans = activeTab === 'beurs' ? sortedAutoScans : sortedPlayerScans
   const allScans = [...playerScanActions, ...autoScanActions]
     .sort((a, b) => b.timestamp - a.timestamp)
 
@@ -69,21 +77,53 @@ export default function ScanTranscript({
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setActiveTab('beurs')}
+            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
+              activeTab === 'beurs'
+                ? 'bg-neon-purple/20 border-2 border-neon-purple text-neon-purple'
+                : 'bg-dark-bg/40 border-2 border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
+            }`}
+          >
+            <span className="mr-2">🔔</span>
+            Beurs
+            <span className="ml-2 text-xs bg-neon-purple/30 px-2 py-1 rounded-full">{autoScanActions.length}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('acties')}
+            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
+              activeTab === 'acties'
+                ? 'bg-neon-blue/20 border-2 border-neon-blue text-neon-blue'
+                : 'bg-dark-bg/40 border-2 border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
+            }`}
+          >
+            <span className="mr-2">⚡</span>
+            Acties
+            <span className="ml-2 text-xs bg-neon-blue/30 px-2 py-1 rounded-full">{playerScanActions.length}</span>
+          </button>
+        </div>
+
+        {/* Stats - contextual based on active tab */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="crypto-card text-center">
-            <p className="text-gray-400 text-sm">Totaal Scans</p>
-            <p className="text-2xl font-bold text-neon-blue">{allScans.length}</p>
+            <p className="text-gray-400 text-sm">{activeTab === 'beurs' ? 'Beurs Events' : 'Player Acties'}</p>
+            <p className="text-2xl font-bold text-neon-blue">{currentScans.length}</p>
           </div>
           
           <div className="crypto-card text-center">
-            <p className="text-gray-400 text-sm">Jouw Scans</p>
-            <p className="text-2xl font-bold text-neon-gold">{playerScanActions.length}</p>
+            <p className="text-gray-400 text-sm">Positief</p>
+            <p className="text-2xl font-bold text-green-400">
+              {currentScans.filter(s => s.effect.includes('+')).length}
+            </p>
           </div>
           
           <div className="crypto-card text-center">
-            <p className="text-gray-400 text-sm">Live Activiteit</p>
-            <p className="text-2xl font-bold text-neon-turquoise">{autoScanActions.length}</p>
+            <p className="text-gray-400 text-sm">Negatief</p>
+            <p className="text-2xl font-bold text-red-400">
+              {currentScans.filter(s => s.effect.includes('-')).length}
+            </p>
           </div>
         </div>
 
@@ -91,18 +131,22 @@ export default function ScanTranscript({
         <div className="crypto-card">
           <h2 className="text-xl font-bold text-white mb-6 flex items-center space-x-2">
             <Clock className="w-5 h-5" />
-            <span>Scan Geschiedenis</span>
+            <span>{activeTab === 'beurs' ? 'Beurs Geschiedenis' : 'Acties Geschiedenis'}</span>
           </h2>
           
-          {allScans.length === 0 ? (
+          {currentScans.length === 0 ? (
             <div className="text-center py-12">
-              <div className="text-6xl mb-4">📱</div>
-              <p className="text-gray-400 text-lg">Nog geen scan acties</p>
-              <p className="text-gray-500 text-sm mt-2">Scan een QR code om te beginnen!</p>
+              <div className="text-6xl mb-4">{activeTab === 'beurs' ? '�' : '⚡'}</div>
+              <p className="text-gray-400 text-lg">
+                {activeTab === 'beurs' ? 'Nog geen beurs events' : 'Nog geen player acties'}
+              </p>
+              <p className="text-gray-500 text-sm mt-2">
+                {activeTab === 'beurs' ? 'Wacht op automatische markt updates' : 'Scan een QR code om te beginnen!'}
+              </p>
             </div>
           ) : (
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {allScans.map((action, index) => (
+              {currentScans.map((action, index) => (
                 <div 
                   key={action.id} 
                   className={`flex items-center justify-between p-4 rounded-lg transition-all duration-200 ${
