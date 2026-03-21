@@ -5,6 +5,9 @@ import Image from 'next/image'
 import StartScreen from '@/components/StartScreen'
 import LoginScreen from '@/components/LoginScreen'
 import { playPositiveSound, playNegativeSound, playEventSound, playForecastSound } from '@/utils/soundEffects'
+import { useAuth } from '@/hooks/useAuth'
+import AuthModal from '@/components/AuthModal'
+import SubscriptionModal from '@/components/SubscriptionModal'
 import GameSetup from '@/components/GameSetup'
 import HostSetup from '@/components/HostSetup'
 import RoleSelection from '@/components/RoleSelection'
@@ -53,6 +56,11 @@ interface GameState {
 }
 
 export default function Home() {
+  // Auth state for subscription system
+  const { user, isSubscribed, isLoading: authLoading, refreshSubscription } = useAuth()
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
+  
   const [playerName, setPlayerName] = useState<string>('')
   const [playerAvatar, setPlayerAvatar] = useState<string>('👑')
   const [currentScreen, setCurrentScreen] = useState<Screen>('start-screen')
@@ -86,6 +94,24 @@ export default function Home() {
   useEffect(() => {
     console.log(`🎮 isGamePaused state changed to: ${isGamePaused}`)
   }, [isGamePaused])
+
+  // Handle subscription success from Stripe redirect
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const subscriptionStatus = urlParams.get('subscription')
+    
+    if (subscriptionStatus === 'success') {
+      // Refresh subscription status after successful payment
+      refreshSubscription()
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname)
+      console.log('✅ Subscription successful - refreshing status')
+    } else if (subscriptionStatus === 'cancelled') {
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname)
+      console.log('❌ Subscription cancelled')
+    }
+  }, [refreshSubscription])
   const hasNotifiedFinishRef = useRef<boolean>(false) // Prevent duplicate finish notifications
   
   // Track shown events to prevent duplicates
@@ -2354,6 +2380,16 @@ export default function Home() {
   const handleStartScreenRoleSelection = (role: 'host' | 'player') => {
     setIsHost(role === 'host')
     if (role === 'host') {
+      // Check if user is logged in
+      if (!user) {
+        setShowAuthModal(true)
+        return
+      }
+      // Check if user has active subscription
+      if (!isSubscribed) {
+        setShowSubscriptionModal(true)
+        return
+      }
       // Hosts get default name/avatar and go directly to host-setup
       setPlayerName('Host')
       setPlayerAvatar('👑')
@@ -3972,6 +4008,25 @@ export default function Home() {
         </div>
       </div>
     )}
+
+    {/* Auth Modal */}
+    <AuthModal 
+      isOpen={showAuthModal} 
+      onClose={() => setShowAuthModal(false)}
+      onSuccess={() => {
+        setShowAuthModal(false)
+        // After login, check subscription
+        if (!isSubscribed) {
+          setShowSubscriptionModal(true)
+        }
+      }}
+    />
+
+    {/* Subscription Modal */}
+    <SubscriptionModal 
+      isOpen={showSubscriptionModal} 
+      onClose={() => setShowSubscriptionModal(false)}
+    />
     </>
   )
 }
