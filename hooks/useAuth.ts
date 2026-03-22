@@ -106,7 +106,37 @@ export function useAuth() {
     }
   }, [checkSubscription])
 
-  // Send Magic Link
+  // Sign in with email + password
+  const signIn = async (email: string, password: string): Promise<{ error: Error | null }> => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+      
+      if (error) throw error
+      return { error: null }
+    } catch (error) {
+      return { error: error as Error }
+    }
+  }
+
+  // Sign up with email + password
+  const signUp = async (email: string, password: string): Promise<{ error: Error | null }> => {
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password
+      })
+      
+      if (error) throw error
+      return { error: null }
+    } catch (error) {
+      return { error: error as Error }
+    }
+  }
+
+  // Send Magic Link (kept for backwards compatibility)
   const sendMagicLink = async (email: string): Promise<{ error: Error | null }> => {
     try {
       const { error } = await supabase.auth.signInWithOtp({
@@ -150,6 +180,8 @@ export function useAuth() {
   return {
     ...authState,
     lobbyCode: authState.subscription?.lobby_code || null,
+    signIn,
+    signUp,
     sendMagicLink,
     signOut,
     refreshSubscription
