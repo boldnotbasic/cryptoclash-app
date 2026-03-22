@@ -31,8 +31,9 @@ import WhaleChoice from '@/components/WhaleChoice'
 import EventPopup, { ScanEffect } from '@/components/EventPopup'
 import { useSocket } from '@/hooks/useSocket'
 import TurnTimer from '@/components/TurnTimer'
+import WelcomeScreen from '@/components/WelcomeScreen'
 
-type Screen = 'start-screen' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'buy' | 'sell' | 'win' | 'swap' | 'whale-choice' | 'game-over' | 'resume-game'
+type Screen = 'start-screen' | 'welcome' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'buy' | 'sell' | 'win' | 'swap' | 'whale-choice' | 'game-over' | 'resume-game'
 
 interface CryptoCurrency {
   id: string
@@ -60,6 +61,7 @@ export default function Home() {
   const { user, isSubscribed, isLoading: authLoading, refreshSubscription } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
+  const [intendedRole, setIntendedRole] = useState<'host' | 'player'>('player')
   
   const [playerName, setPlayerName] = useState<string>('')
   const [playerAvatar, setPlayerAvatar] = useState<string>('👑')
@@ -2379,6 +2381,8 @@ export default function Home() {
 
   const handleStartScreenRoleSelection = (role: 'host' | 'player') => {
     setIsHost(role === 'host')
+    setIntendedRole(role)
+    
     if (role === 'host') {
       // Check if user is logged in
       if (!user) {
@@ -2932,6 +2936,16 @@ export default function Home() {
             return (
               <StartScreen 
                 onSelectRole={handleStartScreenRoleSelection}
+              />
+            )
+          
+          case 'welcome':
+            return (
+              <WelcomeScreen
+                userName={user?.email?.split('@')[0] || 'Gebruiker'}
+                userEmail={user?.email || ''}
+                isSubscribed={isSubscribed}
+                onContinue={() => handleStartScreenRoleSelection(intendedRole)}
               />
             )
             
@@ -4015,10 +4029,8 @@ export default function Home() {
       onClose={() => setShowAuthModal(false)}
       onSuccess={() => {
         setShowAuthModal(false)
-        // After login, check subscription
-        if (!isSubscribed) {
-          setShowSubscriptionModal(true)
-        }
+        // Show welcome screen after login
+        navigateToScreen('welcome')
       }}
     />
 
