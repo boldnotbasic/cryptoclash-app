@@ -5,11 +5,12 @@ import { Users, Crown, Gamepad2, BarChart3 } from 'lucide-react'
 interface StartScreenProps {
   onSelectRole: (role: 'host' | 'player') => void
   onBypass?: () => void
+  onSignOut?: () => void
   userName?: string
   lobbyCode?: string
 }
 
-export default function StartScreen({ onSelectRole, onBypass, userName, lobbyCode }: StartScreenProps) {
+export default function StartScreen({ onSelectRole, onBypass, onSignOut, userName, lobbyCode }: StartScreenProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
@@ -27,16 +28,29 @@ export default function StartScreen({ onSelectRole, onBypass, userName, lobbyCod
 
         {/* User Info - Only show when logged in */}
         {userName && (
-          <div className="crypto-card mb-6 text-center">
-            <div className="flex items-center justify-center space-x-4">
-              <div>
+          <div className="crypto-card mb-6">
+            <div className="flex items-center justify-between">
+              <div className="text-center flex-1">
                 <p className="text-neon-blue font-semibold">👋 Hi {userName}!</p>
                 {lobbyCode && (
                   <p className="text-gray-300 text-sm">
                     Lobby Code: <span className="text-neon-gold font-mono">{lobbyCode}</span>
                   </p>
                 )}
+                {!lobbyCode && (
+                  <p className="text-red-400 text-sm">
+                    No lobby code - subscription needed
+                  </p>
+                )}
               </div>
+              {onSignOut && (
+                <button
+                  onClick={onSignOut}
+                  className="ml-4 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors text-sm"
+                >
+                  Sign Out
+                </button>
+              )}
             </div>
           </div>
         )}

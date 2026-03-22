@@ -24,12 +24,17 @@ export function useAuth() {
   // Check subscription status
   const checkSubscription = useCallback(async (userId: string) => {
     try {
+      console.log('🔍 Checking subscription for userId:', userId)
+      
+      // First try to find any subscription for this user
       const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
         .eq('user_id', userId)
-        .eq('status', 'active')
         .single()
+
+      console.log('📊 Subscription data:', data)
+      console.log('❌ Subscription error:', error)
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error checking subscription:', error)
