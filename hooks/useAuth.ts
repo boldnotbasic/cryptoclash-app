@@ -126,7 +126,11 @@ export function useAuth() {
     try {
       const { error } = await supabase.auth.signUp({
         email,
-        password
+        password,
+        options: {
+          emailRedirectTo: undefined,
+          data: {}
+        }
       })
       
       if (error) throw error

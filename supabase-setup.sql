@@ -47,3 +47,49 @@ CREATE TRIGGER update_subscriptions_updated_at
   BEFORE UPDATE ON subscriptions
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- Helper function to create test subscription (for development/testing)
+-- Usage: SELECT create_test_subscription('user@email.com');
+CREATE OR REPLACE FUNCTION create_test_subscription(user_email TEXT)
+RETURNS TEXT AS $$
+DECLARE
+  v_user_id UUID;
+  v_lobby_code TEXT;
+BEGIN
+  -- Get user ID from email
+  SELECT id INTO v_user_id FROM auth.users WHERE email = user_email;
+  
+  IF v_user_id IS NULL THEN
+    RETURN 'Error: User not found with email ' || user_email;
+  END IF;
+  
+  -- Generate random lobby code
+  v_lobby_code := UPPER(SUBSTRING(MD5(RANDOM()::TEXT) FROM 1 FOR 6));
+  
+  -- Insert or update subscription
+  INSERT INTO subscriptions (
+    user_id,
+    email,
+    status,
+    lobby_code,
+    current_period_start,
+    current_period_end
+  ) VALUES (
+    v_user_id,
+    user_email,
+    'active',
+    v_lobby_code,
+    NOW(),
+    NOW() + INTERVAL '1 year'
+  )
+  ON CONFLICT (user_id) 
+  DO UPDATE SET
+    status = 'active',
+    lobby_code = COALESCE(subscriptions.lobby_code, v_lobby_code),
+    current_period_start = NOW(),
+    current_period_end = NOW() + INTERVAL '1 year',
+    updated_at = NOW();
+  
+  RETURN 'Success! Test subscription created for ' || user_email || ' with lobby code: ' || COALESCE((SELECT lobby_code FROM subscriptions WHERE user_id = v_user_id), v_lobby_code);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -39,28 +39,35 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
       return
     }
 
-    if (isRegister) {
-      const { error } = await signUp(email, password)
-      if (error) {
-        setError(error.message || 'Registratie mislukt')
-        setIsLoading(false)
-        return
+    try {
+      if (isRegister) {
+        const { error } = await signUp(email, password)
+        if (error) {
+          setError(error.message || 'Registratie mislukt')
+          setIsLoading(false)
+          return
+        }
+      } else {
+        const { error } = await signIn(email, password)
+        if (error) {
+          setError(error.message || 'Inloggen mislukt')
+          setIsLoading(false)
+          return
+        }
       }
-    } else {
-      const { error } = await signIn(email, password)
-      if (error) {
-        setError(error.message || 'Inloggen mislukt')
-        setIsLoading(false)
-        return
-      }
-    }
 
-    // Wait for auth state to update
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    setIsLoading(false)
-    onSuccess?.()
-    handleClose()
+      // Success - close modal and trigger callback
+      handleClose()
+      setIsLoading(false)
+      
+      // Trigger success callback after modal closes
+      setTimeout(() => {
+        onSuccess?.()
+      }, 100)
+    } catch (err) {
+      setError('Er ging iets mis. Probeer opnieuw.')
+      setIsLoading(false)
+    }
   }
 
   const handleClose = () => {
