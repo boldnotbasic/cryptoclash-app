@@ -17,7 +17,15 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
   const [error, setError] = useState<string | null>(null)
   const [isRegister, setIsRegister] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, user } = useAuth()
+
+  // Auto-close modal when user becomes authenticated
+  if (isOpen && user && !isLoading) {
+    setTimeout(() => {
+      handleClose()
+      onSuccess?.()
+    }, 100)
+  }
 
   if (!isOpen) return null
 
@@ -56,14 +64,8 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
         }
       }
 
-      // Success - close modal and trigger callback
-      handleClose()
-      setIsLoading(false)
-      
-      // Trigger success callback after modal closes
-      setTimeout(() => {
-        onSuccess?.()
-      }, 100)
+      // Keep loading state - modal will auto-close when user state updates
+      // The useAuth hook will trigger a re-render when auth state changes
     } catch (err) {
       setError('Er ging iets mis. Probeer opnieuw.')
       setIsLoading(false)
