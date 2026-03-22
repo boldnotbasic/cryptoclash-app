@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, Mail, Lock, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -18,14 +18,25 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
   const [isRegister, setIsRegister] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const { signIn, signUp, user } = useAuth()
+  const hasClosedRef = useRef(false)
 
   // Auto-close modal when user becomes authenticated
-  if (isOpen && user && !isLoading) {
-    setTimeout(() => {
-      handleClose()
-      onSuccess?.()
-    }, 100)
-  }
+  useEffect(() => {
+    if (isOpen && user && isLoading && !hasClosedRef.current) {
+      hasClosedRef.current = true
+      setIsLoading(false)
+      
+      setTimeout(() => {
+        handleClose()
+        onSuccess?.()
+      }, 300)
+    }
+    
+    // Reset when modal closes
+    if (!isOpen) {
+      hasClosedRef.current = false
+    }
+  }, [isOpen, user, isLoading, onSuccess])
 
   if (!isOpen) return null
 
