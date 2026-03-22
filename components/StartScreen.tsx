@@ -5,9 +5,11 @@ import { Users, Crown, Gamepad2, BarChart3 } from 'lucide-react'
 interface StartScreenProps {
   onSelectRole: (role: 'host' | 'player') => void
   onBypass?: () => void
+  userName?: string
+  lobbyCode?: string
 }
 
-export default function StartScreen({ onSelectRole, onBypass }: StartScreenProps) {
+export default function StartScreen({ onSelectRole, onBypass, userName, lobbyCode }: StartScreenProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
@@ -22,6 +24,22 @@ export default function StartScreen({ onSelectRole, onBypass }: StartScreenProps
           </div>
           <h1 className="sr-only">CryptoClash</h1>
         </div>
+
+        {/* User Info - Only show when logged in */}
+        {userName && (
+          <div className="crypto-card mb-6 text-center">
+            <div className="flex items-center justify-center space-x-4">
+              <div>
+                <p className="text-neon-blue font-semibold">👋 Hi {userName}!</p>
+                {lobbyCode && (
+                  <p className="text-gray-300 text-sm">
+                    Lobby Code: <span className="text-neon-gold font-mono">{lobbyCode}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Role Selection Cards */}
         <div className="grid grid-cols-2 gap-4">

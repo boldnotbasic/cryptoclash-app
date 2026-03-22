@@ -58,7 +58,7 @@ interface GameState {
 
 export default function Home() {
   // Auth state for subscription system
-  const { user, isSubscribed, isLoading: authLoading, refreshSubscription } = useAuth()
+  const { user, isSubscribed, isLoading: authLoading, refreshSubscription, lobbyCode } = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
   const [intendedRole, setIntendedRole] = useState<'host' | 'player'>('player')
@@ -2945,6 +2945,8 @@ export default function Home() {
               <StartScreen 
                 onSelectRole={handleStartScreenRoleSelection}
                 onBypass={handleBypass}
+                userName={user?.email?.split('@')[0] || ''}
+                lobbyCode={lobbyCode || ''}
               />
             )
           
@@ -4038,8 +4040,8 @@ export default function Home() {
       onClose={() => setShowAuthModal(false)}
       onSuccess={() => {
         setShowAuthModal(false)
-        // Show welcome screen after login
-        navigateToScreen('welcome')
+        // Go back to start screen with user info
+        navigateToScreen('start-screen')
       }}
     />
 
