@@ -55,6 +55,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
       }
     }
 
+    // Wait for auth state to update
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
     setIsLoading(false)
     onSuccess?.()
     handleClose()
