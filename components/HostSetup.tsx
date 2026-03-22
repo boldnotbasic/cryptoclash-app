@@ -9,11 +9,12 @@ interface HostSetupProps {
   onBack: () => void
   playerName?: string
   playerAvatar?: string
+  lobbyCode?: string
 }
 
-export default function HostSetup({ onStartRoom, onBack, playerName, playerAvatar }: HostSetupProps) {
+export default function HostSetup({ onStartRoom, onBack, playerName, playerAvatar, lobbyCode }: HostSetupProps) {
   const { createRoom, room, error, connected, clearError, socket } = useSocket()
-  const [roomId, setRoomId] = useState('123')
+  const [roomId, setRoomId] = useState(lobbyCode || '123')
   const [gameDuration, setGameDuration] = useState(1)
   const [volatility, setVolatility] = useState('medium')
   const [startingCash, setStartingCash] = useState(1000)

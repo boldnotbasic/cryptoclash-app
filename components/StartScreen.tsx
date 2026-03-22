@@ -60,7 +60,7 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
           {/* Host Option */}
           <button
             onClick={() => onSelectRole('host')}
-            className="crypto-card hover:scale-105 transition-all duration-300 hover:shadow-neon-blue group cursor-pointer border-2 border-transparent hover:border-neon-blue/50"
+            className="crypto-card hover:scale-105 transition-all duration-300 group cursor-pointer border-2 border-neon-purple/30 hover:border-neon-purple/60 shadow-[0_0_15px_rgba(168,85,247,0.4)] hover:shadow-[0_0_25px_rgba(168,85,247,0.6)]"
           >
             <div className="px-4 py-5 text-center space-y-3">
               {/* Icoon boven titel */}
@@ -76,7 +76,7 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
           {/* Player Option */}
           <button
             onClick={() => onSelectRole('player')}
-            className="crypto-card hover:scale-105 transition-all duration-300 hover:shadow-neon-purple group cursor-pointer border-2 border-transparent hover:border-neon-purple/50"
+            className="crypto-card hover:scale-105 transition-all duration-300 group cursor-pointer border-2 border-neon-purple/30 hover:border-neon-purple/60 shadow-[0_0_15px_rgba(168,85,247,0.4)] hover:shadow-[0_0_25px_rgba(168,85,247,0.6)]"
           >
             <div className="px-4 py-5 text-center space-y-3">
               {/* Icoon boven titel */}

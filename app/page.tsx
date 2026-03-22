@@ -2968,6 +2968,7 @@ export default function Home() {
                 onBack={() => navigateToScreen('start-screen')}
                 playerName={playerName}
                 playerAvatar={playerAvatar}
+                lobbyCode={lobbyCode || undefined}
               />
             )
             
