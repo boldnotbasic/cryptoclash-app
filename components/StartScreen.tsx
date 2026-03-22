@@ -4,9 +4,10 @@ import { Users, Crown, Gamepad2, BarChart3 } from 'lucide-react'
 
 interface StartScreenProps {
   onSelectRole: (role: 'host' | 'player') => void
+  onBypass?: () => void
 }
 
-export default function StartScreen({ onSelectRole }: StartScreenProps) {
+export default function StartScreen({ onSelectRole, onBypass }: StartScreenProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
@@ -56,6 +57,18 @@ export default function StartScreen({ onSelectRole }: StartScreenProps) {
             </div>
           </button>
         </div>
+
+        {/* Bypass Button */}
+        {onBypass && (
+          <div className="mt-6">
+            <button
+              onClick={onBypass}
+              className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+            >
+              🚀 Doorgaan zonder Stripe
+            </button>
+          </div>
+        )}
 
         {/* Game Info */}
         <div className="mt-12 crypto-card">

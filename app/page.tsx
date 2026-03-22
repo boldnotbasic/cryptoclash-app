@@ -2410,6 +2410,14 @@ export default function Home() {
     navigateToScreen('waiting-room')
   }
 
+  const handleBypass = () => {
+    // Bypass authentication and subscription - go directly to host setup
+    setIsHost(true)
+    setPlayerName('Host')
+    setPlayerAvatar('👑')
+    navigateToScreen('host-setup')
+  }
+
   const handleGoToMarketScreen = () => {
     navigateToScreen('room-create')
   }
@@ -2936,6 +2944,7 @@ export default function Home() {
             return (
               <StartScreen 
                 onSelectRole={handleStartScreenRoleSelection}
+                onBypass={handleBypass}
               />
             )
           

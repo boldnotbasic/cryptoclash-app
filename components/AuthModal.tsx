@@ -20,24 +20,6 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
   const { signIn, signUp, user } = useAuth()
   const hasClosedRef = useRef(false)
 
-  // Auto-close modal when user becomes authenticated
-  useEffect(() => {
-    if (isOpen && user && isLoading && !hasClosedRef.current) {
-      hasClosedRef.current = true
-      setIsLoading(false)
-      
-      setTimeout(() => {
-        handleClose()
-        onSuccess?.()
-      }, 300)
-    }
-    
-    // Reset when modal closes
-    if (!isOpen) {
-      hasClosedRef.current = false
-    }
-  }, [isOpen, user, isLoading, onSuccess])
-
   if (!isOpen) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,8 +57,13 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
         }
       }
 
-      // Keep loading state - modal will auto-close when user state updates
-      // The useAuth hook will trigger a re-render when auth state changes
+      // Success - immediately close modal and trigger success
+      setIsLoading(false)
+      handleClose()
+      setTimeout(() => {
+        onSuccess?.()
+      }, 100)
+      
     } catch (err) {
       setError('Er ging iets mis. Probeer opnieuw.')
       setIsLoading(false)
