@@ -15,6 +15,7 @@ import RoomCreate from '@/components/RoomCreate'
 import RoomJoin from '@/components/RoomJoin'
 import WaitingRoom from '@/components/WaitingRoom'
 import MainMenu from '@/components/MainMenu'
+import InsiderForecast from '@/components/InsiderForecast'
 import GameDashboard from '@/components/GameDashboard'
 import QRScanner from '@/components/QRScanner'
 import MarketOverview from '@/components/MarketOverview'
@@ -91,6 +92,9 @@ export default function Home() {
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
   const [isFirstTurn, setIsFirstTurn] = useState<boolean>(true) // Track if this is the first turn
   const [isGamePaused, setIsGamePaused] = useState<boolean>(false)
+  const [insiderUsed, setInsiderUsed] = useState<boolean>(false)
+  const [showInsiderForecast, setShowInsiderForecast] = useState<boolean>(false)
+  const [insiderForecastData, setInsiderForecastData] = useState<{ topGainer: { symbol: string; percentage: number }; topLoser: { symbol: string; percentage: number } } | null>(null)
   
   // Debug: Log pause state changes
   useEffect(() => {
@@ -1209,7 +1213,21 @@ export default function Home() {
           setTurnNotification(prev => prev?.id === notificationId ? null : prev)
         }, 4000)
         
+        // Reset insider usage for new turn
+        setInsiderUsed(false)
+        console.log('🔄 Insider usage reset for new turn')
+        
         console.log('⏭️ === TURN CHANGED EVENT END ===')
+      })
+
+      // Handle insider info response from server
+      socket.on('player:insiderInfo', (data) => {
+        console.log('🕵️ === INSIDER INFO RECEIVED ===')
+        console.log('📊 Data:', data)
+        
+        setInsiderForecastData(data)
+        setShowInsiderForecast(true)
+        console.log('🕵️ Insider forecast popup shown')
       })
 
       // Handle game pause/resume events
@@ -1484,6 +1502,7 @@ export default function Home() {
         socket.off('player:yearUndo')
         socket.off('player:undoAction')
         socket.off('turn:changed')
+        socket.off('player:insiderInfo')
         socket.off('player:swapReceived')
         socket.off('game:reset')
         socket.off('game:ended')
@@ -3140,6 +3159,22 @@ export default function Home() {
                 autoScanActions={autoScanActions}
                 transactions={transactions}
                 actionsDisabled={actionsDisabled}
+                onShowInsider={() => {
+                  console.log('🕵️ Insider info requested')
+                  if (socket && roomId && !insiderUsed) {
+                    // Request forecast data from server
+                    socket.emit('player:requestInsiderInfo', {
+                      roomCode: roomId,
+                      playerName: playerName
+                    })
+                    console.log('✅ Insider info request sent')
+                    // Mark insider as used
+                    setInsiderUsed(true)
+                  } else if (insiderUsed) {
+                    console.log('⚠️ Insider already used this turn')
+                  }
+                }}
+                insiderUsed={insiderUsed}
                 onEndTurnConfirm={() => {
                   console.log('\n🔥 === END TURN CLICKED (MainMenu) ===')
                   console.log('  socket exists:', !!socket)
@@ -3949,6 +3984,18 @@ export default function Home() {
           </p>
         </div>
       </div>
+    )}
+
+    {/* Insider Forecast Popup */}
+    {showInsiderForecast && insiderForecastData && (
+      <InsiderForecast
+        forecastData={insiderForecastData}
+        onClose={() => {
+          console.log('🕵️ Insider forecast closed manually')
+          setShowInsiderForecast(false)
+          setInsiderForecastData(null)
+        }}
+      />
     )}
 
     {/* Event from other player - NIET tonen op Market Dashboard om dubbele overlay te vermijden */}

@@ -69,9 +69,11 @@ interface MainMenuProps {
   onApplyScanEffect?: (effect: ScanEffect) => void
   actionsDisabled?: boolean
   onEndTurnConfirm?: () => void
+  onShowInsider?: () => void
+  insiderUsed?: boolean
 }
 
-export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate, onAddScanAction, lastScanEffect, cashBalance = 0, players = [], playerScanActions = [], autoScanActions = [], onSendTestMessage, onVerifyRoom, transactions = [], year = 2024, onPassStart, onApplyScanEffect, actionsDisabled = false, onEndTurnConfirm, gameFinished = false }: MainMenuProps) {
+export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate, onAddScanAction, lastScanEffect, cashBalance = 0, players = [], playerScanActions = [], autoScanActions = [], onSendTestMessage, onVerifyRoom, transactions = [], year = 2024, onPassStart, onApplyScanEffect, actionsDisabled = false, onEndTurnConfirm, gameFinished = false, onShowInsider, insiderUsed = false }: MainMenuProps) {
   // Calculate portfolio value (with consistent rounding)
   const portfolioValue = Math.round(cryptos.reduce((sum, crypto) => sum + (crypto.price * crypto.amount), 0) * 100) / 100
   const totalValue = Math.round((portfolioValue + cashBalance) * 100) / 100
@@ -503,6 +505,35 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
               </div>
               <h3 className="text-lg font-bold text-white tracking-tight">Speeljaar</h3>
               <p className="text-2xl font-bold text-neon-gold">{year}</p>
+            </div>
+          </button>
+
+          {/* Insider Info - Naast Speeljaar */}
+          <button
+            onClick={() => {
+              console.log('🕵️ Insider tile clicked:', { insiderUsed, actionsDisabled })
+              if (!insiderUsed && !actionsDisabled && onShowInsider) {
+                console.log('✅ Calling onShowInsider')
+                onShowInsider()
+              } else if (insiderUsed) {
+                console.log('❌ Insider already used this turn')
+              } else if (actionsDisabled) {
+                console.log('❌ Actions disabled')
+              }
+            }}
+            className={getTileClasses(
+              !insiderUsed && !actionsDisabled,
+              `crypto-card bg-gradient-to-br from-gray-900/95 via-orange-500/5 to-gray-900/95 border-2 border-orange-500/70 ring-1 ring-orange-500/40 text-center p-0 group h-[200px] flex flex-col shadow-lg shadow-orange-500/30 ${insiderUsed || actionsDisabled ? 'opacity-40 pointer-events-none' : 'hover:shadow-orange-500/50 hover:border-orange-500/90'}`
+            )}
+          >
+            <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-2">
+              <div className="p-3 bg-white/20 rounded-xl transition-colors shadow-inner">
+                <span className="text-4xl">🕵️</span>
+              </div>
+              <h3 className="text-lg font-bold text-white tracking-tight">Insider</h3>
+              <p className="text-sm font-bold text-orange-400">
+                {insiderUsed ? 'Gebruikt' : 'Info'}
+              </p>
             </div>
           </button>
 

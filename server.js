@@ -2167,6 +2167,64 @@ app.prepare().then(() => {
       console.log(`📊 Price history broadcast:`, Object.keys(roomPriceHistory[roomCode] || {}).map(sym => `${sym}:${roomPriceHistory[roomCode][sym].length}`).join(', '))
     })
 
+    // Player requests insider info - send 2 random upcoming events
+    socket.on('player:requestInsiderInfo', ({ roomCode }) => {
+      console.log(`\n🕵️ === PLAYER INSIDER INFO REQUEST ===`)
+      console.log(`🏠 Room: ${roomCode}`)
+      
+      if (!rooms[roomCode]) {
+        console.log('❌ Room not found')
+        return
+      }
+
+      // Find player name from socket
+      const playerName = Object.keys(rooms[roomCode].players || {}).find(
+        name => rooms[roomCode].players[name]?.socketId === socket.id
+      ) || 'Unknown'
+
+      // Initialize upcoming events if not exists
+      if (!roomUpcomingEvents[roomCode] || roomUpcomingEvents[roomCode].length === 0) {
+        generateUpcomingEvents(roomCode)
+      }
+
+      const upcomingEvents = roomUpcomingEvents[roomCode] || []
+      
+      // Pick 2 random events from upcoming events for dynamic insider info
+      const availableEvents = upcomingEvents.slice(0, 9) // Look at next 9 events
+      const shuffled = [...availableEvents].sort(() => Math.random() - 0.5)
+      const selectedEvents = shuffled.slice(0, 2)
+
+      if (selectedEvents.length < 2) {
+        console.log('❌ Not enough events for insider info')
+        return
+      }
+
+      const event1 = selectedEvents[0]
+      const event2 = selectedEvents[1]
+
+      const info1 = {
+        symbol: event1.crypto || event1.symbol,
+        percentage: event1.percentage,
+        direction: event1.percentage > 0 ? 'up' : 'down'
+      }
+
+      const info2 = {
+        symbol: event2.crypto || event2.symbol,
+        percentage: event2.percentage,
+        direction: event2.percentage > 0 ? 'up' : 'down'
+      }
+
+      console.log(`🕵️ Sending insider forecast to ${playerName}:`)
+      console.log(`   📰 Event 1: ${info1.symbol} ${info1.percentage > 0 ? '+' : ''}${info1.percentage}% (${info1.direction})`)
+      console.log(`   📰 Event 2: ${info2.symbol} ${info2.percentage > 0 ? '+' : ''}${info2.percentage}% (${info2.direction})`)
+
+      // Send ONLY to this player (not broadcast)
+      socket.emit('player:insiderInfo', {
+        topGainer: { symbol: info1.symbol, percentage: info1.percentage },
+        topLoser: { symbol: info2.symbol, percentage: info2.percentage }
+      })
+    })
+
     // Player scan action - broadcast to all players in room (including Market Screen)
     socket.on('player:scanAction', ({ roomCode, scanAction }) => {
       console.log(`\n📱 === PLAYER SCAN ACTION ===`)
