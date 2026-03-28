@@ -65,10 +65,23 @@ export const useSocket = (): UseSocketReturn => {
         setError(null)
       })
       
+      socket.on('host:createError', (errorMessage) => {
+        console.error('❌ Room creation error:', errorMessage)
+        setError(errorMessage)
+      })
+      
       socket.on('player:joinSuccess', ({ roomCode, room }) => {
         console.log('🎉 Player joined successfully:', roomCode)
         setRoom(room)
         setError(null)
+      })
+      
+      socket.on('player:joinError', (errorMessage) => {
+        console.error('❌ Player join error:', errorMessage)
+        setError(errorMessage)
+        // CRITICAL: Clear room state to prevent navigation with stale data
+        setRoom(null)
+        console.log('🧹 Room state cleared due to join error')
       })
       
       socket.on('lobby:update', (updatedRoom) => {
@@ -295,6 +308,16 @@ export const useSocket = (): UseSocketReturn => {
       console.error('❌ === PLAYER JOIN ERROR RECEIVED ===')
       console.error('👤 Join error:', errorMessage)
       setError(errorMessage)
+      // CRITICAL: Clear room state to prevent navigation with stale data
+      setRoom(null)
+      console.log('🧹 Room state cleared due to join error')
+    })
+
+    // Language update event - when room language is set/changed
+    socket.on('room:languageUpdate', ({ language }) => {
+      console.log('🌐 Room language update received:', language)
+      // Dispatch custom event that LanguageContext can listen to
+      window.dispatchEvent(new CustomEvent('roomLanguageUpdate', { detail: { language } }))
     })
 
     // Lobby events

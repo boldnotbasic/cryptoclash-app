@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import Image from 'next/image'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface CryptoCurrency {
   id: string
@@ -36,6 +37,7 @@ const getCryptoImagePath = (symbol: string): string | null => {
 }
 
 export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelProps) {
+  const { t } = useLanguage()
   const [isSpinning, setIsSpinning] = useState(false)
   const [rotation, setRotation] = useState(0)
   const [wonCrypto, setWonCrypto] = useState<CryptoCurrency | null>(null)
@@ -89,15 +91,14 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
     }, 4000)
   }
 
-  // SVG gradient definitions matching "Spin the Wheel" tile style
-  // Tile uses: from-purple-600/20 to-pink-600/20
-  const gradients = [
-    { id: 'grad1', from: '#7c3aed', via: '#a855f7', to: '#6b21a8' }, // purple gradient
-    { id: 'grad2', from: '#3b82f6', via: '#60a5fa', to: '#1e40af' }, // blue gradient
-    { id: 'grad3', from: '#06b6d4', via: '#22d3ee', to: '#0e7490' }, // cyan gradient
-    { id: 'grad4', from: '#ec4899', via: '#f472b6', to: '#be185d' }, // pink gradient
-    { id: 'grad5', from: '#6366f1', via: '#818cf8', to: '#4338ca' }, // indigo gradient
-    { id: 'grad6', from: '#8b5cf6', via: '#a78bfa', to: '#6d28d9' }, // violet gradient
+  // Solid purple colors for wheel segments - darker purple matching project theme
+  const segmentColors = [
+    '#581c87', // dark purple
+    '#4c1d95', // darker purple
+    '#581c87', // dark purple
+    '#4c1d95', // darker purple
+    '#581c87', // dark purple
+    '#4c1d95', // darker purple
   ]
 
   // Calculate path for each segment
@@ -151,8 +152,8 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
 
         {/* Title */}
         <div className="text-center mb-6">
-          <h2 className="text-4xl font-bold text-white mb-2">🎡 Spin the Wheel!</h2>
-          <p className="text-gray-300">Draai het rad en win een crypto!</p>
+          <h2 className="text-4xl font-bold text-white mb-2">🎡 {t('spinWheel.title')}</h2>
+          <p className="text-gray-300">{t('spinWheel.subtitle')}</p>
         </div>
 
         {/* Wheel Container */}
@@ -171,27 +172,16 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
               transitionTimingFunction: isSpinning ? 'cubic-bezier(0.17, 0.67, 0.12, 0.99)' : 'ease-out'
             }}
           >
-            {/* Define gradients */}
-            <defs>
-              {gradients.map((grad) => (
-                <linearGradient key={grad.id} id={grad.id} x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor={grad.from} />
-                  <stop offset="50%" stopColor={grad.via} />
-                  <stop offset="100%" stopColor={grad.to} />
-                </linearGradient>
-              ))}
-            </defs>
-
-            {/* Draw segments */}
+            {/* Draw segments with solid purple colors */}
             {topCryptos.map((crypto, index) => {
               const path = getSegmentPath(index)
-              const gradient = gradients[index % gradients.length]
+              const color = segmentColors[index % segmentColors.length]
               
               return (
                 <path
                   key={crypto.symbol}
                   d={path}
-                  fill={`url(#${gradient.id})`}
+                  fill={color}
                   stroke="#d4af37"
                   strokeWidth="2"
                   opacity="0.95"
@@ -247,28 +237,28 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
         </div>
 
         {/* Spin Button */}
-        <div className="text-center">
+        <div className="w-full">
           <button
             onClick={handleSpin}
             disabled={isSpinning}
-            className={`px-12 py-4 rounded-xl font-bold text-xl transition-all ${
+            className={`w-full px-12 py-4 rounded-xl font-bold text-xl transition-all ${
               isSpinning
                 ? 'bg-gray-600 cursor-not-allowed'
                 : 'bg-gradient-to-r from-neon-purple to-neon-pink hover:scale-105 active:scale-95'
             } text-white shadow-lg`}
           >
-            {isSpinning ? 'Draaien...' : 'SPIN!'}
+            {isSpinning ? t('spinWheel.spinning') : t('spinWheel.spin')}
           </button>
         </div>
 
         {/* Winner announcement */}
         {wonCrypto && (
           <div className="mt-6 p-6 bg-gradient-to-r from-neon-gold/20 to-neon-purple/20 border-2 border-neon-gold rounded-xl text-center animate-fadeIn">
-            <h3 className="text-2xl font-bold text-neon-gold mb-2">🎉 Gefeliciteerd!</h3>
+            <h3 className="text-2xl font-bold text-neon-gold mb-2">🎉 {t('spinWheel.congratulations')}</h3>
             <p className="text-white text-lg">
-              Je hebt <span className="font-bold text-neon-gold">{wonCrypto.name}</span> gewonnen!
+              {t('spinWheel.youWon')} <span className="font-bold text-neon-gold">{wonCrypto.name}</span>!
             </p>
-            <p className="text-gray-300 text-sm mt-2">Wordt automatisch toegevoegd...</p>
+            <p className="text-gray-300 text-sm mt-2">{t('spinWheel.autoAdding')}</p>
           </div>
         )}
       </div>

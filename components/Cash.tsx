@@ -2,6 +2,9 @@
 
 import { ArrowLeft, CreditCard, Euro, TrendingUp } from 'lucide-react'
 import Header from './Header'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatCurrency } from '@/utils/currency'
 
 interface Transaction {
   id: string
@@ -23,6 +26,8 @@ interface CashProps {
 }
 
 export default function Cash({ onBack, playerName, playerAvatar, cashBalance, transactions = [] }: CashProps) {
+  const { t } = useLanguage()
+  const { currency } = useCurrency()
   // Calculate totals from transactions
   const totalSales = transactions.reduce((sum, t) => sum + t.total, 0)
   const todayTransactions = transactions.filter(t => {
@@ -48,8 +53,8 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
           <div className="flex items-center space-x-2">
             <Euro className="w-8 h-8 text-neon-gold" />
             <div>
-              <h1 className="text-3xl font-bold text-white">Cash Wallet</h1>
-              <p className="text-gray-400">Jouw cash geld</p>
+              <h1 className="text-3xl font-bold text-white">{t('cash.title')}</h1>
+              <p className="text-gray-400">{t('cash.subtitle')}</p>
             </div>
           </div>
         </div>
@@ -75,9 +80,9 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
 
               {/* Balance */}
               <div className="mb-6">
-                <p className="text-gray-400 text-sm mb-1">Beschikbaar Saldo</p>
+                <p className="text-gray-400 text-sm mb-1">{t('cash.availableBalance')}</p>
                 <p className="text-white text-4xl font-bold">
-                  €{cashBalance.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatCurrency(cashBalance, currency.symbol)}
                 </p>
               </div>
 
@@ -91,7 +96,7 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
               {/* Card Footer */}
               <div className="flex justify-between items-end">
                 <div>
-                  <p className="text-gray-400 text-xs">GELDIG TOT</p>
+                  <p className="text-gray-400 text-xs">{t('cash.validUntil')}</p>
                   <p className="text-gray-300 text-sm font-mono">12/28</p>
                 </div>
                 <div className="text-right">
@@ -117,12 +122,12 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
 
         {/* Transaction History - Direct onder bankkaart */}
         <div className="crypto-card">
-          <h3 className="text-xl font-bold text-white mb-4">Recente Transacties</h3>
+          <h3 className="text-xl font-bold text-white mb-4">{t('cash.recentTransactions')}</h3>
           {transactions.length === 0 ? (
             <div className="text-center py-8">
               <CreditCard className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400">Nog geen transacties</p>
-              <p className="text-gray-500 text-sm">Verkoop crypto's om cash te verdienen</p>
+              <p className="text-gray-400">{t('cash.noTransactions')}</p>
+              <p className="text-gray-500 text-sm">{t('cash.sellToEarn')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -133,10 +138,10 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
                 const days = Math.floor(hours / 24)
                 
                 let timeText = ''
-                if (days > 0) timeText = `${days}d geleden`
-                else if (hours > 0) timeText = `${hours}u geleden`
-                else if (minutes > 0) timeText = `${minutes}m geleden`
-                else timeText = 'Nu'
+                if (days > 0) timeText = t('cash.daysAgo').replace('{n}', String(days))
+                else if (hours > 0) timeText = t('cash.hoursAgo').replace('{n}', String(hours))
+                else if (minutes > 0) timeText = t('cash.minutesAgo').replace('{n}', String(minutes))
+                else timeText = t('cash.justNow')
 
                 return (
                   <div key={transaction.id} className="flex items-center justify-between p-4 bg-dark-bg/30 rounded-lg border border-gray-700">
@@ -145,15 +150,15 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
                         <TrendingUp className="w-5 h-5 text-green-500" />
                       </div>
                       <div>
-                        <p className="text-white font-semibold">Verkoop {transaction.cryptoName}</p>
+                        <p className="text-white font-semibold">{t('cash.sellOf').replace('{name}', transaction.cryptoName)}</p>
                         <p className="text-gray-400 text-sm">
-                          {transaction.amount.toFixed(2)} {transaction.cryptoSymbol} @ €{transaction.price.toFixed(2)}
+                          {transaction.amount.toFixed(2)} {transaction.cryptoSymbol} @ {formatCurrency(transaction.price, currency.symbol)}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
                       <p className="text-green-500 font-bold">
-                        +€{transaction.total.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        +{formatCurrency(transaction.total, currency.symbol)}
                       </p>
                       <p className="text-gray-400 text-sm">{timeText}</p>
                     </div>
@@ -168,27 +173,27 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
           <div className="crypto-card text-center">
             <TrendingUp className="w-8 h-8 text-green-500 mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-white mb-2">Totale Verkopen</h3>
+            <h3 className="text-lg font-bold text-white mb-2">{t('cash.totalSales')}</h3>
             <p className="text-2xl font-bold text-green-500">
-              €{totalSales.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(totalSales, currency.symbol)}
             </p>
-            <p className="text-gray-400 text-sm">Deze sessie</p>
+            <p className="text-gray-400 text-sm">{t('cash.thisSession')}</p>
           </div>
           
           <div className="crypto-card text-center">
             <Euro className="w-8 h-8 text-neon-gold mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-white mb-2">Beschikbaar</h3>
+            <h3 className="text-lg font-bold text-white mb-2">{t('cash.available')}</h3>
             <p className="text-2xl font-bold text-neon-gold">
-              €{cashBalance.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(cashBalance, currency.symbol)}
             </p>
-            <p className="text-gray-400 text-sm">Cash saldo</p>
+            <p className="text-gray-400 text-sm">{t('cash.cashBalance')}</p>
           </div>
           
           <div className="crypto-card text-center">
             <CreditCard className="w-8 h-8 text-neon-blue mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-white mb-2">Transacties</h3>
+            <h3 className="text-lg font-bold text-white mb-2">{t('cash.transactions')}</h3>
             <p className="text-2xl font-bold text-neon-blue">{todayTransactions}</p>
-            <p className="text-gray-400 text-sm">Vandaag</p>
+            <p className="text-gray-400 text-sm">{t('cash.today')}</p>
           </div>
         </div>
       </div>

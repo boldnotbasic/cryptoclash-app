@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { ArrowLeft, TrendingUp, TrendingDown } from 'lucide-react'
 import DetailChart from './DetailChart'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatCurrency } from '@/utils/currency'
 
 interface PriceChange {
   percentage: number
@@ -29,6 +32,7 @@ interface CryptoDetailProps {
   hidePeriodSelector?: boolean
 }
 
+
 export default function CryptoDetail({ 
   crypto, 
   priceHistory, 
@@ -38,7 +42,9 @@ export default function CryptoDetail({
   onChartPeriodChange,
   hidePeriodSelector = false
 }: CryptoDetailProps) {
-  const [internalChartPeriod, setInternalChartPeriod] = useState<'all' | 'last10' | 'last5'>(initialChartPeriod)
+  const { t } = useLanguage()
+  const { currency } = useCurrency()
+  const [internalChartPeriod, setInternalChartPeriod] = useState<'all' | 'last10' | 'last5'>(initialChartPeriod || 'all')
   
   // Use external period if provided, otherwise use internal
   const chartPeriod = externalChartPeriod !== undefined ? externalChartPeriod : internalChartPeriod
@@ -123,7 +129,7 @@ export default function CryptoDetail({
           
           <div className="flex items-baseline space-x-2 ml-auto">
             <div className="text-3xl font-bold text-white">
-              €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(crypto.price, currency.symbol)}
             </div>
             <div className={`flex items-center space-x-1 px-2 py-1 rounded-md border ${
               isPositive ? 'bg-green-400/10 border-green-400/30 text-green-400' : 'bg-red-400/10 border-red-400/30 text-red-400'
@@ -160,7 +166,7 @@ export default function CryptoDetail({
                   : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
               }`}
             >
-              Sinds start
+              {t('common.sinceStart')}
             </button>
             <button
               onClick={() => setChartPeriod('last10')}
@@ -170,7 +176,7 @@ export default function CryptoDetail({
                   : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
               }`}
             >
-              10 beurten
+              {t('common.tenTurns')}
             </button>
             <button
               onClick={() => setChartPeriod('last5')}
@@ -180,7 +186,7 @@ export default function CryptoDetail({
                   : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
               }`}
             >
-              5 beurten
+              {t('common.fiveTurns')}
             </button>
           </div>
         )}
@@ -190,13 +196,13 @@ export default function CryptoDetail({
           <div className="crypto-card border border-neon-purple/30 bg-dark-bg/40 rounded-lg p-3">
             <div className="text-gray-400 text-xs mb-0.5">Volume</div>
             <div className="text-white text-sm font-semibold">
-              €{crypto.volume.toLocaleString('nl-NL')}
+              {formatCurrency(crypto.volume, currency.symbol)}
             </div>
           </div>
           <div className="crypto-card border border-neon-purple/30 bg-dark-bg/40 rounded-lg p-3">
             <div className="text-gray-400 text-xs mb-0.5">Marktwaarde</div>
             <div className="text-white text-sm font-semibold">
-              €{crypto.marketCap.toLocaleString('nl-NL')}
+              {formatCurrency(crypto.marketCap, currency.symbol)}
             </div>
           </div>
         </div>

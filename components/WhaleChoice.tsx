@@ -90,7 +90,7 @@ export default function WhaleChoice({ cryptos, onSelectCrypto }: WhaleChoiceProp
                       <h3 className="text-lg font-bold text-white mb-1">{crypto.symbol}</h3>
                       <p className="text-xs text-gray-400 mb-1">{crypto.name}</p>
                       <p className="text-sm font-semibold text-white">
-                        €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ⚘{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
                   </div>

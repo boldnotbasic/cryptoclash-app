@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { AppProvider } from '@/contexts/AppContext'
+import { LanguageProvider } from '@/contexts/LanguageContext'
+import { IconProvider } from '@/contexts/IconContext'
+import { CurrencyProvider } from '@/contexts/CurrencyContext'
 
 export const metadata: Metadata = {
   title: 'CryptoClash - Bordspel met Digitale Interactie',
@@ -24,9 +27,15 @@ export default function RootLayout({
         <meta name="theme-color" content="#8B5CF6" />
       </head>
       <body className="min-h-screen bg-dark-bg">
-        <AppProvider>
-          {children}
-        </AppProvider>
+        <CurrencyProvider>
+          <IconProvider>
+            <LanguageProvider>
+              <AppProvider>
+                {children}
+              </AppProvider>
+            </LanguageProvider>
+          </IconProvider>
+        </CurrencyProvider>
       </body>
     </html>
   )

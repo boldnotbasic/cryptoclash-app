@@ -13,7 +13,7 @@ interface TurnTimerProps {
 export default function TurnTimer({ 
   isMyTurn, 
   onTimeExpired,
-  turnDuration = 60,
+  turnDuration = 90,
   gameStartTime,
   onTimeUpdate
 }: TurnTimerProps) {

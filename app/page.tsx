@@ -15,7 +15,6 @@ import RoomCreate from '@/components/RoomCreate'
 import RoomJoin from '@/components/RoomJoin'
 import WaitingRoom from '@/components/WaitingRoom'
 import MainMenu from '@/components/MainMenu'
-import InsiderForecast from '@/components/InsiderForecast'
 import GameDashboard from '@/components/GameDashboard'
 import QRScanner from '@/components/QRScanner'
 import MarketOverview from '@/components/MarketOverview'
@@ -33,8 +32,16 @@ import EventPopup, { ScanEffect } from '@/components/EventPopup'
 import { useSocket } from '@/hooks/useSocket'
 import TurnTimer from '@/components/TurnTimer'
 import WelcomeScreen from '@/components/WelcomeScreen'
+import DiceRoll from '@/components/DiceRoll'
+import InsiderForecast from '@/components/InsiderForecast'
+import SellDestinationSelection from '@/components/SellDestinationSelection'
+import Marketplace from '@/components/Marketplace'
+import BiddingPopup from '@/components/BiddingPopup'
+import BidAcceptanceModal from '@/components/BidAcceptanceModal'
+import OfferWatchView from '@/components/OfferWatchView'
+import { setSoundEffectsEnabled as setSfxEnabled } from '@/utils/soundEffects'
 
-type Screen = 'start-screen' | 'welcome' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'buy' | 'sell' | 'win' | 'swap' | 'whale-choice' | 'game-over' | 'resume-game'
+type Screen = 'start-screen' | 'welcome' | 'host-setup' | 'player-login' | 'role-selection' | 'room-create' | 'room-join' | 'waiting-room' | 'dice-roll' | 'login' | 'game-setup' | 'starting-game' | 'main-menu' | 'market-dashboard' | 'dashboard' | 'market' | 'qr-scanner' | 'portfolio' | 'cash' | 'rankings' | 'settings' | 'scan-transcript' | 'actions-menu' | 'buy' | 'sell' | 'win' | 'swap' | 'whale-choice' | 'game-over' | 'resume-game'
 
 interface CryptoCurrency {
   id: string
@@ -77,7 +84,7 @@ export default function Home() {
   const [selectedVolatility, setSelectedVolatility] = useState<'low'|'medium'|'high'>('medium')
   const [isConnected, setIsConnected] = useState<boolean>(false)
   const [connectedPlayers, setConnectedPlayers] = useState<number>(0)
-  const [dashboardToasts, setDashboardToasts] = useState<{ id: string, message: string, sender: string }[]>([])
+  const [dashboardToasts, setDashboardToasts] = useState<{ id: string, message: string, sender: string, senderAvatar?: string }[]>([])
   const [joinNotification, setJoinNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string, isRejoining: boolean } | null>(null)
   const [turnNotification, setTurnNotification] = useState<{ id: string, message: string, playerName: string, playerAvatar: string } | null>(null)
   const [swapNotification, setSwapNotification] = useState<{ id: string, message: string, fromPlayerName: string, fromPlayerAvatar: string, receivedCrypto: string, lostCrypto: string } | null>(null)
@@ -85,6 +92,7 @@ export default function Home() {
   const [otherPlayerEventData, setOtherPlayerEventData] = useState<ScanEffect | null>(null)
   const [currentEventId, setCurrentEventId] = useState<string>('') // Stable key for EventPopup
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null) // Track auto-close timer
+  const currentScreenRef = useRef<Screen>('start-screen') // Always latest currentScreen for socket handlers
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear())
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
   const [playerFinishRank, setPlayerFinishRank] = useState<number | null>(null)
@@ -92,9 +100,21 @@ export default function Home() {
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(120)
   const [isFirstTurn, setIsFirstTurn] = useState<boolean>(true) // Track if this is the first turn
   const [isGamePaused, setIsGamePaused] = useState<boolean>(false)
-  const [insiderUsed, setInsiderUsed] = useState<boolean>(false)
+  const [timerEnabled, setTimerEnabled] = useState<boolean>(true) // Track if timer is enabled for this room
   const [showInsiderForecast, setShowInsiderForecast] = useState<boolean>(false)
-  const [insiderForecastData, setInsiderForecastData] = useState<{ topGainer: { symbol: string; percentage: number }; topLoser: { symbol: string; percentage: number } } | null>(null)
+  const [insiderForecastData, setInsiderForecastData] = useState<any>(null)
+  const [insiderUsed, setInsiderUsed] = useState<boolean>(false)
+  const [buySource, setBuySource] = useState<'selection' | 'bank' | 'players'>('selection')
+  const [sellFlowMode, setSellFlowMode] = useState<'selection' | 'bank' | 'players'>('selection')
+  const [marketplaceOrders, setMarketplaceOrders] = useState<any[]>([])
+  const [showBiddingPopup, setShowBiddingPopup] = useState(false)
+  const [currentBiddingOrder, setCurrentBiddingOrder] = useState<any>(null)
+  const [showBidAcceptance, setShowBidAcceptance] = useState(false)
+  const [receivedBids, setReceivedBids] = useState<any[]>([])
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
+  const [showSellerBidView, setShowSellerBidView] = useState(false)
+  const [sellerOrderData, setSellerOrderData] = useState<{ crypto: string; quantity: number; marketPrice: number } | null>(null)
+  const [turnTimerResetKey, setTurnTimerResetKey] = useState(0)
   
   // Debug: Log pause state changes
   useEffect(() => {
@@ -136,11 +156,11 @@ export default function Home() {
     
     // Block zero or invalid values
     if (typeof totalValue !== 'number' || isNaN(totalValue) || totalValue <= 0) {
-      console.warn(`⚠️ BLOCKED ${context} - Invalid totalValue: €${totalValue}`)
+      console.warn(`⚠️ BLOCKED ${context} - Invalid totalValue: ⚘${totalValue}`)
       return false
     }
 
-    console.log(`📡 ${context}: Emitting player data with totalValue €${totalValue.toFixed(2)}`)
+    console.log(`📡 ${context}: Emitting player data with totalValue ⚘${totalValue.toFixed(2)}`)
     socket.emit('player:updateData', {
       roomCode: roomId,
       playerData
@@ -173,6 +193,173 @@ export default function Home() {
     console.warn('⚠️ Could not find mySocketId')
     return null
   }, [room, socket, playerName, playerAvatar])
+
+  // Listen for timer state changes from server
+  useEffect(() => {
+    if (!socket) return
+
+    const handleTimerStateChanged = ({ enabled }: { enabled: boolean }) => {
+      console.log(`⏱️ Player received timer state change: ${enabled ? 'ENABLED' : 'DISABLED'}`)
+      setTimerEnabled(enabled)
+    }
+
+    socket.on('room:timerStateChanged', handleTimerStateChanged)
+
+    return () => {
+      socket.off('room:timerStateChanged', handleTimerStateChanged)
+    }
+  }, [socket])
+
+  // Sync sound effects with room-wide toggle from Market Dashboard
+  useEffect(() => {
+    if (!socket) return
+    const handler = (data: any) => {
+      setSfxEnabled(!!data.enabled)
+    }
+    socket.on('room:soundEffectsUpdated', handler)
+    return () => { socket.off('room:soundEffectsUpdated', handler) }
+  }, [socket])
+
+  // Listen for insider info from server
+  useEffect(() => {
+    if (!socket) return
+
+    const handleInsiderInfo = (data: any) => {
+      console.log('🕵️ Received insider info:', data)
+      setInsiderForecastData(data)
+      setShowInsiderForecast(true)
+    }
+
+    socket.on('player:insiderInfo', handleInsiderInfo)
+
+    return () => {
+      socket.off('player:insiderInfo', handleInsiderInfo)
+    }
+  }, [socket])
+
+  // Listen for marketplace:newOrder in its OWN stable effect (no pendingOrderId dep)
+  // This prevents the race condition where setPendingOrderId() causes cleanup/re-register
+  // right as the server broadcasts marketplace:newOrder
+  useEffect(() => {
+    if (!socket) return
+
+    const handleNewMarketplaceOrder = (data: any) => {
+      console.log('🔔 New marketplace order received:', data)
+      console.log('Current playerName:', playerName)
+      console.log('Order playerName:', data.order.playerName)
+      
+      // Don't show popup to the seller
+      if (data.order.playerName !== playerName) {
+        console.log('✅ Showing bidding popup to buyer')
+        setCurrentBiddingOrder(data.order)
+        setShowBiddingPopup(true)
+      } else {
+        console.log('❌ Not showing popup - this is the seller')
+      }
+    }
+
+    socket.on('marketplace:newOrder', handleNewMarketplaceOrder)
+    return () => { socket.off('marketplace:newOrder', handleNewMarketplaceOrder) }
+  }, [socket, playerName])
+
+  // Listen for other marketplace bidding events (depend on pendingOrderId)
+  useEffect(() => {
+    if (!socket) return
+
+    const handleBidReceived = (data: any) => {
+      console.log('💰 Bid received:', data)
+      // Only show to the seller
+      if (data.orderId === pendingOrderId) {
+        setReceivedBids(prev => [...prev, data.bid])
+      }
+    }
+
+    const handleBiddingEnded = (data: any) => {
+      console.log('⏰ Bidding ended:', data)
+      if (data.orderId === pendingOrderId) {
+        // Seller: close hourglass, open acceptance modal
+        setShowSellerBidView(false)
+        setShowBiddingPopup(false)
+        setShowBidAcceptance(true)
+      } else {
+        // Buyers / Market Dashboard: close bidding popup
+        setShowBiddingPopup(false)
+        setCurrentBiddingOrder(null)
+      }
+      // Reset turn timer so player gets a fresh 90s after bidding
+      setTurnTimerResetKey(k => k + 1)
+    }
+
+    const handleBidAccepted = (data: any) => {
+      console.log('✅ Bid accepted raw data:', JSON.stringify(data))
+      console.log('👤 My playerName:', playerName)
+      console.log('📊 updatedPlayers keys:', data.updatedPlayers ? Object.keys(data.updatedPlayers) : 'NONE')
+
+      // Apply updated balances/portfolio from server
+      if (data.updatedPlayers && data.updatedPlayers[playerName]) {
+        const upd = data.updatedPlayers[playerName]
+        console.log(`💰 Applying update for ${playerName}: cashBalance=${upd.cashBalance}, portfolio=`, upd.portfolio)
+        setCashBalance(upd.cashBalance)
+        setCryptos(prev => prev.map(c => ({ ...c, amount: upd.portfolio[c.symbol] ?? c.amount })))
+      }
+
+      // Close all modals
+      setShowBidAcceptance(false)
+      setShowBiddingPopup(false)
+      setShowSellerBidView(false)
+      setSellerOrderData(null)
+      setCurrentBiddingOrder(null)
+      setPendingOrderId(null)
+      setReceivedBids([])
+      // Reset turn timer so player gets a fresh 90s after bidding
+      setTurnTimerResetKey(k => k + 1)
+    }
+
+    const handleOrderCancelled = (data: any) => {
+      console.log('🚫 Order cancelled:', data)
+      // Close bidding popup if it's open for this order
+      if (currentBiddingOrder?.id === data.orderId) {
+        setShowBiddingPopup(false)
+        setCurrentBiddingOrder(null)
+      }
+      // Remove from local orders
+      setMarketplaceOrders(prev => prev.filter(o => o.id !== data.orderId))
+    }
+
+    socket.on('marketplace:bidReceived', handleBidReceived)
+    socket.on('marketplace:biddingEnded', handleBiddingEnded)
+    socket.on('marketplace:bidAccepted', handleBidAccepted)
+    socket.on('marketplace:orderCancelled', handleOrderCancelled)
+
+    return () => {
+      socket.off('marketplace:bidReceived', handleBidReceived)
+      socket.off('marketplace:biddingEnded', handleBiddingEnded)
+      socket.off('marketplace:bidAccepted', handleBidAccepted)
+      socket.off('marketplace:orderCancelled', handleOrderCancelled)
+    }
+  }, [socket, playerName, pendingOrderId])
+
+  // Direct balance update from server (used after marketplace transactions)
+  // Server emits this DIRECTLY to the correct socket - no name matching needed
+  useEffect(() => {
+    if (!socket) return
+
+    const handleBalanceUpdate = ({ cashBalance: newCash, portfolio: newPortfolio }: any) => {
+      console.log('💰 player:balanceUpdate received:', { newCash, newPortfolio })
+      if (typeof newCash === 'number') {
+        setCashBalance(newCash)
+      }
+      if (newPortfolio && typeof newPortfolio === 'object') {
+        setCryptos(prev => prev.map(c => ({
+          ...c,
+          amount: newPortfolio[c.symbol] !== undefined ? newPortfolio[c.symbol] : c.amount
+        })))
+      }
+    }
+
+    socket.on('player:balanceUpdate', handleBalanceUpdate)
+    return () => { socket.off('player:balanceUpdate', handleBalanceUpdate) }
+  }, [socket])
 
   // Session recovery events will be added after state declarations
 
@@ -346,10 +533,10 @@ export default function Home() {
         
         // Als er (tijdelijk) geen totalValue bekend is, toon 0 en wacht op eerste updateData van de speler.
         if (totalValue === undefined || totalValue === null || Number.isNaN(totalValue)) {
-          console.log(`   ⚠️ Geen geldige totalValue voor ${playerData.name} – stel voorlopig in op €0, wacht op live update`)
+          console.log(`   ⚠️ Geen geldige totalValue voor ${playerData.name} – stel voorlopig in op ⚘0, wacht op live update`)
           totalValue = 0
         } else {
-          console.log(`   ✅ Using stored totalValue: €${totalValue.toFixed(2)}`)
+          console.log(`   ✅ Using stored totalValue: ⚘${totalValue.toFixed(2)}`)
         }
         
         return {
@@ -371,7 +558,7 @@ export default function Home() {
 
     console.log('📊 Final dashboard rankings:')
     sortedPlayers.forEach(p => {
-      console.log(`  ${p.rank}. ${p.name}: €${p.totalValue.toFixed(2)}`)
+      console.log(`  ${p.rank}. ${p.name}: ⚘${p.totalValue.toFixed(2)}`)
     })
     console.log('📊 === DASHBOARD RANKINGS UPDATED ===\n')
     
@@ -399,9 +586,9 @@ export default function Home() {
       id: '1',
       name: 'DigiSheep',
       symbol: 'DSHEEP',
-      price: 1420.75,
+      price: 42.30,
       change24h: 0,
-      amount: 1.0,
+      amount: 0,
       color: 'neon-purple',
       icon: '🐑',
       volume: 2800000,
@@ -411,7 +598,7 @@ export default function Home() {
       id: '2',
       name: 'Nugget',
       symbol: 'NGT',
-      price: 3250.90,
+      price: 1250.75,
       change24h: 0,
       amount: 0,
       color: 'neon-blue',
@@ -423,7 +610,7 @@ export default function Home() {
       id: '3',
       name: 'Lentra',
       symbol: 'LNTR',
-      price: 685.40,
+      price: 89.20,
       change24h: 0,
       amount: 0,
       color: 'neon-turquoise',
@@ -435,9 +622,9 @@ export default function Home() {
       id: '4',
       name: 'Omlet',
       symbol: 'OMLT',
-      price: 890.25,
+      price: 156.40,
       change24h: 0,
-      amount: 1,
+      amount: 0,
       color: 'neon-gold',
       icon: '🥚',
       volume: 2100000,
@@ -447,9 +634,9 @@ export default function Home() {
       id: '5',
       name: 'Rex',
       symbol: 'REX',
-      price: 1750.60,
+      price: 0.85,
       change24h: 0,
-      amount: 1,
+      amount: 0,
       color: 'neon-purple',
       icon: '💫',
       volume: 4200000,
@@ -508,9 +695,9 @@ export default function Home() {
   }, [cryptoPriceMap])
 
   // ⚡ INSTANT Dashboard Updates - WATERDICHTE FIX - Alleen values updaten, geen re-sort tenzij nodig
-  const handleLivePlayerUpdate = useCallback(({ playerId, playerName, playerAvatar, totalValue, portfolioValue, cashBalance, timestamp }: any) => {
+  const handleLivePlayerUpdate = useCallback(({ playerId, playerName, playerAvatar, totalValue, portfolioValue, cashBalance, portfolio, timestamp }: any) => {
     console.log(`\n⚡ === LIVE UPDATE RECEIVED ===`)
-    console.log(`👤 Player: ${playerName} | 💯 €${totalValue?.toFixed(2) || 'N/A'}`)
+    console.log(`👤 Player: ${playerName} | 💯 ⚘${totalValue?.toFixed(2) || 'N/A'}`)
     
     // Host en dashboard zijn GEEN spelers – nooit in rankings opnemen
     if (playerName === 'Market Dashboard' || (playerName && playerName.includes('Host'))) {
@@ -548,7 +735,7 @@ export default function Home() {
           totalValue: totalValue,
           portfolioValue: portfolioValue,
           cashBalance: cashBalance,
-          portfolio: {},
+          portfolio: portfolio || {},
           rank: 0,
           lastUpdate: timestamp
         }
@@ -574,12 +761,12 @@ export default function Home() {
         return prev
       }
       
-      // Skip als waarde niet significant veranderd is (< €0.01)
+      // Skip als waarde niet significant veranderd is (< ⚘0.01)
       if (Math.abs(oldValue - newValue) < 0.01) {
         return prev
       }
       
-      console.log(`🔄 ${playerName}: €${oldValue.toFixed(2)} → €${newValue.toFixed(2)}`)
+      console.log(`🔄 ${playerName}: ⚘${oldValue.toFixed(2)} → ⚘${newValue.toFixed(2)}`)
       
       // Maak een kopie van de array met de geüpdatete speler
       const updated = [...prev]
@@ -588,6 +775,7 @@ export default function Home() {
         totalValue: newValue,
         portfolioValue: portfolioValue,
         cashBalance: cashBalance,
+        portfolio: portfolio || existingPlayer.portfolio || {},
         lastUpdate: timestamp
       }
       
@@ -629,39 +817,27 @@ export default function Home() {
     })
   }, [])
 
+  // Keep ref in sync with state so socket handlers always see latest screen
+  useEffect(() => { currentScreenRef.current = currentScreen }, [currentScreen])
+
   // Handle test message received -> show dashboard toast when on market-dashboard
   const handleTestMessageReceived = useCallback((payload: any) => {
-    console.log('\n🧪 === TEST MESSAGE RECEIVED ===')
-    console.log('📥 Payload:', payload)
-    console.log('📺 Current screen:', currentScreen)
-    const { message, sender, timestamp } = payload || {}
-    if (!message) {
-      console.warn('⚠️ No message in payload!')
-      return
+    const { message, sender, timestamp, avatar } = payload || {}
+    if (!message) return
+    if (currentScreenRef.current === 'market-dashboard') {
+      const id = `toast-${timestamp || Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      setDashboardToasts(prev => [...prev, {
+        id,
+        message,
+        sender: sender || 'Speler',
+        senderAvatar: avatar || '🙂'
+      }].slice(-5))
     }
-    console.log('💬 Message content:', message)
-    console.log('👤 Sender:', sender)
-    if (currentScreen === 'market-dashboard') {
-      console.log('✅ Queuing toast on Market Dashboard')
-      const id = `test-${timestamp || Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      setDashboardToasts(prev => {
-        const next = [...prev, {
-          id,
-          message,
-          sender: sender || 'Test'
-        }]
-        // Limit to last 5 messages to avoid unbounded growth
-        return next.slice(-5)
-      })
-    } else {
-      console.log('⚠️ Not on market-dashboard, toast will not show. Current screen:', currentScreen)
-    }
-    console.log('🧪 === TEST MESSAGE PROCESSED ===\n')
-  }, [currentScreen])
+  }, [])
 
   // 🎯 UNIFIED DATA SYNC HANDLER - Receives validated data from server
   const handlePlayerDataSync = useCallback(({ playerId, playerName, totalValue, portfolioValue, cashBalance, portfolio, timestamp, version }: any) => {
-    console.log(`🎯 UNIFIED SYNC RECEIVED: ${playerName} → €${totalValue} (v${version})`)
+    console.log(`🎯 UNIFIED SYNC RECEIVED: ${playerName} → ⚘${totalValue} (v${version})`)
     
     // 🚨 CRITICAL: Market Dashboard should ONLY use dashboard:livePlayerUpdate
     // This event can contain stale/zero values and cause flickering
@@ -695,7 +871,7 @@ export default function Home() {
       
       console.log(`📊 UNIFIED RANKINGS:`)
       sorted.forEach(p => {
-        console.log(`  ${p.rank}. ${p.name}: €${p.totalValue.toFixed(2)} (v${p.version || 'N/A'})`)
+        console.log(`  ${p.rank}. ${p.name}: ⚘${p.totalValue.toFixed(2)} (v${p.version || 'N/A'})`)
       })
       
       return sorted
@@ -708,8 +884,8 @@ export default function Home() {
       
       if (Math.abs(currentLocalTotal - serverTotal) > 0.01) {
         console.log(`⚠️ SELF-CORRECTION NEEDED:`)
-        console.log(`📱 Local calculated: €${currentLocalTotal}`)
-        console.log(`📊 Server validated: €${serverTotal}`)
+        console.log(`📱 Local calculated: ⚘${currentLocalTotal}`)
+        console.log(`📊 Server validated: ⚘${serverTotal}`)
         console.log(`🔧 Accepting server value as authoritative`)
       }
     }
@@ -761,16 +937,16 @@ export default function Home() {
     const sendUnifiedUpdate = (force = false) => {
       // 🚨 CRITICAL: Never send zero or invalid values
       if (localTotalValue <= 0 || isNaN(localTotalValue)) {
-        console.warn(`⚠️ BLOCKING SYNC - Invalid totalValue: €${localTotalValue}`)
+        console.warn(`⚠️ BLOCKING SYNC - Invalid totalValue: ⚘${localTotalValue}`)
         return
       }
       
       const timestamp = new Date().toLocaleTimeString()
       console.log(`\n🎯 === UNIFIED DATA SYNC [${timestamp}] ===`)
       console.log(`👤 Player: ${playerName}`)
-      console.log(`💎 Portfolio Value: €${localPortfolioValue}`)
-      console.log(`💰 Cash Balance: €${cashBalance}`)
-      console.log(`💯 TOTAL VALUE: €${localTotalValue}`)
+      console.log(`💎 Portfolio Value: ⚘${localPortfolioValue}`)
+      console.log(`💰 Cash Balance: ⚘${cashBalance}`)
+      console.log(`💯 TOTAL VALUE: ⚘${localTotalValue}`)
       console.log(`📊 Portfolio:`, updatedPortfolio)
       
       // 🎯 SINGLE UPDATE TO SERVER - Will broadcast to ALL devices
@@ -800,13 +976,13 @@ export default function Home() {
     
     // Send update if there's ANY change (even 0.01 cent)
     if (valueDifference > 0.001 || lastSentTotalValue.current === null) {
-      console.log(`📊 Value changed by €${valueDifference.toFixed(2)} - sending update`)
+      console.log(`📊 Value changed by ⚘${valueDifference.toFixed(2)} - sending update`)
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current)
       }
       sendUnifiedUpdate()
     } else {
-      console.log(`📊 No significant value change (€${valueDifference.toFixed(4)}) - skipping update`)
+      console.log(`📊 No significant value change (⚘${valueDifference.toFixed(4)}) - skipping update`)
     }
 
     return () => {
@@ -852,15 +1028,15 @@ export default function Home() {
 
       // 🚨 CRITICAL: Never send zero or invalid values
       if (localTotalValue <= 0 || isNaN(localTotalValue)) {
-        console.warn(`⚠️ PERIODIC SYNC BLOCKED - Invalid totalValue: €${localTotalValue}`)
+        console.warn(`⚠️ PERIODIC SYNC BLOCKED - Invalid totalValue: ⚘${localTotalValue}`)
         return
       }
 
       console.log(`\n🔄 === PERIODIC SYNC ===`)
       console.log(`👤 Player: ${playerName}`)
-      console.log(`💯 Total Value: €${localTotalValue.toFixed(2)}`)
-      console.log(`💎 Portfolio Value: €${localPortfolioValue.toFixed(2)}`)
-      console.log(`💰 Cash Balance: €${currentCash.toFixed(2)}`)
+      console.log(`💯 Total Value: ⚘${localTotalValue.toFixed(2)}`)
+      console.log(`💎 Portfolio Value: ⚘${localPortfolioValue.toFixed(2)}`)
+      console.log(`💰 Cash Balance: ⚘${currentCash.toFixed(2)}`)
       
       socket.emit('player:updateData', {
         roomCode: roomId,
@@ -898,7 +1074,7 @@ export default function Home() {
 
       console.log(`\n🚀 === INITIAL SYNC AFTER JOIN ===`)
       console.log(`👤 Player: ${playerName}`)
-      console.log(`💯 Initial Total Value: €${localTotalValue}`)
+      console.log(`💯 Initial Total Value: ⚘${localTotalValue}`)
       
       socket.emit('player:updateData', {
         roomCode: roomId,
@@ -1059,7 +1235,7 @@ export default function Home() {
                   const portfolioValue = playerData.portfolioValue || 0
                   const cashBalance = playerData.cashBalance || 1000
                   totalValue = Math.round((portfolioValue + cashBalance) * 100) / 100
-                  console.log(`🔧 New player ${playerData.name} - Calculated totalValue: €${totalValue.toFixed(2)}`)
+                  console.log(`🔧 New player ${playerData.name} - Calculated totalValue: ⚘${totalValue.toFixed(2)}`)
                 }
                 
                 newPlayers.push({
@@ -1122,7 +1298,7 @@ export default function Home() {
           // Deduct cash balance
           if (cashAmount) {
             setCashBalance((prev: number) => Math.max(0, prev - cashAmount))
-            console.log(`💰 Cash reduced by €${cashAmount}`)
+            console.log(`💰 Cash reduced by ⚘${cashAmount}`)
           }
           
           // Remove the action from player scan actions
@@ -1148,7 +1324,7 @@ export default function Home() {
         if (undoPlayerName === playerName) {
           if (actionType === 'buy') {
             // Reverse buy: remove crypto, refund cash
-            console.log(`🛒 Reversing buy: -${amount}x ${cryptoSymbol}, +€${cashRefund}`)
+            console.log(`🛒 Reversing buy: -${amount}x ${cryptoSymbol}, +⚘${cashRefund}`)
             
             setCryptos((prev: any[]) => prev.map(c => 
               c.symbol === cryptoSymbol 
@@ -1160,7 +1336,7 @@ export default function Home() {
             
           } else if (actionType === 'sell') {
             // Reverse sell: add crypto back, deduct cash
-            console.log(`💰 Reversing sell: +${amount}x ${cryptoSymbol}, -€${cashDeduction}`)
+            console.log(`💰 Reversing sell: +${amount}x ${cryptoSymbol}, -⚘${cashDeduction}`)
             
             setCryptos((prev: any[]) => prev.map(c => 
               c.symbol === cryptoSymbol 
@@ -1190,6 +1366,10 @@ export default function Home() {
         console.log('  My socket ID:', mySocketId)
         console.log('  Is it my turn now?:', newTurnPlayerId === mySocketId)
         
+        // Reset insider usage for new turn
+        setInsiderUsed(false)
+        console.log('🔄 Insider usage reset for new turn')
+        
         // First turn has ended - enable timer from now on
         if (isFirstTurn) {
           console.log('⏰ First turn ended - timer will now be active for future turns')
@@ -1213,21 +1393,7 @@ export default function Home() {
           setTurnNotification(prev => prev?.id === notificationId ? null : prev)
         }, 4000)
         
-        // Reset insider usage for new turn
-        setInsiderUsed(false)
-        console.log('🔄 Insider usage reset for new turn')
-        
         console.log('⏭️ === TURN CHANGED EVENT END ===')
-      })
-
-      // Handle insider info response from server
-      socket.on('player:insiderInfo', (data) => {
-        console.log('🕵️ === INSIDER INFO RECEIVED ===')
-        console.log('📊 Data:', data)
-        
-        setInsiderForecastData(data)
-        setShowInsiderForecast(true)
-        console.log('🕵️ Insider forecast popup shown')
       })
 
       // Handle game pause/resume events
@@ -1427,8 +1593,6 @@ export default function Home() {
         console.log(`🛑 === GAME ENDED PROCESSED ===\n`)
       })
       
-      // Test message -> used to show toast on Market Dashboard
-      socket.on('test:messageReceived', handleTestMessageReceived)
       // Authoritative market state (percentages) from server
       socket.on('market:stateUpdate', ({ change24h }: any) => {
         try {
@@ -1502,13 +1666,11 @@ export default function Home() {
         socket.off('player:yearUndo')
         socket.off('player:undoAction')
         socket.off('turn:changed')
-        socket.off('player:insiderInfo')
         socket.off('player:swapReceived')
         socket.off('game:reset')
         socket.off('game:ended')
         socket.off('game:paused')
         socket.off('game:resumed')
-        socket.off('test:messageReceived', handleTestMessageReceived)
         socket.off('market:stateUpdate')
         socket.off('crypto:priceUpdate')
         socket.off('crypto:forceRecalculation')
@@ -1593,14 +1755,14 @@ export default function Home() {
       if (room && socket) {
         // For host: use room settings
         if (isHost && room.settings && typeof room.settings.startingCash === 'number') {
-          console.log(`💰 Host: Setting cash balance to €${room.settings.startingCash}`)
+          console.log(`💰 Host: Setting cash balance to ⚘${room.settings.startingCash}`)
           setCashBalance(room.settings.startingCash)
         }
         // For players: use their player data from room
         else if (!isHost && socket.id && room.players && room.players[socket.id]) {
           const playerCash = room.players[socket.id].cashBalance
           if (typeof playerCash === 'number') {
-            console.log(`💰 Player: Setting cash balance to €${playerCash}`)
+            console.log(`💰 Player: Setting cash balance to ⚘${playerCash}`)
             setCashBalance(playerCash)
           }
         }
@@ -1609,6 +1771,37 @@ export default function Home() {
       console.warn('Error syncing cash balance:', e)
     }
   }, [room, isHost, socket])
+
+  // End game when Market Dashboard window is closed
+  useEffect(() => {
+    if (!isHost || !socket || !roomId) return
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      console.log('🛑 Market Dashboard closing - ending game for all players')
+      
+      // End the game for all players
+      if (socket && roomId) {
+        socket.emit('game:end', { roomCode: roomId, requestedBy: 'Market Dashboard' })
+      }
+      
+      // Clear session data
+      try {
+        localStorage.removeItem('cryptoClashSession')
+        localStorage.removeItem('cryptoclash-session')
+        localStorage.removeItem('cryptoclash-last-join')
+        localStorage.removeItem('cryptoclash-room-state')
+        localStorage.removeItem('cryptoclash-player-state')
+      } catch (e) {
+        console.warn('Failed to clear session on unload', e)
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [isHost, socket, roomId])
 
   // Auto-hide dashboard toast after 5 seconds
   useEffect(() => {
@@ -1760,7 +1953,8 @@ export default function Home() {
       setDashboardToasts(prev => [...prev, {
         id: Date.now().toString(),
         message: message || 'Sessie hersteld!',
-        sender: 'Systeem'
+        sender: 'Systeem',
+        senderAvatar: '🔄'
       }])
       
       // Log current state AFTER recovery
@@ -1801,7 +1995,8 @@ export default function Home() {
         setDashboardToasts(prev => [...prev, {
           id: Date.now().toString(),
           message: message || `${reconnectedPlayer} is weer verbonden`,
-          sender: 'Systeem'
+          sender: 'Systeem',
+          senderAvatar: reconnectedAvatar || '🔄'
         }])
       }
     }
@@ -1895,7 +2090,7 @@ export default function Home() {
           }
         })
         
-        console.log(`✅ Sent fresh data: €${localTotalValue}`)
+        console.log(`✅ Sent fresh data: ⚘${localTotalValue}`)
       }
     }
 
@@ -1961,7 +2156,7 @@ export default function Home() {
             playPositiveSound()
             setCryptos(prev => prev.map(crypto => {
               const newPrice = Math.round(crypto.price * 1.05 * 100) / 100
-              console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (+5%)`)
+              console.log(`  ${crypto.symbol}: ⚘${crypto.price} → ⚘${newPrice} (+5%)`)
               return {
                 ...crypto,
                 price: newPrice,
@@ -1975,7 +2170,7 @@ export default function Home() {
             playNegativeSound()
             setCryptos(prev => prev.map(crypto => {
               const newPrice = Math.round(crypto.price * 0.9 * 100) / 100
-              console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (-10%)`)
+              console.log(`  ${crypto.symbol}: ⚘${crypto.price} → ⚘${newPrice} (-10%)`)
               return {
                 ...crypto,
                 price: newPrice,
@@ -2002,8 +2197,8 @@ export default function Home() {
             const updatedTotalValue = Math.round((updatedPortfolioValue + cashBalance) * 100) / 100
             
             console.log('🔄 Recalculating totalValue after market event...')
-            console.log(`📊 Updated Portfolio Value: €${updatedPortfolioValue.toFixed(2)}`)
-            console.log(`💯 Updated Total Value: €${updatedTotalValue.toFixed(2)}`)
+            console.log(`📊 Updated Portfolio Value: ⚘${updatedPortfolioValue.toFixed(2)}`)
+            console.log(`💯 Updated Total Value: ⚘${updatedTotalValue.toFixed(2)}`)
             
             if (socket && roomId && roomId !== 'solo-mode') {
               socket.emit('player:updateData', {
@@ -2179,7 +2374,7 @@ export default function Home() {
         
         if (isForecast) {
           eventType = 'forecast'
-        } else if (newestEvent.effect.includes('Bull Run!') || newestEvent.effect.includes('Market Crash!') || newestEvent.effect.includes('Whale Alert')) {
+        } else if (newestEvent.effect.includes('Bull Run!') || newestEvent.effect.includes('Bear Market!') || newestEvent.effect.includes('Market Crash!') || newestEvent.effect.includes('Whale Alert')) {
           // Market-wide events (with exclamation mark to be specific)
           eventType = 'event'
         } else if (newestEvent.percentageValue !== undefined && newestEvent.percentageValue !== null) {
@@ -2202,6 +2397,7 @@ export default function Home() {
           icon: eventType === 'forecast' ? '🔮' : (newestEvent.cryptoSymbol || ''),
           color: eventType === 'event' ? 
                  (newestEvent.effect.includes('Bull Run') ? 'neon-gold' :
+                  newestEvent.effect.includes('Bear Market') ? 'red-500' :
                   newestEvent.effect.includes('Market Crash') ? 'red-500' : 'neon-turquoise') :
                  eventType === 'forecast' ? 'neon-purple' :
                  eventType === 'crash' ? 'red-500' : 'neon-green',
@@ -2418,8 +2614,11 @@ export default function Home() {
       setPlayerAvatar('👑')
       navigateToScreen('host-setup')
     } else {
-      // Players need to choose name/avatar first
-      navigateToScreen('login')
+      // Players gaan direct naar het RoomJoin-scherm (player-login)
+      // Reset altijd naam en avatar zodat host-waarden (👑) niet blijven hangen
+      setPlayerName('Speler')
+      setPlayerAvatar('🎮')
+      navigateToScreen('player-login')
     }
   }
 
@@ -2459,10 +2658,11 @@ export default function Home() {
     navigateToScreen('waiting-room')
   }
 
-  const handleJoinRoom = (roomId: string) => {
-    console.log('🎉 handleJoinRoom called with roomId:', roomId)
+  const handleJoinRoom = (roomId: string, joinedPlayerName?: string, joinedPlayerAvatar?: string) => {
+    console.log('🎉 handleJoinRoom called with roomId:', roomId, joinedPlayerName, joinedPlayerAvatar)
     setRoomId(roomId)
-    // Navigate directly to waiting room after successful Socket.io join
+    if (joinedPlayerName) setPlayerName(joinedPlayerName)
+    if (joinedPlayerAvatar) setPlayerAvatar(joinedPlayerAvatar)
     navigateToScreen('waiting-room')
   }
 
@@ -2486,10 +2686,11 @@ export default function Home() {
   }
 
   const handleLogin = (name: string, avatar: string, roomCode: string) => {
+    // Store chosen identity and lobby code
     setPlayerName(name)
     setPlayerAvatar(avatar)
     setRoomId(roomCode)
-    
+
     // Save session data including room info for potential rejoin
     const sessionData = {
       playerName: name,
@@ -2500,9 +2701,11 @@ export default function Home() {
       lastRoomId: roomCode
     }
     localStorage.setItem('cryptoClashSession', JSON.stringify(sessionData))
-    
-    // Navigate to waiting room with the room code
-    navigateToScreen('waiting-room')
+
+    // IMPORTANT: Do NOT go directly to waiting-room here.
+    // Players must first pass through the RoomJoin screen so the
+    // server can validate that the lobby actually exists.
+    navigateToScreen('player-login')
   }
 
   const handleStartGame = (startYear: number, gameDuration: number, language: string) => {
@@ -2530,6 +2733,18 @@ export default function Home() {
       setCurrentYear(prev => prev || gameState.startYear)
     }
   }, [gameState])
+
+  // Proactively check if player has reached max years (disable Speeljaar tile)
+  useEffect(() => {
+    if (gameState && typeof gameState.startYear === 'number' && typeof gameState.gameDuration === 'number') {
+      const yearsPlayed = currentYear - gameState.startYear
+      // If we've already played gameDuration years, mark as finished
+      if (yearsPlayed >= gameState.gameDuration) {
+        console.log(`🏁 Player has reached max years: ${yearsPlayed}/${gameState.gameDuration}`)
+        setIsGameFinishedForPlayer(true)
+      }
+    }
+  }, [currentYear, gameState])
 
   const handleNewGame = () => {
     // Clear existing session
@@ -2699,7 +2914,7 @@ export default function Home() {
               const amountToBuy = Math.min(maxSpend / crypto.price, percentageAbs * 0.1)
               const cost = amountToBuy * crypto.price
               
-              console.log(`💰 Buying ${amountToBuy.toFixed(2)} ${crypto.symbol} for €${cost.toFixed(2)}`)
+              console.log(`💰 Buying ${amountToBuy.toFixed(2)} ${crypto.symbol} for ⚘${cost.toFixed(2)}`)
               setCashBalance(prev => prev - cost)
               
               return {
@@ -2711,7 +2926,7 @@ export default function Home() {
               const amountToSell = Math.min(maxSell, percentageAbs * 0.05)
               const revenue = amountToSell * crypto.price
               
-              console.log(`💰 Selling ${amountToSell.toFixed(2)} ${crypto.symbol} for €${revenue.toFixed(2)}`)
+              console.log(`💰 Selling ${amountToSell.toFixed(2)} ${crypto.symbol} for ⚘${revenue.toFixed(2)}`)
               setCashBalance(prev => prev + revenue)
               
               return {
@@ -2761,7 +2976,8 @@ export default function Home() {
     socket.emit('test:message', {
       roomCode: roomId,
       message,
-      sender: playerName || 'Player'
+      sender: playerName || 'Player',
+      avatar: playerAvatar || '👤'
     })
   }
 
@@ -2915,8 +3131,8 @@ export default function Home() {
       id: `sell-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
       timestamp: Date.now(),
       player: playerName || 'Speler',
-      action: `Verkoop ${crypto.name}`,
-      effect: `+€${saleValue.toFixed(2)} cash`,
+      action: `Verkoop ${amountToSell} ${crypto.symbol}`,
+      effect: `+⚘${saleValue.toFixed(2)} cash`,
       avatar: playerAvatar
     }
     setPlayerScanActions(prev => [sellAction, ...prev.slice(0, 9)])
@@ -2924,7 +3140,7 @@ export default function Home() {
     // The crypto amounts and cash balance will be automatically synced to server
     // via the useEffect that watches for changes in cryptos and cashBalance
     
-    console.log(`Sold ${amountToSell.toFixed(2)} ${crypto.symbol} for €${saleValue.toFixed(2)}`)
+    console.log(`Sold ${amountToSell.toFixed(2)} ${crypto.symbol} for ⚘${saleValue.toFixed(2)}`)
   }
 
   const updateCryptoAmount = (id: string, newAmount: number) => {
@@ -3006,7 +3222,7 @@ export default function Home() {
             return (
               <WaitingRoom 
                 roomId={roomId}
-                onStartGame={handleWaitingRoomStart}
+                onStartGame={() => navigateToScreen('dice-roll')}
                 onBack={() => navigateToScreen(isHost ? 'room-create' : 'start-screen')}
                 isHost={isHost}
                 playerName={playerName}
@@ -3014,6 +3230,18 @@ export default function Home() {
               />
             )
             
+          case 'dice-roll':
+            return (
+              <DiceRoll
+                roomId={roomId}
+                isHost={isHost}
+                playerName={playerName}
+                playerAvatar={playerAvatar}
+                onStartGame={handleWaitingRoomStart}
+                onBack={() => navigateToScreen('waiting-room')}
+              />
+            )
+
           case 'login':
             return <LoginScreen onLogin={handleLogin} onBack={() => setCurrentScreen('start-screen')} room={room} />
             
@@ -3140,7 +3368,7 @@ export default function Home() {
                         timestamp: Date.now(),
                         player: playerName || 'Speler',
                         action: 'Nieuwjaar bonus',
-                        effect: `START BONUS +€500 (${prev} → ${next})`,
+                        effect: `START BONUS +⚘500 (${prev} → ${next})`,
                         avatar: playerAvatar
                       } as any
                       setPlayerScanActions(p => [scan, ...p.slice(0, 9)])
@@ -3159,22 +3387,6 @@ export default function Home() {
                 autoScanActions={autoScanActions}
                 transactions={transactions}
                 actionsDisabled={actionsDisabled}
-                onShowInsider={() => {
-                  console.log('🕵️ Insider info requested')
-                  if (socket && roomId && !insiderUsed) {
-                    // Request forecast data from server
-                    socket.emit('player:requestInsiderInfo', {
-                      roomCode: roomId,
-                      playerName: playerName
-                    })
-                    console.log('✅ Insider info request sent')
-                    // Mark insider as used
-                    setInsiderUsed(true)
-                  } else if (insiderUsed) {
-                    console.log('⚠️ Insider already used this turn')
-                  }
-                }}
-                insiderUsed={insiderUsed}
                 onEndTurnConfirm={() => {
                   console.log('\n🔥 === END TURN CLICKED (MainMenu) ===')
                   console.log('  socket exists:', !!socket)
@@ -3395,6 +3607,22 @@ export default function Home() {
                     navigateToScreen('main-menu')
                   }
                 }}
+                onShowInsider={() => {
+                  console.log('🕵️ Insider info requested')
+                  if (socket && roomId && !insiderUsed) {
+                    // Request forecast data from server
+                    socket.emit('player:requestInsiderInfo', {
+                      roomCode: roomId,
+                      playerName: playerName
+                    })
+                    console.log('✅ Insider info request sent')
+                    // Mark insider as used
+                    setInsiderUsed(true)
+                  } else if (insiderUsed) {
+                    console.log('⚠️ Insider already used this turn')
+                  }
+                }}
+                insiderUsed={insiderUsed}
                 playerScanActions={playerScanActions}
                 autoScanActions={autoScanActions}
                 actionsDisabled={actionsDisabled}
@@ -3450,7 +3678,7 @@ export default function Home() {
                     timestamp: Date.now(),
                     player: playerName || 'Speler',
                     action: `Koop ${selected.name}`,
-                    effect: `-€${cost.toFixed(2)} cash`,
+                    effect: `-⚘${cost.toFixed(2)} cash`,
                     avatar: playerAvatar
                   }
                   setPlayerScanActions(prev => [buyAction, ...prev.slice(0, 9)])
@@ -3497,13 +3725,135 @@ export default function Home() {
             )
 
           case 'sell':
+            // Hybrid flow for selling: selection screen -> bank flow or players (marketplace)
+            if (sellFlowMode === 'selection') {
+              return (
+                <SellDestinationSelection
+                  onSelectBank={() => setSellFlowMode('bank')}
+                  onSelectPlayers={() => setSellFlowMode('players')}
+                  onBack={() => navigateToScreen('main-menu')}
+                  activePlayerOrders={0}
+                />
+              )
+            }
+
+            if (sellFlowMode === 'players') {
+              return (
+                <Marketplace
+                  mode="sell"
+                  onBack={() => {
+                    // Cancel pending order if exists
+                    if (pendingOrderId && socket && roomId) {
+                      console.log('🚫 Cancelling pending order:', pendingOrderId)
+                      socket.emit('marketplace:cancelOrder', {
+                        roomCode: roomId,
+                        orderId: pendingOrderId
+                      })
+                      // Remove from local state
+                      setMarketplaceOrders(prev => prev.filter(o => o.id !== pendingOrderId))
+                      setPendingOrderId(null)
+                      setReceivedBids([])
+                      setShowBidAcceptance(false)
+                    }
+                    setSellFlowMode('selection')
+                  }}
+                  playerCash={cashBalance}
+                  cryptoPrices={cryptos.reduce((acc, c) => ({ ...acc, [c.symbol]: c.price }), {})}
+                  orders={marketplaceOrders}
+                  onAcceptOrder={(orderId) => {
+                    console.log('Accept sell order (from buyer):', orderId)
+                    const order = marketplaceOrders.find(o => o.id === orderId)
+                    if (order && socket && roomId) {
+                      socket.emit('marketplace:acceptOrder', {
+                        roomCode: roomId,
+                        orderId: orderId,
+                        buyerName: playerName
+                      })
+                    }
+                  }}
+                  onCreateOrder={(crypto, amount, pricePerUnit) => {
+                    console.log('\n🚨 === CRITICAL DEBUG: MARKETPLACE ORDER CREATION ===')
+                    console.log('🛒 Creating marketplace order directly:', { crypto, amount, pricePerUnit })
+                    console.log('📡 Socket exists:', !!socket)
+                    console.log('📡 Socket connected:', socket?.connected)
+                    console.log('📡 Socket ID:', socket?.id)
+                    console.log('🏠 Room ID:', roomId)
+                    console.log('👤 Player Name:', playerName)
+                    console.log('🎭 Player Avatar:', playerAvatar)
+                    console.log('🔍 mySocketId:', mySocketId)
+                    
+                    // Create order object
+                    const newOrder = {
+                      id: `order-${Date.now()}`,
+                      playerId: mySocketId || playerName,
+                      playerName: playerName,
+                      playerAvatar: playerAvatar,
+                      type: 'sell',
+                      crypto: crypto,
+                      amount: amount,
+                      pricePerUnit: pricePerUnit,
+                      totalPrice: amount * pricePerUnit,
+                      timestamp: Date.now()
+                    }
+
+                    console.log('📦 New order object:', newOrder)
+
+                    // Set as pending order for this seller
+                    setPendingOrderId(newOrder.id)
+                    setReceivedBids([])
+
+                    // Show hourglass waiting view for the seller
+                    setSellerOrderData({
+                      crypto: crypto,
+                      quantity: amount,
+                      marketPrice: pricePerUnit
+                    })
+                    setShowSellerBidView(true)
+
+                    // Emit socket event to broadcast order to all players
+                    if (socket && roomId) {
+                      console.log('📤 Emitting marketplace:createOrder event...')
+                      console.log('📦 Event payload:', {
+                        roomCode: roomId,
+                        order: newOrder
+                      })
+                      socket.emit('marketplace:createOrder', {
+                        roomCode: roomId,
+                        order: newOrder
+                      })
+                      console.log('✅ Event emitted successfully')
+                      console.log('⏳ Waiting for server to broadcast marketplace:newOrder...')
+                      console.log('🎯 Expected: Other players should receive marketplace:newOrder event')
+                    } else {
+                      console.error('❌ Cannot emit - socket or roomId missing!')
+                      console.error('   Socket:', !!socket)
+                      console.error('   RoomId:', roomId)
+                    }
+
+                    // Update local state
+                    setMarketplaceOrders(prev => [...prev, newOrder])
+                    
+                    console.log('✅ Order created and broadcast to room')
+                  }}
+                  cryptos={cryptos}
+                  priceHistory={priceHistory}
+                  onRefresh={() => {
+                    if (socket && roomId) {
+                      socket.emit('marketplace:refresh', { roomCode: roomId })
+                    }
+                  }}
+                />
+              )
+            }
+
+            // Bank flow (existing sell UI)
             return (
               <GameDashboard
                 playerName={playerName}
                 playerAvatar={playerAvatar}
                 cryptos={cryptos}
                 priceHistory={priceHistory}
-                onBack={() => navigateToScreen('main-menu')}
+                onBack={() => setSellFlowMode('selection')}
                 showSellControls={true}
                 onEndTurnConfirm={() => {
                   console.log('\n🔥 === END TURN CLICKED (Sell) ===')
@@ -3554,8 +3904,8 @@ export default function Home() {
                     id: `sell-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
                     timestamp: Date.now(),
                     player: playerName || 'Speler',
-                    action: `Verkoop ${coin.name}`,
-                    effect: `+€${revenue.toFixed(2)} cash`,
+                    action: `Verkoop ${amountToSell} ${coin.symbol}`,
+                    effect: `+⚘${revenue.toFixed(2)} cash`,
                     avatar: playerAvatar
                   }
                   setPlayerScanActions(prev => [sellAction, ...prev.slice(0, 9)])
@@ -3580,6 +3930,7 @@ export default function Home() {
                   }
 
                   // Na verkoop terug naar hoofdmenu i.p.v. in verkoopflow te blijven
+                  setSellFlowMode('selection')
                   navigateToScreen('main-menu')
                 }}
               />
@@ -3639,7 +3990,7 @@ export default function Home() {
                   console.log(`✅ Player won 1 ${cryptoSymbol}`)
                 }}
                 onWinCash={() => {
-                  // Add €500 to player's cash wallet
+                  // Add ⚘500 to player's cash wallet
                   const newCash = Math.round((cashBalance + 500) * 100) / 100
                   setCashBalance(newCash)
 
@@ -3669,7 +4020,7 @@ export default function Home() {
                     timestamp: Date.now(),
                     player: playerName || 'Speler',
                     action: 'Win Cash',
-                    effect: '+€500',
+                    effect: '+⚘500',
                     avatar: playerAvatar,
                     isWinAction: true // Flag to exclude from beurs event display
                   }
@@ -3691,10 +4042,10 @@ export default function Home() {
                     })
                   }
 
-                  console.log(`✅ Player won €500 cash`)
+                  console.log(`✅ Player won ⚘500 cash`)
                 }}
                 onWinGoldHen={() => {
-                  // Add €1000 to player's cash wallet via Goudhaantje
+                  // Add ⚘1000 to player's cash wallet via Goudhaantje
                   const newCash = Math.round((cashBalance + 1000) * 100) / 100
                   setCashBalance(newCash)
 
@@ -3724,7 +4075,7 @@ export default function Home() {
                     timestamp: Date.now(),
                     player: playerName || 'Speler',
                     action: 'Win Goudhaantje',
-                    effect: '+€1000',
+                    effect: '+⚘1000',
                     avatar: playerAvatar,
                     isWinAction: true // Flag to exclude from beurs event display
                   }
@@ -3746,7 +4097,7 @@ export default function Home() {
                     })
                   }
 
-                  console.log(`✅ Player won €1000 via Goudhaantje`)
+                  console.log(`✅ Player won ⚘1000 via Goudhaantje`)
                 }}
               />
             )
@@ -3764,7 +4115,7 @@ export default function Home() {
                   setCryptos(prev => prev.map(crypto => {
                     if (crypto.symbol === symbol) {
                       const newPrice = Math.round(crypto.price * multiplier * 100) / 100
-                      console.log(`  ${crypto.symbol}: €${crypto.price} → €${newPrice} (${direction === 'up' ? '+' : ''}${percentage}%)`)
+                      console.log(`  ${crypto.symbol}: ⚘${crypto.price} → ⚘${newPrice} (${direction === 'up' ? '+' : ''}${percentage}%)`)
                       return {
                         ...crypto,
                         price: newPrice,
@@ -3944,8 +4295,9 @@ export default function Home() {
       )}
 
       {/* Global Turn Timer - visible on all screens when it's player's turn, hidden during turn notifications */}
-      {roomId && roomId !== 'solo-mode' && !isHost && !turnNotification && !isFirstTurn && (
-        <TurnTimer 
+      {roomId && roomId !== 'solo-mode' && !isHost && !turnNotification && !isFirstTurn && timerEnabled && (
+        <TurnTimer
+          key={turnTimerResetKey}
           isMyTurn={isMyTurn && !isGameFinishedForPlayer}
           onTimeExpired={() => {
             console.log('⏰ CLIENT: Turn timer expired - requesting turn end')
@@ -3960,11 +4312,22 @@ export default function Home() {
           onTimeUpdate={(timeLeft) => {
             setTurnTimeLeft(timeLeft)
           }}
-          turnDuration={120}
+          turnDuration={90}
           gameStartTime={gameState?.gameStartTime}
         />
       )}
     </div>
+
+    {/* Insider Forecast Popup - only shown to player who requested it */}
+    {showInsiderForecast && insiderForecastData && (
+      <InsiderForecast
+        forecastData={insiderForecastData}
+        onClose={() => {
+          setShowInsiderForecast(false)
+          setInsiderForecastData(null)
+        }}
+      />
+    )}
 
     {/* Game Paused Overlay - shown for ALL players except Market Dashboard */}
     {isGamePaused && currentScreen !== 'market-dashboard' && (
@@ -3984,18 +4347,6 @@ export default function Home() {
           </p>
         </div>
       </div>
-    )}
-
-    {/* Insider Forecast Popup */}
-    {showInsiderForecast && insiderForecastData && (
-      <InsiderForecast
-        forecastData={insiderForecastData}
-        onClose={() => {
-          console.log('🕵️ Insider forecast closed manually')
-          setShowInsiderForecast(false)
-          setInsiderForecastData(null)
-        }}
-      />
     )}
 
     {/* Event from other player - NIET tonen op Market Dashboard om dubbele overlay te vermijden */}
@@ -4099,6 +4450,90 @@ export default function Home() {
       isOpen={showSubscriptionModal} 
       onClose={() => setShowSubscriptionModal(false)}
     />
+
+    {/* Seller: hourglass waiting view while bids come in */}
+    {showSellerBidView && sellerOrderData && (
+      <OfferWatchView
+        crypto={sellerOrderData.crypto}
+        quantity={sellerOrderData.quantity}
+        marketPrice={sellerOrderData.marketPrice}
+        bids={receivedBids}
+        duration={10}
+      />
+    )}
+
+    {/* Market Dashboard: read-only hourglass view (no input) */}
+    {showBiddingPopup && currentBiddingOrder && currentScreen === 'market-dashboard' && (
+      <OfferWatchView
+        sellerName={currentBiddingOrder.playerName}
+        sellerAvatar={currentBiddingOrder.playerAvatar}
+        crypto={currentBiddingOrder.crypto}
+        quantity={currentBiddingOrder.amount}
+        marketPrice={cryptos.find(c => c.symbol === currentBiddingOrder.crypto)?.price || 0}
+        duration={10}
+        readOnly
+      />
+    )}
+
+    {/* Buyers: bidding popup with input */}
+    {showBiddingPopup && currentBiddingOrder && currentScreen !== 'market-dashboard' && (
+      <BiddingPopup
+        sellerName={currentBiddingOrder.playerName}
+        sellerAvatar={currentBiddingOrder.playerAvatar}
+        crypto={currentBiddingOrder.crypto}
+        amount={currentBiddingOrder.amount}
+        marketPrice={cryptos.find(c => c.symbol === currentBiddingOrder.crypto)?.price || 0}
+        onSubmitBid={(bidAmount) => {
+          if (socket && roomId) {
+            socket.emit('marketplace:placeBid', {
+              roomCode: roomId,
+              orderId: currentBiddingOrder.id,
+              bid: {
+                playerId: mySocketId || playerName,
+                playerName: playerName,
+                playerAvatar: playerAvatar,
+                amount: bidAmount,
+                timestamp: Date.now()
+              }
+            })
+          }
+        }}
+        onClose={() => {
+          setShowBiddingPopup(false)
+          setCurrentBiddingOrder(null)
+        }}
+      />
+    )}
+
+    {/* Bid Acceptance Modal for seller */}
+    {showBidAcceptance && pendingOrderId && (
+      <BidAcceptanceModal
+        crypto={sellerOrderData?.crypto || currentBiddingOrder?.crypto || ''}
+        quantity={sellerOrderData?.quantity || currentBiddingOrder?.amount || 0}
+        marketPrice={cryptos.find(c => c.symbol === (sellerOrderData?.crypto || currentBiddingOrder?.crypto))?.price || 0}
+        bids={receivedBids}
+        onAcceptBid={(bid) => {
+          console.log('Accepting bid:', bid)
+          if (socket && roomId) {
+            socket.emit('marketplace:acceptBid', {
+              roomCode: roomId,
+              orderId: pendingOrderId,
+              winningBid: bid
+            })
+          }
+          setShowBidAcceptance(false)
+          setPendingOrderId(null)
+          setReceivedBids([])
+        }}
+        onReject={() => {
+          console.log('Rejecting all bids')
+          setShowBidAcceptance(false)
+          setPendingOrderId(null)
+          setReceivedBids([])
+          alert('Je hebt alle biedingen afgewezen.')
+        }}
+      />
+    )}
     </>
   )
 }

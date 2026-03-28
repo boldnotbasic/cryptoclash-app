@@ -109,7 +109,7 @@ export default function DetailChart({ priceHistory, currentPrice, showStartPoint
       <div className="absolute left-2 top-0 bottom-0 flex flex-col justify-between py-4 pointer-events-none z-20" style={{ width: '70px' }}>
         {gridValues.map((val, i) => (
           <div key={i} className="text-xs font-bold text-neon-turquoise leading-none bg-dark-bg/60 px-1 rounded">
-            €{val.toFixed(2)}
+            ⚘{val.toFixed(2)}
           </div>
         ))}
       </div>
@@ -162,7 +162,7 @@ export default function DetailChart({ priceHistory, currentPrice, showStartPoint
             const cx = toX(p.index)
             const cy = toY(p.price)
             const dotColor = isFirst ? 'white' : lineColor
-            const priceLabel = `€${p.price.toFixed(2)}`
+            const priceLabel = `⚘${p.price.toFixed(2)}`
             
             return (
               <g key={i} className="chart-point-group">
@@ -228,7 +228,7 @@ export default function DetailChart({ priceHistory, currentPrice, showStartPoint
               <g>
                 <rect x={cx - 70} y={cy - 28} width={140} height={24} rx="4" fill="rgba(251,191,36,0.15)" stroke={lineColor} strokeWidth="1.5" />
                 <text x={cx} y={cy - 11} textAnchor="middle" fill={lineColor} fontSize="16" fontWeight="bold">
-                  €{lp.price.toFixed(2)}
+                  ⚘{lp.price.toFixed(2)}
                 </text>
               </g>
             )

@@ -1,8 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Clock, Play, TrendingUp, ArrowLeft, Crown, Copy, Check } from 'lucide-react'
+import { ChartLine, CalendarClock, Zap, Wallet, Trophy, ArrowLeft, Crown, Copy, Check, Coins, DiamondPercent, SlidersHorizontal } from 'lucide-react'
 import { useSocket } from '@/hooks/useSocket'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatCurrency } from '@/utils/currency'
 
 interface HostSetupProps {
   onStartRoom: (roomId: string, volatility: string, gameDuration: number, startingCash: number) => void
@@ -13,6 +16,8 @@ interface HostSetupProps {
 }
 
 export default function HostSetup({ onStartRoom, onBack, playerName, playerAvatar, lobbyCode }: HostSetupProps) {
+  const { t, language } = useLanguage()
+  const { currency } = useCurrency()
   const { createRoom, room, error, connected, clearError, socket } = useSocket()
   const [roomId, setRoomId] = useState(lobbyCode || '123')
   const [gameDuration, setGameDuration] = useState(1)
@@ -24,6 +29,14 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
   const [isCreatingRoom, setIsCreatingRoom] = useState(false)
 
   const currentYear = new Date().getFullYear()
+
+  // Update roomId when lobbyCode prop changes (async loading from Supabase)
+  useEffect(() => {
+    if (lobbyCode && lobbyCode !== roomId) {
+      console.log('🔄 Updating roomId from lobbyCode:', lobbyCode)
+      setRoomId(lobbyCode)
+    }
+  }, [lobbyCode])
 
   // Handle successful room creation
   useEffect(() => {
@@ -124,20 +137,24 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
     if (gameDuration >= 1 && gameDuration <= 10 && roomId) {
       const hostName = playerName || 'Host'
       const hostAvatar = playerAvatar || '👑'
-      console.log('🏠 Creating room:', roomId, 'with host:', hostName)
+      const finalRoomId = roomId.trim().toUpperCase()
+      if (finalRoomId !== roomId) {
+        setRoomId(finalRoomId)
+      }
+      console.log('🏠 Creating room:', finalRoomId, 'with host:', hostName)
       setIsCreatingRoom(true)
       
       if (connected) {
         // Create room via Socket.io - navigation happens in useEffect when room is created
-        const settings = { volatility, gameDuration, startingCash, marketStartMode }
-        createRoom(roomId, hostName, hostAvatar, settings)
+        const settings = { volatility, gameDuration, startingCash, marketStartMode, language }
+        createRoom(finalRoomId, hostName, hostAvatar, settings)
         
         // Fallback timeout in case Socket.io doesn't respond
         setTimeout(() => {
           if (isCreatingRoom) {
             console.log('🔄 Socket.io timeout, using fallback navigation')
             setIsCreatingRoom(false)
-            onStartRoom(roomId, volatility, gameDuration, startingCash)
+            onStartRoom(finalRoomId, volatility, gameDuration, startingCash)
           }
         }, 5000)
       } else {
@@ -145,17 +162,17 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
         console.log('🔄 No Socket.io connection, using direct navigation')
         setTimeout(() => {
           setIsCreatingRoom(false)
-          onStartRoom(roomId, volatility, gameDuration, startingCash)
+          onStartRoom(finalRoomId, volatility, gameDuration, startingCash)
         }, 1000)
       }
     }
   }
 
   const presetDurations = [
-    { years: 1, label: '1 Jaar', description: 'Snel spel' },
-    { years: 2, label: '2 Jaar', description: 'Gemiddeld spel' },
-    { years: 3, label: '3 Jaar', description: 'Lang spel' },
-    { years: 5, label: '5 Jaar', description: 'Uitgebreid spel' }
+    { years: 1, label: t('hostSetup.year1'), description: t('hostSetup.yearFast') },
+    { years: 2, label: t('hostSetup.year2'), description: t('hostSetup.yearMedium') },
+    { years: 3, label: t('hostSetup.year3'), description: t('hostSetup.yearLong') },
+    { years: 5, label: t('hostSetup.year5'), description: t('hostSetup.yearExtended') }
   ]
 
   if (step === 1) {
@@ -169,7 +186,7 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
               className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
-              <span>Terug</span>
+              <span>{t('common.back')}</span>
             </button>
             <div></div>
           </div>
@@ -177,24 +194,20 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-white mb-2 flex items-center justify-center space-x-3">
               <Crown className="w-8 h-8 text-neon-blue" />
-              <span>Host Setup</span>
+              <span>{t('hostSetup.title')}</span>
             </h1>
-            <p className="text-gray-400">Configureer je spel instellingen</p>
-            <div className="mt-4 flex items-center justify-center space-x-2 text-neon-gold">
-              <span className="text-2xl">👑</span>
-              <span className="font-semibold">Host</span>
-            </div>
+            <p className="text-gray-400">{t('hostSetup.configureGame')}</p>
+
           </div>
 
           {/* Lobby ID Card */}
           <div className="crypto-card mb-8">
-            <h3 className="text-2xl font-bold text-white mb-6 text-center">Jouw Lobby ID</h3>
+            <h3 className="text-2xl font-bold text-white mb-6 text-center">{t('hostSetup.yourLobbyId')}</h3>
             
             <div className="bg-dark-bg/50 rounded-lg p-8 mb-6 text-center">
               <div className="text-5xl font-bold text-neon-gold tracking-wider mb-4">
                 {roomId}
               </div>
-              <p className="text-gray-400">Test Lobby ID - Deel met je spelers</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-6">
@@ -205,12 +218,12 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                 {copied ? (
                   <>
                     <Check className="w-5 h-5" />
-                    <span>Gekopieerd!</span>
+                    <span>{t('common.copied')}</span>
                   </>
                 ) : (
                   <>
                     <Copy className="w-5 h-5" />
-                    <span>Kopieer ID</span>
+                    <span>{t('hostSetup.copyId')}</span>
                   </>
                 )}
               </button>
@@ -219,18 +232,11 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                 disabled
                 className="flex items-center justify-center space-x-2 bg-gray-600/10 border border-gray-600/30 text-gray-500 font-semibold py-3 px-4 rounded-lg cursor-not-allowed"
               >
-                <span>Test Modus</span>
+                <span>{t('hostSetup.testMode')}</span>
               </button>
             </div>
 
-            <div className="bg-neon-blue/10 border border-neon-blue/30 rounded-lg p-4">
-              <h4 className="text-neon-blue font-semibold text-sm mb-2">📋 Test Modus</h4>
-              <div className="space-y-1 text-gray-300 text-sm">
-                <p>• Lobby ID is vast ingesteld op "123" voor testen</p>
-                <p>• Spelers kunnen joinen via de "Spelen" optie met lobby ID "123"</p>
-                <p>• Ga door naar de volgende stap om het spel in te stellen</p>
-              </div>
-            </div>
+
           </div>
 
           {/* Next Button */}
@@ -239,7 +245,7 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
             disabled={!roomId}
             className="w-full bg-gradient-to-r from-neon-blue to-neon-turquoise text-white font-bold py-4 px-6 rounded-lg shadow-neon-blue transition-all duration-300 hover:shadow-neon-turquoise hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-xl"
           >
-            <span>Volgende: Spel Instellingen</span>
+            <span>{t('hostSetup.nextSettings')}</span>
             <ArrowLeft className="w-6 h-6 rotate-180" />
           </button>
         </div>
@@ -258,19 +264,14 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
           >
             <ArrowLeft className="w-6 h-6" />
           </button>
-          
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-white mb-2 flex items-center justify-center space-x-3">
-              <Crown className="w-8 h-8 text-neon-blue" />
-              <span>Host Setup</span>
+
+          <div className="flex items-center justify-center space-x-3">
+            <SlidersHorizontal className="w-7 h-7 text-neon-blue" />
+            <h1 className="text-3xl font-bold text-white">
+              Spel Instellingen
             </h1>
-            <p className="text-gray-400">Spel Instellingen</p>
-            <div className="mt-2 flex items-center justify-center space-x-2 text-neon-gold">
-              <span className="text-xl">👑</span>
-              <span className="font-semibold">Host</span>
-            </div>
           </div>
-          
+
           <div></div>
         </div>
 
@@ -278,11 +279,11 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
           {/* Connection Status */}
           <div className="crypto-card">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">Server Status</h3>
+              <h3 className="text-lg font-bold text-white">{t('hostSetup.serverStatus')}</h3>
               <div className="flex items-center space-x-2">
                 <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
                 <span className={`text-sm font-semibold ${connected ? 'text-green-400' : 'text-red-400'}`}>
-                  {connected ? 'Verbonden' : 'Niet verbonden'}
+                  {connected ? t('common.connected') : t('common.disconnected')}
                 </span>
               </div>
             </div>
@@ -294,33 +295,33 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
               <p className="text-red-400 font-semibold text-center">❌ {error}</p>
               {error.includes('bestaat al') && (
                 <p className="text-yellow-300 text-sm text-center mt-2">
-                  💡 Probeer opnieuw - je wordt automatisch toegevoegd aan de bestaande kamer
+                  {t('hostSetup.errorRetry')}
                 </p>
               )}
               {error.includes('Er is al een host') && (
                 <div className="mt-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-center">
-                  <p className="text-yellow-300 text-sm font-semibold">💡 Wat kun je doen?</p>
+                  <p className="text-yellow-300 text-sm font-semibold">{t('hostSetup.errorAlreadyHostTitle')}</p>
                   <div className="text-yellow-200 text-xs mt-2 space-y-1">
-                    <p>• Kies "Spelen" in plaats van "Hosting"</p>
-                    <p>• Join als speler met de room ID</p>
-                    <p>• Wacht tot de huidige host het spel start</p>
+                    <p>• {t('hostSetup.errorBullet1')}</p>
+                    <p>• {t('hostSetup.errorBullet2')}</p>
+                    <p>• {t('hostSetup.errorBullet3')}</p>
                   </div>
                   <button
                     onClick={onBack}
                     className="mt-3 px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 text-blue-300 rounded-lg text-sm font-semibold transition-colors"
                   >
-                    🎮 Ga naar "Spelen"
+                    {t('hostSetup.errorGoPlay')}
                   </button>
                 </div>
               )}
               
               {/* Host Takeover Info */}
               <div className="mt-3 p-3 bg-green-500/10 border border-green-500/30 rounded text-center">
-                <p className="text-green-300 text-sm font-semibold">🔄 Host Takeover</p>
+                <p className="text-green-300 text-sm font-semibold">{t('hostSetup.hostTakeover')}</p>
                 <div className="text-green-200 text-xs mt-2 space-y-1">
-                  <p>• Als er een "Test Host" is, wordt deze automatisch vervangen</p>
-                  <p>• Je wordt dan de enige echte host van de kamer</p>
-                  <p>• Alle spelers en instellingen blijven behouden</p>
+                  <p>• {t('hostSetup.hostTakeoverInfo1')}</p>
+                  <p>• {t('hostSetup.hostTakeoverInfo2')}</p>
+                  <p>• {t('hostSetup.hostTakeoverInfo3')}</p>
                 </div>
               </div>
             </div>
@@ -328,14 +329,14 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
 
           {/* Lobby ID Display */}
           <div className="crypto-card text-center">
-            <h3 className="text-lg font-bold text-white mb-4">Lobby ID: <span className="text-neon-gold">{roomId}</span></h3>
+            <h3 className="text-lg font-bold text-white mb-4">{t('hostSetup.lobbyId')}: <span className="text-neon-gold">{roomId}</span></h3>
           </div>
 
           {/* Market Volatility Selection */}
           <div className="crypto-card">
             <div className="flex items-center space-x-3 mb-6">
-              <TrendingUp className="w-6 h-6 text-neon-turquoise" />
-              <h2 className="text-2xl font-bold text-white">Beursschommelingen</h2>
+              <ChartLine className="w-6 h-6 text-neon-turquoise" />
+              <h2 className="text-2xl font-bold text-white">{t('hostSetup.volatility')}</h2>
             </div>
             
             <div className="grid grid-cols-3 gap-4">
@@ -348,8 +349,7 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                     : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
                 }`}
               >
-                <div className="text-2xl mb-2">📈</div>
-                <div className="text-lg font-bold mb-1">Weinig</div>
+                <div className="text-lg font-bold mb-1">{t('hostSetup.volatilityLow')}</div>
                 <div className="text-sm opacity-80">+1% / -1%</div>
               </button>
               
@@ -362,8 +362,8 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                     : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
                 }`}
               >
-                <div className="text-2xl mb-2">📊</div>
-                <div className="text-lg font-bold mb-1">Medium</div>
+
+                <div className="text-lg font-bold mb-1">{t('hostSetup.volatilityMedium')}</div>
                 <div className="text-sm opacity-80">+2% / -2%</div>
               </button>
               
@@ -376,8 +376,8 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                     : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
                 }`}
               >
-                <div className="text-2xl mb-2">🚀</div>
-                <div className="text-lg font-bold mb-1">Hard</div>
+
+                <div className="text-lg font-bold mb-1">{t('hostSetup.volatilityHigh')}</div>
                 <div className="text-sm opacity-80">+3% / -3%</div>
               </button>
             </div>
@@ -386,13 +386,13 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
           {/* Game Duration Selection */}
           <div className="crypto-card">
             <div className="flex items-center space-x-3 mb-6">
-              <Clock className="w-6 h-6 text-neon-turquoise" />
-              <h2 className="text-2xl font-bold text-white">Spel Duur</h2>
+              <CalendarClock className="w-6 h-6 text-neon-turquoise" />
+              <h2 className="text-2xl font-bold text-white">{t('hostSetup.gameDuration')}</h2>
             </div>
             
             <div className="space-y-4">
               <div className="flex items-center space-x-4">
-                <label className="text-white font-semibold min-w-[100px]">Jaren:</label>
+                <label className="text-white font-semibold min-w-[100px]">{t('hostSetup.years')}</label>
                 <input
                   type="number"
                   min="1"
@@ -426,8 +426,8 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
           {/* Market Start Mode Selection */}
           <div className="crypto-card">
             <div className="flex items-center space-x-3 mb-6">
-              <span className="text-2xl">📊</span>
-              <h2 className="text-2xl font-bold text-white">Markt Start Modus</h2>
+              <DiamondPercent className="w-6 h-6 text-neon-turquoise" />
+              <h2 className="text-2xl font-bold text-white">{t('hostSetup.marketStartMode')}</h2>
             </div>
             
             <div className="grid grid-cols-2 gap-4 mb-4">
@@ -440,11 +440,11 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                     : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
                 }`}
               >
-                <div className="text-3xl mb-3">🎯</div>
-                <div className="text-xl font-bold mb-2">0% Start</div>
+
+                <div className="text-xl font-bold mb-2">{t('hostSetup.zeroStart')}</div>
                 <div className="text-sm opacity-80 leading-relaxed">
-                  Alle coins beginnen op 0%<br/>
-                  <span className="text-xs">Duidelijk referentiepunt</span>
+                  {t('hostSetup.zeroStartDesc')}<br/>
+                  <span className="text-xs">{t('hostSetup.zeroStartSub')}</span>
                 </div>
               </button>
               
@@ -457,11 +457,10 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                     : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
                 }`}
               >
-                <div className="text-3xl mb-3">🎲</div>
-                <div className="text-xl font-bold mb-2">Random Start</div>
+                <div className="text-xl font-bold mb-2">{t('hostSetup.randomStart')}</div>
                 <div className="text-sm opacity-80 leading-relaxed">
-                  Coins starten met percentages<br/>
-                  <span className="text-xs">Meer variatie & strategie</span>
+                  {t('hostSetup.randomStartDesc')}<br/>
+                  <span className="text-xs">{t('hostSetup.randomStartSub')}</span>
                 </div>
               </button>
             </div>
@@ -474,20 +473,20 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
               <p className={`font-semibold text-sm mb-2 ${
                 marketStartMode === 'zero' ? 'text-neon-turquoise' : 'text-neon-purple'
               }`}>
-                💡 {marketStartMode === 'zero' ? '0% Start Info' : 'Random Start Info'}
+                💡 {marketStartMode === 'zero' ? t('hostSetup.zeroStartInfo') : t('hostSetup.randomStartInfo')}
               </p>
               <div className="space-y-1 text-gray-300 text-sm">
                 {marketStartMode === 'zero' ? (
                   <>
-                    <p>• Alle coins beginnen op 0% voor een eerlijke start</p>
-                    <p>• Spelers zien direct hun impact vanaf beurt 1</p>
-                    <p>• Ideaal voor beginners en korte spellen</p>
+                    <p>• {t('hostSetup.zeroStartBullet1')}</p>
+                    <p>• {t('hostSetup.zeroStartBullet2')}</p>
+                    <p>• {t('hostSetup.zeroStartBullet3')}</p>
                   </>
                 ) : (
                   <>
-                    <p>• Coins starten met random percentages (-10% tot +10%)</p>
-                    <p>• Meer strategische keuzes vanaf het begin</p>
-                    <p>• Realistischer markt gevoel</p>
+                    <p>• {t('hostSetup.randomStartBullet1')}</p>
+                    <p>• {t('hostSetup.randomStartBullet2')}</p>
+                    <p>• {t('hostSetup.randomStartBullet3')}</p>
                   </>
                 )}
               </div>
@@ -497,13 +496,13 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
           {/* Starting Cash Selection */}
           <div className="crypto-card">
             <div className="flex items-center space-x-3 mb-6">
-              <span className="text-2xl">💰</span>
-              <h2 className="text-2xl font-bold text-white">Startgeld</h2>
+              <Coins className="w-6 h-6 text-neon-turquoise" />
+              <h2 className="text-2xl font-bold text-white">{t('hostSetup.startingCash')}</h2>
             </div>
             
             <div className="space-y-4">
               <div className="flex items-center space-x-4">
-                <label className="text-white font-semibold min-w-[100px]">Bedrag:</label>
+                <label className="text-white font-semibold min-w-[100px]">{t('hostSetup.amount')}</label>
                 <input
                   type="number"
                   min="500"
@@ -513,7 +512,7 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                   onChange={(e) => setStartingCash(parseInt(e.target.value))}
                   className="flex-1 p-3 bg-dark-bg border-2 border-neon-gold rounded-lg text-white font-bold text-xl focus:border-neon-turquoise focus:outline-none"
                 />
-                <span className="text-neon-gold font-bold text-xl">€</span>
+                <span className="text-neon-gold font-bold text-xl">⚘</span>
               </div>
               
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -528,22 +527,22 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                         : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
                     }`}
                   >
-                    <div className="font-bold text-lg">€{amount.toLocaleString()}</div>
+                    <div className="font-bold text-lg">⚘{amount.toLocaleString()}</div>
                     <div className="text-sm opacity-80">
-                      {amount === 500 ? 'Starter' : 
-                       amount === 1000 ? 'Standaard' :
-                       amount === 2500 ? 'Comfortabel' : 'Rijk'}
+                      {amount === 500 ? t('hostSetup.cashStarter') : 
+                       amount === 1000 ? t('hostSetup.cashStandard') :
+                       amount === 2500 ? t('hostSetup.cashComfortable') : t('hostSetup.cashRich')}
                     </div>
                   </button>
                 ))}
               </div>
               
               <div className="bg-neon-gold/10 border border-neon-gold/30 rounded-lg p-4">
-                <p className="text-neon-gold font-semibold text-sm mb-2">💡 Startgeld Info</p>
+                <p className="text-neon-gold font-semibold text-sm mb-2">{t('hostSetup.cashInfoTitle')}</p>
                 <div className="space-y-1 text-gray-300 text-sm">
-                  <p>• Elke speler begint met hetzelfde bedrag op hun bankrekening</p>
-                  <p>• Dit geld kan gebruikt worden om crypto's te kopen via QR scans</p>
-                  <p>• Hogere bedragen maken het spel makkelijker voor beginners</p>
+                  <p>• {t('hostSetup.cashInfo1')}</p>
+                  <p>• {t('hostSetup.cashInfo2')}</p>
+                  <p>• {t('hostSetup.cashInfo3')}</p>
                 </div>
               </div>
             </div>
@@ -552,48 +551,43 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
           {/* Game Summary */}
           <div className="crypto-card bg-dark-bg/50 border border-neon-blue/40">
             <div className="flex items-center space-x-3 mb-4">
-              <Play className="w-6 h-6 text-neon-gold" />
-              <h3 className="text-xl font-bold text-white">Spel Overzicht</h3>
+              <Trophy className="w-6 h-6 text-neon-gold" />
+              <h3 className="text-xl font-bold text-white">{t('hostSetup.gameSummary')}</h3>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-5 gap-6 text-center">
               <div>
-                <p className="text-gray-400 text-sm">Lobby ID</p>
+                <p className="text-gray-400 text-sm">{t('hostSetup.lobbyId')}</p>
                 <p className="text-2xl font-bold text-neon-blue">{roomId}</p>
               </div>
               
               <div>
-                <p className="text-gray-400 text-sm">Start Jaar</p>
+                <p className="text-gray-400 text-sm">{t('hostSetup.startYear')}</p>
                 <p className="text-2xl font-bold text-neon-turquoise">{currentYear}</p>
               </div>
               
               <div>
-                <p className="text-gray-400 text-sm">Spel Duur</p>
+                <p className="text-gray-400 text-sm">{t('hostSetup.gameDurationLabel')}</p>
                 <p className="text-2xl font-bold text-neon-gold">{gameDuration} jaar</p>
               </div>
               
               <div>
-                <p className="text-gray-400 text-sm">Startgeld</p>
-                <p className="text-2xl font-bold text-neon-gold">€{startingCash.toLocaleString()}</p>
+                <p className="text-gray-400 text-sm">{t('hostSetup.startingCashLabel')}</p>
+                <p className="text-2xl font-bold text-neon-gold">⚘{startingCash.toLocaleString()}</p>
               </div>
               
               <div>
-                <p className="text-gray-400 text-sm">Volatiliteit</p>
+                <p className="text-gray-400 text-sm">{t('hostSetup.volatilityLabel')}</p>
                 <p className="text-2xl font-bold text-neon-purple">
-                  {volatility === 'low' ? '📈' : 
-                   volatility === 'medium' ? '📊' :
-                   volatility === 'high' ? '🚀' : '📊'}
+                  {volatility === 'low'
+                    ? t('hostSetup.volatilityLowFull')
+                    : volatility === 'medium'
+                      ? t('hostSetup.volatilityMediumFull')
+                      : volatility === 'high'
+                        ? t('hostSetup.volatilityHighFull')
+                        : t('hostSetup.volatilityMediumFull')}
                 </p>
               </div>
-            </div>
-            
-            <div className="mt-6 p-4 bg-dark-bg/50 rounded-lg">
-              <p className="text-center text-gray-300">
-                🎯 <strong>Doel:</strong> Bouw de grootste crypto portefeuille op in {gameDuration} jaar!
-              </p>
-              <p className="text-center text-gray-400 text-sm mt-2">
-                Alleen echte spelers kunnen joinen. Start het spel wanneer alle gewenste spelers klaar zijn in de lobby.
-              </p>
             </div>
           </div>
 
@@ -606,16 +600,16 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
             {isCreatingRoom ? (
               <>
                 <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Lobby Maken...</span>
+                <span>{t('hostSetup.creatingLobby')}</span>
               </>
             ) : !connected ? (
               <>
-                <span className="text-yellow-300">⚠️ Offline Modus - Klik om door te gaan</span>
+                <span className="text-yellow-300">{t('hostSetup.offlineMode')}</span>
               </>
             ) : (
               <>
                 <Crown className="w-6 h-6" />
-                <span>Maak Lobby & Ga naar Lobby</span>
+                <span>{t('hostSetup.createLobby')}</span>
               </>
             )}
           </button>

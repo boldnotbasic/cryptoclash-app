@@ -1,21 +1,68 @@
 {
-  "name": "CryptoClash",
+  "name": "CryptoClash - Crypto Bordspel",
   "short_name": "CryptoClash",
-  "description": "Een innovatief bordspel gecombineerd met een webgame.",
+  "description": "Innovatief bordspel gecombineerd met digitale app. Handel crypto's, voorspel marktbewegingen en word de rijkste speler!",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#0F0F23",
   "theme_color": "#8B5CF6",
+  "categories": ["games", "entertainment", "education"],
+  "lang": "nl-NL",
+  "dir": "ltr",
   "icons": [
+    {
+      "src": "/favicon_cryptoyclash.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nieuw Spel",
+      "short_name": "Nieuw Spel",
+      "description": "Start een nieuwe spelkamer",
+      "url": "/?action=new",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Join Spel",
+      "short_name": "Join",
+      "description": "Join een bestaande kamer",
+      "url": "/?action=join",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useLanguage } from './LanguageContext'
 
 type Language = 'nl' | 'en' | 'fr' | 'de'
 type Theme = 'dark' | 'light'
@@ -14,7 +15,8 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
-export function AppProvider({ children }: { children: ReactNode }) {
+function AppProviderInner({ children }: { children: ReactNode }) {
+  const languageContext = useLanguage()
   const [language, setLanguage] = useState<Language>('nl')
   const [theme, setTheme] = useState<Theme>('dark')
 
@@ -55,6 +57,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     console.log('Setting language to:', lang)
     setLanguage(lang)
     localStorage.setItem('cryptoclash-language', lang)
+    
+    // Sync to LanguageContext if it's a supported language (nl/en/fr)
+    if (lang === 'nl' || lang === 'en' || lang === 'fr') {
+      languageContext.setLanguage(lang)
+    }
   }
 
   const handleSetTheme = (newTheme: Theme) => {
@@ -73,6 +80,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       {children}
     </AppContext.Provider>
   )
+}
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  return <AppProviderInner>{children}</AppProviderInner>
 }
 
 export function useApp() {

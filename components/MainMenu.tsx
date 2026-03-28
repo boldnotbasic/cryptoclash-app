@@ -2,11 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { QrCode, BarChart3, Wallet, Settings, TrendingUp, TrendingDown, Crown, Medal, Trophy, CreditCard, Zap, Users, ListChecks, Volume2 } from 'lucide-react'
+import { QrCode, BarChart3, Wallet, Settings, TrendingUp, TrendingDown, Crown, Medal, Trophy, CreditCard, Zap, Users, Volume2, Bell, CalendarClock, Dices, MessageCircle, Check } from 'lucide-react'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatCurrency } from '@/utils/currency'
 import { playPositiveSound, playNegativeSound } from '@/utils/soundEffects'
 import { getTileClasses } from '@/utils/styleUtils'
 import Header from './Header'
 import EventPopup, { ScanEffect } from './EventPopup'
+import InstallPrompt from './InstallPrompt'
 
 interface CryptoCurrency {
   id: string
@@ -69,11 +73,11 @@ interface MainMenuProps {
   onApplyScanEffect?: (effect: ScanEffect) => void
   actionsDisabled?: boolean
   onEndTurnConfirm?: () => void
-  onShowInsider?: () => void
-  insiderUsed?: boolean
 }
 
-export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate, onAddScanAction, lastScanEffect, cashBalance = 0, players = [], playerScanActions = [], autoScanActions = [], onSendTestMessage, onVerifyRoom, transactions = [], year = 2024, onPassStart, onApplyScanEffect, actionsDisabled = false, onEndTurnConfirm, gameFinished = false, onShowInsider, insiderUsed = false }: MainMenuProps) {
+export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate, onAddScanAction, lastScanEffect, cashBalance = 0, players = [], playerScanActions = [], autoScanActions = [], onSendTestMessage, onVerifyRoom, transactions = [], year = 2024, onPassStart, onApplyScanEffect, actionsDisabled = false, onEndTurnConfirm, gameFinished = false }: MainMenuProps) {
+  const { t } = useLanguage()
+  const { currency } = useCurrency()
   // Calculate portfolio value (with consistent rounding)
   const portfolioValue = Math.round(cryptos.reduce((sum, crypto) => sum + (crypto.price * crypto.amount), 0) * 100) / 100
   const totalValue = Math.round((portfolioValue + cashBalance) * 100) / 100
@@ -82,27 +86,27 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
   const showFinishedOverlay = gameFinished
   
   // Debug logging for consistency check
-  console.log(`🔍 MainMenu - Portfolio: €${portfolioValue}, Cash: €${cashBalance}, Total: €${totalValue}`)
+  console.log(`🔍 MainMenu - Portfolio: ⚘${portfolioValue}, Cash: ⚘${cashBalance}, Total: ⚘${totalValue}`)
   
   // Find current player in players array for comparison
   const currentPlayerInList = players.find(p => p.name === playerName)
   if (currentPlayerInList) {
-    console.log(`📊 Dashboard shows - Total: €${currentPlayerInList.totalValue}, Cash: €${currentPlayerInList.cashBalance}`)
+    console.log(`📊 Dashboard shows - Total: ⚘${currentPlayerInList.totalValue}, Cash: ⚘${currentPlayerInList.cashBalance}`)
     console.log(`🔍 Detailed comparison:`)
-    console.log(`  MainMenu Portfolio: €${portfolioValue}`)
-    console.log(`  MainMenu Cash: €${cashBalance}`)
-    console.log(`  MainMenu Total: €${totalValue}`)
-    console.log(`  Dashboard Total: €${currentPlayerInList.totalValue}`)
-    console.log(`  Dashboard Cash: €${currentPlayerInList.cashBalance}`)
+    console.log(`  MainMenu Portfolio: ⚘${portfolioValue}`)
+    console.log(`  MainMenu Cash: ⚘${cashBalance}`)
+    console.log(`  MainMenu Total: ⚘${totalValue}`)
+    console.log(`  Dashboard Total: ⚘${currentPlayerInList.totalValue}`)
+    console.log(`  Dashboard Cash: ⚘${currentPlayerInList.cashBalance}`)
     
     const difference = Math.abs(totalValue - currentPlayerInList.totalValue)
-    console.log(`  Difference: €${difference}`)
+    console.log(`  Difference: ⚘${difference}`)
     
     if (difference > 0.01) {
-      console.warn(`⚠️ MISMATCH! MainMenu: €${totalValue} vs Dashboard: €${currentPlayerInList.totalValue}`)
+      console.warn(`⚠️ MISMATCH! MainMenu: ⚘${totalValue} vs Dashboard: ⚘${currentPlayerInList.totalValue}`)
       console.warn(`  This suggests data synchronization issues between local and server state`)
     } else {
-      console.log(`✅ Values match within acceptable range (±€0.01)`)
+      console.log(`✅ Values match within acceptable range (±⚘0.01)`)
     }
   }
   
@@ -235,7 +239,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
     {
       id: 'actions',
       title: 'Acties',
-      icon: ListChecks,
+      icon: Dices,
       color: 'from-green-500 to-neon-purple',
       description: 'Spel acties',
       action: () => onNavigate('actions-menu')
@@ -263,9 +267,9 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
 
         {/* Totaal Vermogen Widget - zelfde stijl als Crypto Wallet widget */}
         <div className="crypto-card text-center mb-4">
-          <h2 className="text-lg font-semibold text-gray-400 mb-2">Totaal Vermogen</h2>
+          <h2 className="text-lg font-semibold text-gray-400 mb-2">{t('mainMenu.totalWealth')}</h2>
           <p className="text-4xl font-bold text-neon-gold">
-            €{totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {formatCurrency(totalValue, currency.symbol)}
           </p>
         </div>
 
@@ -273,12 +277,12 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
         {gameFinished && (
           <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm">
             <div className="max-w-md mx-4 rounded-2xl bg-dark-bg/95 border border-neon-gold/60 shadow-[0_0_40px_rgba(250,204,21,0.6)] p-6 text-center">
-              <h2 className="text-2xl font-bold text-neon-gold mb-3">Spel beëindigd</h2>
+              <h2 className="text-2xl font-bold text-neon-gold mb-3">{t('mainMenu.gameEnded')}</h2>
               <p className="text-gray-200 text-sm mb-1">
-                Je hebt alle speeljaren voltooid.
+                {t('mainMenu.allYearsCompleted')}
               </p>
               <p className="text-gray-400 text-xs">
-                Wacht tot de andere spelers het spel hebben afgerond.
+                {t('mainMenu.waitOtherPlayers')}
               </p>
             </div>
           </div>
@@ -296,13 +300,12 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           >
             <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-2">
               <div className="p-3 bg-white/20 rounded-xl group-hover:bg-white/30 transition-colors shadow-inner">
-                <ListChecks className="w-9 h-9 text-white" />
+                <Dices className="w-9 h-9 text-white" />
               </div>
-              <h3 className="text-lg font-bold text-white tracking-tight">Acties</h3>
+              <h3 className="text-lg font-bold text-white tracking-tight">{t('mainMenu.actions')}</h3>
               {!actionsDisabled && (
                 <div className="flex items-center space-x-1 px-2 py-1 bg-neon-gold/20 border border-neon-gold/50 rounded-full">
-                  <span className="text-xs text-neon-gold font-bold">Jouw beurt</span>
-                  <span className="text-neon-gold">⚡</span>
+                  <span className="text-xs text-neon-gold font-bold">{t('mainMenu.yourTurn')}</span>
                 </div>
               )}
             </div>
@@ -322,7 +325,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                 <div className="p-2 bg-white/20 rounded-xl flex-shrink-0 shadow-inner">
                   <BarChart3 className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="text-lg font-bold text-white tracking-tight">Markt</h3>
+                <h3 className="text-lg font-bold text-white tracking-tight">{t('mainMenu.market')}</h3>
               </div>
             </div>
             {/* Spacer voor ruimte */}
@@ -349,7 +352,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                         )}
                       </span>
                       <span className="text-[10px] text-white font-semibold">
-                        €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatCurrency(crypto.price, currency.symbol)}
                       </span>
                       <span className={`font-bold text-[10px] ${crypto.change24h > 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {crypto.change24h > 0 ? '+' : ''}{crypto.change24h.toFixed(1)}%
@@ -375,7 +378,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                 <span className="p-1.5 rounded-md bg-white/20">
                   <Wallet className="w-5 h-5 text-white" />
                 </span>
-                <h3 className="text-lg font-bold text-white tracking-tight">Crypto Wallet</h3>
+                <h3 className="text-lg font-bold text-white tracking-tight">{t('mainMenu.cryptoWallet')}</h3>
               </div>
             </div>
 
@@ -408,14 +411,16 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                   )
                 })}
                 {cryptos.filter(c => c.amount > 0).length === 0 && (
-                  <span className="text-xs text-white/70">Geen munten</span>
+                  <div className="col-span-3 flex items-center justify-center">
+                    <span className="text-xs text-white/70">{t('mainMenu.noCoins')}</span>
+                  </div>
                 )}
               </div>
             </div>
             {/* Donker vlak met waarde */}
             <div className="bg-gradient-to-t from-dark-bg/90 to-dark-bg/70 backdrop-blur-sm py-2.5 px-4 text-center border-t border-white/5 flex items-center justify-center">
               <p className="text-neon-gold font-bold text-lg tracking-wide drop-shadow-lg">
-                €{portfolioValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(portfolioValue, currency.symbol)}
               </p>
             </div>
           </button>
@@ -434,7 +439,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                 <span className="p-1.5 rounded-md bg-white/20">
                   <CreditCard className="w-5 h-5 text-white" />
                 </span>
-                <h3 className="text-lg font-bold text-white tracking-tight">Cash Wallet</h3>
+                <h3 className="text-lg font-bold text-white tracking-tight">{t('mainMenu.cashWallet')}</h3>
               </div>
             </div>
 
@@ -457,20 +462,20 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
                           <div className="text-xs text-white/90">
-                            <div className="font-semibold">Verkoop {latestSell.cryptoName}</div>
+                            <div className="font-semibold">{t('mainMenu.saleOf').replace('{name}', latestSell.cryptoName)}</div>
                             <div className="text-white/70 text-[11px]">
-                              {latestSell.amount.toFixed(2)} {latestSell.cryptoSymbol} @ €{latestSell.price.toFixed(2)} • {timeText}
+                              {latestSell.amount.toFixed(2)} {latestSell.cryptoSymbol} @ {formatCurrency(latestSell.price, currency.symbol)} • {timeText}
                             </div>
                           </div>
                         </div>
-                        <div className="text-green-400 text-sm font-bold">+€{latestSell.total.toFixed(2)}</div>
+                        <div className="text-green-400 text-sm font-bold">+{formatCurrency(latestSell.total, currency.symbol)}</div>
                       </div>
                     )
                   }
 
                   return (
                     <div className="flex items-center justify-center py-1">
-                      <span className="text-xs text-white/70">Nog geen verkopen</span>
+                      <span className="text-xs text-white/70">{t('mainMenu.noSales')}</span>
                     </div>
                   )
                 })()}
@@ -478,7 +483,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             {/* Donker vlak met waarde */}
             <div className="bg-gradient-to-t from-dark-bg/90 to-dark-bg/70 backdrop-blur-sm py-2.5 px-4 text-center border-t border-white/5 flex items-center justify-center">
               <p className="text-green-400 font-bold text-lg tracking-wide drop-shadow-lg">
-                €{cashBalance.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(cashBalance, currency.symbol)}
               </p>
             </div>
           </button>
@@ -501,39 +506,10 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           >
             <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-2">
               <div className="p-3 bg-white/20 rounded-xl transition-colors shadow-inner">
-                <span className="text-4xl">📅</span>
+                <CalendarClock className="w-9 h-9 text-white" />
               </div>
-              <h3 className="text-lg font-bold text-white tracking-tight">Speeljaar</h3>
+              <h3 className="text-lg font-bold text-white tracking-tight">{t('mainMenu.playYear')}</h3>
               <p className="text-2xl font-bold text-neon-gold">{year}</p>
-            </div>
-          </button>
-
-          {/* Insider Info - Naast Speeljaar */}
-          <button
-            onClick={() => {
-              console.log('🕵️ Insider tile clicked:', { insiderUsed, actionsDisabled })
-              if (!insiderUsed && !actionsDisabled && onShowInsider) {
-                console.log('✅ Calling onShowInsider')
-                onShowInsider()
-              } else if (insiderUsed) {
-                console.log('❌ Insider already used this turn')
-              } else if (actionsDisabled) {
-                console.log('❌ Actions disabled')
-              }
-            }}
-            className={getTileClasses(
-              !insiderUsed && !actionsDisabled,
-              `crypto-card bg-gradient-to-br from-gray-900/95 via-orange-500/5 to-gray-900/95 border-2 border-orange-500/70 ring-1 ring-orange-500/40 text-center p-0 group h-[200px] flex flex-col shadow-lg shadow-orange-500/30 ${insiderUsed || actionsDisabled ? 'opacity-40 pointer-events-none' : 'hover:shadow-orange-500/50 hover:border-orange-500/90'}`
-            )}
-          >
-            <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-2">
-              <div className="p-3 bg-white/20 rounded-xl transition-colors shadow-inner">
-                <span className="text-4xl">🕵️</span>
-              </div>
-              <h3 className="text-lg font-bold text-white tracking-tight">Insider</h3>
-              <p className="text-sm font-bold text-orange-400">
-                {insiderUsed ? 'Gebruikt' : 'Info'}
-              </p>
             </div>
           </button>
 
@@ -547,7 +523,10 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           >
             {/* Top deel: Titel */}
             <div className="pt-3 pb-2 flex items-center justify-center">
-              <h3 className="text-sm font-bold text-white tracking-tight">🏆 Live Rankings</h3>
+              <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-1">
+                <Trophy className="w-4 h-4 text-neon-gold" />
+                <span>{t('mainMenu.liveRankings')}</span>
+              </h3>
             </div>
             
             {/* Listview met spelers en totaal vermogen */}
@@ -590,7 +569,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                           index === 2 ? 'text-amber-600' :
                           'text-gray-400'
                         }`}>
-                          €{player.totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {formatCurrency(player.totalValue, currency.symbol)}
                         </p>
                       </div>
                     </div>
@@ -598,7 +577,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                 
                 {players.length === 0 && (
                   <div className="text-center py-4">
-                    <span className="text-gray-400 text-xs">Geen spelers</span>
+                    <span className="text-gray-400 text-xs">{t('mainMenu.noPlayers')}</span>
                   </div>
                 )}
               </div>
@@ -611,8 +590,8 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           <div className="crypto-card bg-gradient-to-r from-neon-purple/10 to-neon-blue/10 border border-neon-purple/30">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                <span className="animate-pulse">🔔</span>
-                <span>Beurs</span>
+                <Bell className="w-5 h-5 text-neon-purple animate-pulse" />
+                <span>{t('mainMenu.exchange')}</span>
               </h3>
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             </div>
@@ -622,7 +601,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                 onClick={() => onNavigate('scan-transcript')}
                 className="text-neon-blue hover:text-neon-purple text-sm font-semibold transition-colors"
               >
-                Toon volledig transcript →
+                {t('mainMenu.showTranscript')}
               </button>
             </div>
             
@@ -661,7 +640,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
               
               {autoScanActions.length === 0 && (
                 <div className="text-center py-3">
-                  <p className="text-gray-400 text-sm">Wachten op scan activiteit...</p>
+                  <p className="text-gray-400 text-sm">{t('mainMenu.waitingScan')}</p>
                 </div>
               )}
             </div>
@@ -673,8 +652,8 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           <div className="crypto-card bg-gradient-to-r from-neon-purple/10 to-neon-blue/10 border border-neon-purple/30">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                <ListChecks className="w-5 h-5 text-neon-purple" />
-                <span>Acties</span>
+                <Dices className="w-5 h-5 text-neon-purple" />
+                <span>{t('mainMenu.actions')}</span>
               </h3>
               <div className="bg-neon-purple/20 px-2 py-1 rounded-full border border-neon-purple/50">
                 <span className="text-neon-purple text-xs font-bold">{playerScanActions.length} acties</span>
@@ -688,7 +667,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                 onClick={() => onNavigate('scan-transcript')}
                 className="text-neon-blue hover:text-neon-purple text-sm font-semibold transition-colors"
               >
-                Toon volledig transcript →
+                {t('mainMenu.showTranscript')}
               </button>
             </div>
             <div className="space-y-3">
@@ -718,8 +697,8 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                           <span className="text-gray-400">?</span>
                         </div>
                         <div>
-                          <p className="text-gray-400 text-sm">Wachten op scan...</p>
-                          <p className="text-gray-500 text-xs">Scan een QR code</p>
+                          <p className="text-gray-400 text-sm">{t('mainMenu.waitingForScan')}</p>
+                          <p className="text-gray-500 text-xs">{t('mainMenu.scanQrCode')}</p>
                         </div>
                       </div>
                       <div className="text-right">
@@ -768,7 +747,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             
             {playerScanActions.length === 0 && (
               <div className="text-center py-6">
-                <p className="text-gray-400">Nog geen scan acties...</p>
+                <p className="text-gray-400">{t('mainMenu.noScanActions')}</p>
               </div>
             )}
           </div>
@@ -792,16 +771,16 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             >
               <div className="text-center mb-4">
                 <div className="text-6xl mb-3">🎉</div>
-                <h3 className="text-white font-bold text-2xl mb-2">Nieuw Jaar!</h3>
+                <h3 className="text-white font-bold text-2xl mb-2">{t('mainMenu.newYear')}</h3>
                 <p className="text-gray-300 text-base mb-2">
-                  Start jaar <span className="text-neon-gold font-bold text-xl">{year ? year + 1 : 2025}</span>
+                  {t('mainMenu.startYear')} <span className="text-neon-gold font-bold text-xl">{year ? year + 1 : 2025}</span>
                 </p>
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 mt-3">
                   <p className="text-green-400 font-bold text-lg">
-                    +€500 Startbonus
+                    {t('mainMenu.startBonus')}
                   </p>
                   <p className="text-gray-400 text-sm">
-                    Toegevoegd aan je Cash Wallet
+                    {t('mainMenu.addedToWallet')}
                   </p>
                 </div>
               </div>
@@ -810,7 +789,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                   className="flex-1 py-3 rounded-lg bg-gray-700 text-white font-semibold hover:bg-gray-600 transition"
                   onClick={() => setIsYearModalOpen(false)}
                 >
-                  Annuleren
+                  {t('mainMenu.cancel')}
                 </button>
                 <button
                   disabled={gameFinished}
@@ -828,7 +807,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                     }
                   }}
                 >
-                  {gameFinished ? 'Speljaren bereikt' : `Start Jaar ${year + 1}`}
+                  {gameFinished ? t('mainMenu.yearsReached') : t('mainMenu.startYearN').replace('{year}', String(year + 1))}
                 </button>
               </div>
             </div>
@@ -838,9 +817,12 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
 
         {/* Jouw Positie */}
         <div className="crypto-card mb-8 text-center">
-          <h2 className="text-xl font-bold text-white mb-4">🏆 Jouw Positie</h2>
+          <h2 className="text-xl font-bold text-white mb-4 flex items-center justify-center gap-2">
+            <Trophy className="w-5 h-5 text-neon-gold" />
+            <span>{t('mainMenu.yourPosition')}</span>
+          </h2>
           <div className="mb-6">
-            <p className="text-gray-400 text-sm mb-2">Ranking</p>
+            <p className="text-gray-400 text-sm mb-2">{t('mainMenu.ranking')}</p>
             <div className="flex items-center justify-center space-x-2">
               {getRankIcon(players.find(p => p.name === playerName)?.rank || 1)}
               <span className="text-3xl font-bold text-neon-gold">
@@ -849,24 +831,24 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             </div>
           </div>
           <div className="mb-6">
-            <p className="text-gray-400 text-sm mb-2">Totaal Vermogen</p>
+            <p className="text-gray-400 text-sm mb-2">{t('mainMenu.totalWealth')}</p>
             <div className="bg-gradient-to-r from-neon-gold/20 to-neon-purple/20 border border-neon-gold/50 rounded-lg p-4">
               <p className="text-3xl font-bold text-neon-gold">
-                €{totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(totalValue, currency.symbol)}
               </p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-6 mb-4">
             <div className="text-center">
-              <p className="text-gray-400 text-sm mb-2">Portfolio Waarde</p>
+              <p className="text-gray-400 text-sm mb-2">{t('mainMenu.portfolioValue')}</p>
               <p className="text-xl font-bold text-neon-blue">
-                €{portfolioValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(portfolioValue, currency.symbol)}
               </p>
             </div>
             <div className="text-center">
-              <p className="text-gray-400 text-sm mb-2">Cash Saldo</p>
+              <p className="text-gray-400 text-sm mb-2">{t('mainMenu.cashSaldo')}</p>
               <p className="text-xl font-bold text-green-400">
-                €{cashBalance.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(cashBalance, currency.symbol)}
               </p>
             </div>
           </div>
@@ -888,13 +870,16 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             <div className="crypto-card">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                  <span>💬</span>
-                  <span>Tekstbericht</span>
+                  <span className="relative inline-block">
+                    <MessageCircle className="w-5 h-5 text-neon-blue" />
+                    <Check className="w-3 h-3 text-neon-blue absolute -right-1 -bottom-1 bg-dark-bg rounded-full" />
+                  </span>
+                  <span>{t('common.sendMessage')}</span>
                 </h3>
               </div>
               
               <p className="text-gray-400 text-sm mb-3">
-                Stuur een bericht naar het Market Screen dashboard
+                {t('common.sendMessageDesc')}
               </p>
               
               <div className="space-y-3">
@@ -902,7 +887,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                   type="text"
                   value={testMessage}
                   onChange={(e) => setTestMessage(e.target.value)}
-                  placeholder="Typ je bericht hier..."
+                  placeholder={t('common.messagePlaceholder')}
                   className="w-full px-3 py-2 bg-dark-bg/50 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:border-neon-blue focus:outline-none"
                   onKeyPress={(e) => e.key === 'Enter' && handleSendTestMessage()}
                   maxLength={100}
@@ -910,7 +895,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                 
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500">
-                    {testMessage.length}/100 karakters
+                    {t('common.characters').replace('{count}', String(testMessage.length))}
                   </span>
                   
                   <button
@@ -922,7 +907,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                         : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                     }`}
                   >
-                    Verstuur
+                    {t('common.send')}
                   </button>
                 </div>
               </div>
@@ -933,17 +918,17 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
         {/* Quick Stats */}
         <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="crypto-card text-center">
-            <p className="text-gray-400 text-sm">Totale Spelers</p>
+            <p className="text-gray-400 text-sm">{t('common.totalPlayers')}</p>
             <p className="text-2xl font-bold text-neon-blue">{players.length}</p>
           </div>
           
           <div className="crypto-card text-center">
-            <p className="text-gray-400 text-sm">Actieve Munten</p>
+            <p className="text-gray-400 text-sm">{t('common.activeCoins')}</p>
             <p className="text-2xl font-bold text-neon-turquoise">{cryptos.length}</p>
           </div>
           
           <div className="crypto-card text-center">
-            <p className="text-gray-400 text-sm">Markt Trend</p>
+            <p className="text-gray-400 text-sm">{t('common.marketTrend')}</p>
             <div className="flex items-center justify-center space-x-1">
               {cryptos.filter(c => c.change24h > 0).length > cryptos.length / 2 ? (
                 <>
@@ -960,7 +945,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
           </div>
           
           <div className="crypto-card text-center">
-            <p className="text-gray-400 text-sm">Jouw Rang</p>
+            <p className="text-gray-400 text-sm">{t('common.yourRank')}</p>
             <p className="text-2xl font-bold text-neon-gold">
               #{players.find(p => p.name === playerName)?.rank || 1}
             </p>
@@ -974,7 +959,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             className="w-full crypto-card bg-gray-700/30 hover:bg-gray-700/50 border border-gray-600/50 text-gray-300 font-semibold py-3 px-4 rounded-lg hover:scale-105 transition-all duration-200 flex items-center justify-center space-x-2"
           >
             <Settings className="w-4 h-4" />
-            <span>Instellingen</span>
+            <span>{t('common.settings')}</span>
           </button>
         </div>
       </div>
@@ -994,13 +979,16 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
               </p>
               <div className="mt-6 pt-4 border-t border-white/10">
                 <p className="text-neon-purple font-semibold">
-                  Je eindstand: €{totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}
+                  Je eindstand: {formatCurrency(totalValue, currency.symbol)}
                 </p>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
     </div>
   )
 }

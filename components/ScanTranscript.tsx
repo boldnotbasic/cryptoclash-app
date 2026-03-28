@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Clock, User } from 'lucide-react'
+import { ArrowLeft, Clock, User, Bell, Dices } from 'lucide-react'
 import Header from './Header'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface ScanAction {
   id: string
@@ -28,6 +29,7 @@ export default function ScanTranscript({
   autoScanActions, 
   onBack 
 }: ScanTranscriptProps) {
+  const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState<'beurs' | 'acties'>('beurs')
   
   // Sort actions separately
@@ -72,8 +74,8 @@ export default function ScanTranscript({
           </button>
           
           <div>
-            <h1 className="text-3xl font-bold text-white">📊 Scan Transcript</h1>
-            <p className="text-gray-400">Volledige geschiedenis van alle scan acties</p>
+            <h1 className="text-3xl font-bold text-white">📊 {t('scanTranscript.title')}</h1>
+            <p className="text-gray-400">{t('scanTranscript.subtitle')}</p>
           </div>
         </div>
 
@@ -87,8 +89,8 @@ export default function ScanTranscript({
                 : 'bg-dark-bg/40 border-2 border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
             }`}
           >
-            <span className="mr-2">🔔</span>
-            Beurs
+            <Bell className="w-4 h-4 mr-2 inline" />
+            {t('scanTranscript.tabExchange')}
             <span className="ml-2 text-xs bg-neon-purple/30 px-2 py-1 rounded-full">{autoScanActions.length}</span>
           </button>
           <button
@@ -99,8 +101,8 @@ export default function ScanTranscript({
                 : 'bg-dark-bg/40 border-2 border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
             }`}
           >
-            <span className="mr-2">⚡</span>
-            Acties
+            <Dices className="w-4 h-4 mr-2 inline" />
+            {t('scanTranscript.tabActions')}
             <span className="ml-2 text-xs bg-neon-blue/30 px-2 py-1 rounded-full">{playerScanActions.length}</span>
           </button>
         </div>
@@ -108,19 +110,19 @@ export default function ScanTranscript({
         {/* Stats - contextual based on active tab */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="crypto-card text-center">
-            <p className="text-gray-400 text-sm">{activeTab === 'beurs' ? 'Beurs Events' : 'Player Acties'}</p>
+            <p className="text-gray-400 text-sm">{activeTab === 'beurs' ? t('scanTranscript.exchangeEvents') : t('scanTranscript.playerActions')}</p>
             <p className="text-2xl font-bold text-neon-blue">{currentScans.length}</p>
           </div>
           
           <div className="crypto-card text-center">
-            <p className="text-gray-400 text-sm">Positief</p>
+            <p className="text-gray-400 text-sm">{t('scanTranscript.positive')}</p>
             <p className="text-2xl font-bold text-green-400">
               {currentScans.filter(s => s.effect.includes('+')).length}
             </p>
           </div>
           
           <div className="crypto-card text-center">
-            <p className="text-gray-400 text-sm">Negatief</p>
+            <p className="text-gray-400 text-sm">{t('scanTranscript.negative')}</p>
             <p className="text-2xl font-bold text-red-400">
               {currentScans.filter(s => s.effect.includes('-')).length}
             </p>
@@ -131,17 +133,17 @@ export default function ScanTranscript({
         <div className="crypto-card">
           <h2 className="text-xl font-bold text-white mb-6 flex items-center space-x-2">
             <Clock className="w-5 h-5" />
-            <span>{activeTab === 'beurs' ? 'Beurs Geschiedenis' : 'Acties Geschiedenis'}</span>
+            <span>{activeTab === 'beurs' ? t('scanTranscript.exchangeHistory') : t('scanTranscript.actionsHistory')}</span>
           </h2>
           
           {currentScans.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">{activeTab === 'beurs' ? '�' : '⚡'}</div>
               <p className="text-gray-400 text-lg">
-                {activeTab === 'beurs' ? 'Nog geen beurs events' : 'Nog geen player acties'}
+                {activeTab === 'beurs' ? t('scanTranscript.noExchangeEvents') : t('scanTranscript.noPlayerActions')}
               </p>
               <p className="text-gray-500 text-sm mt-2">
-                {activeTab === 'beurs' ? 'Wacht op automatische markt updates' : 'Scan een QR code om te beginnen!'}
+                {activeTab === 'beurs' ? t('scanTranscript.waitingExchange') : t('scanTranscript.scanToStart')}
               </p>
             </div>
           ) : (
@@ -170,7 +172,7 @@ export default function ScanTranscript({
                           {action.player}
                           {action.player === playerName && (
                             <span className="ml-2 text-xs bg-neon-gold text-dark-bg px-2 py-1 rounded-full font-bold">
-                              JIJ
+                              {t('scanTranscript.you')}
                             </span>
                           )}
                         </p>

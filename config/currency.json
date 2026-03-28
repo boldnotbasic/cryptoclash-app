@@ -1,0 +1,40 @@
+{
+  "currency": {
+    "symbol": "⚘",
+    "name": "Bloom",
+    "code": "BLOOM",
+    "description": "Fictieve game valuta - veilig voor kinderen"
+  },
+  "availableCurrencies": [
+    {
+      "symbol": "⚘",
+      "name": "Bloom",
+      "code": "BLOOM",
+      "description": "Fictieve game valuta - veilig voor kinderen"
+    },
+    {
+      "symbol": "€",
+      "name": "Euro",
+      "code": "EUR",
+      "description": "Europese munteenheid - realistischer"
+    },
+    {
+      "symbol": "$",
+      "name": "Dollar",
+      "code": "USD",
+      "description": "Amerikaanse dollar"
+    },
+    {
+      "symbol": "₿",
+      "name": "Bitcoin",
+      "code": "BTC",
+      "description": "Crypto symbool - thematisch passend"
+    },
+    {
+      "symbol": "💎",
+      "name": "Gems",
+      "code": "GEM",
+      "description": "Edelstenen - speels en visueel"
+    }
+  ]
+}

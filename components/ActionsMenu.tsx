@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { ShoppingCart, TrendingDown, Gift, Dice5, ArrowLeftRight, ScrollText } from 'lucide-react'
+import { ShoppingCart, Gift, ArrowLeftRight, ScrollText, Rocket, Banknote, ArrowUpRight, Eye } from 'lucide-react'
 import Header from './Header'
 import EventPopup, { ScanEffect } from './EventPopup'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface ScanAction {
   id: string
@@ -25,9 +26,12 @@ interface ActionsMenuProps {
   playerScanActions?: any[]
   autoScanActions?: any[]
   turnTimeLeft?: number
+  onShowInsider?: () => void
+  insiderUsed?: boolean
 }
 
-export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onApplyScanEffect, onEndTurnConfirm, onTriggerEvent, actionsDisabled, playerScanActions = [], autoScanActions = [], turnTimeLeft = 120 }: ActionsMenuProps) {
+export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onApplyScanEffect, onEndTurnConfirm, onTriggerEvent, actionsDisabled, playerScanActions = [], autoScanActions = [], turnTimeLeft = 120, onShowInsider, insiderUsed = false }: ActionsMenuProps) {
+  const { t } = useLanguage()
   const [showScan, setShowScan] = useState(false)
   const [actionsEnabled, setActionsEnabled] = useState(true)
   
@@ -49,11 +53,19 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
     // Don't call setShowScan(false) here - ScanResult component handles onClose itself
   }, [onApplyScanEffect])
   
-  const actionButtons = [
+  const actionButtons: Array<{
+    id: string
+    title: string
+    icon: any
+    tileClasses: string
+    iconClasses: string
+    action: () => void
+    preview?: () => JSX.Element
+  }> = [
     {
       id: 'kans',
-      title: 'Event',
-      icon: Dice5,
+      title: t('actionsMenu.event'),
+      icon: Rocket,
       // Donker tile met blauwe accent-glow (matcht Markt-tegel vibe)
       tileClasses:
         'from-gray-900/95 via-blue-500/5 to-gray-900/95 border-2 border-blue-500/70 ring-1 ring-blue-500/40 shadow-lg shadow-blue-500/30',
@@ -71,30 +83,8 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
       }
     },
     {
-      id: 'buy',
-      title: 'Kopen',
-      icon: ShoppingCart,
-      // Groen accent, zoals koop/markt
-      tileClasses:
-        'from-gray-900/95 via-emerald-500/5 to-gray-900/95 border-2 border-emerald-500/70 ring-1 ring-emerald-500/40 shadow-lg shadow-emerald-500/30',
-      iconClasses:
-        'from-green-500/25 to-emerald-500/25 border border-emerald-400/70 ring-1 ring-emerald-400/60',
-      action: () => onNavigate('buy')
-    },
-    {
-      id: 'sell',
-      title: 'Verkopen',
-      icon: TrendingDown,
-      // Rood accent voor verkopen
-      tileClasses:
-        'from-gray-900/95 via-rose-500/5 to-gray-900/95 border-2 border-rose-500/70 ring-1 ring-rose-500/40 shadow-lg shadow-rose-500/30',
-      iconClasses:
-        'from-red-500/25 to-rose-500/25 border border-rose-400/70 ring-1 ring-rose-400/60',
-      action: () => onNavigate('sell')
-    },
-    {
       id: 'win',
-      title: 'Win',
+      title: t('actionsMenu.win'),
       icon: Gift,
       // Goud/oranje accent voor win-gevoel
       tileClasses:
@@ -104,8 +94,30 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
       action: () => onNavigate('win')
     },
     {
+      id: 'sell',
+      title: t('actionsMenu.sell'),
+      icon: Banknote,
+      // Rood accent voor verkopen
+      tileClasses:
+        'from-gray-900/95 via-rose-500/5 to-gray-900/95 border-2 border-rose-500/70 ring-1 ring-rose-500/40 shadow-lg shadow-rose-500/30',
+      iconClasses:
+        'from-red-500/25 to-rose-500/25 border border-rose-400/70 ring-1 ring-rose-400/60',
+      action: () => onNavigate('sell')
+    },
+    {
+      id: 'buy',
+      title: t('actionsMenu.buy'),
+      icon: ShoppingCart,
+      // Groen accent, zoals koop/markt
+      tileClasses:
+        'from-gray-900/95 via-emerald-500/5 to-gray-900/95 border-2 border-emerald-500/70 ring-1 ring-emerald-500/40 shadow-lg shadow-emerald-500/30',
+      iconClasses:
+        'from-green-500/25 to-emerald-500/25 border border-emerald-400/70 ring-1 ring-emerald-400/60',
+      action: () => onNavigate('buy')
+    },
+    {
       id: 'swap',
-      title: 'Swap',
+      title: t('actionsMenu.swap'),
       icon: ArrowLeftRight,
       // Oranje accent voor swap
       tileClasses:
@@ -115,41 +127,22 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
       action: () => onNavigate('swap')
     },
     {
-      id: 'activity',
-      title: 'Activiteiten',
-      icon: ScrollText,
-      // Cyan accent voor activiteiten
+      id: 'insider',
+      title: t('actionsMenu.insider'),
+      icon: Eye,
+      // Purple/violet accent voor insider info
       tileClasses:
-        'from-gray-900/95 via-cyan-500/5 to-gray-900/95 border-2 border-cyan-500/70 ring-1 ring-cyan-500/40 shadow-lg shadow-cyan-500/30',
+        'from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 shadow-lg shadow-purple-500/30',
       iconClasses:
-        'from-cyan-500/25 to-blue-500/25 border border-cyan-400/70 ring-1 ring-cyan-400/60',
-      action: () => onNavigate('activity'),
-      preview: () => {
-        const recentActions = [...playerScanActions, ...autoScanActions]
-          .sort((a, b) => b.timestamp - a.timestamp)
-          .slice(0, 3)
-        
-        if (recentActions.length === 0) {
-          return (
-            <div className="text-center py-1">
-              <span className="text-xs text-white/50">Nog geen acties</span>
-            </div>
-          )
+        'from-purple-500/25 to-violet-500/25 border border-purple-400/70 ring-1 ring-purple-400/60',
+      action: () => {
+        console.log('🕵️ Insider button clicked!')
+        if (onShowInsider) {
+          console.log('✅ Calling onShowInsider')
+          onShowInsider()
+        } else {
+          console.error('❌ onShowInsider is not defined!')
         }
-        
-        return (
-          <div className="space-y-1">
-            {recentActions.map((action) => (
-              <div key={action.id} className="flex items-center justify-between text-xs">
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-sm">{action.avatar || '👤'}</span>
-                  <span className="text-white/90 font-medium truncate max-w-[70px]">{action.player}</span>
-                </div>
-                <span className="text-white/60 text-[10px] truncate max-w-[90px]">{action.action}</span>
-              </div>
-            ))}
-          </div>
-        )
       }
     }
   ]
@@ -174,7 +167,8 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
         <div className="grid grid-cols-2 gap-4">
           {actionButtons.map((button) => {
             const Icon = button.icon
-            const disabled = !actionsEnabled || !!actionsDisabled
+            const isInsiderButton = button.id === 'insider'
+            const disabled = !actionsEnabled || !!actionsDisabled || (isInsiderButton && insiderUsed)
             return (
               <button
                 key={button.id}
@@ -210,7 +204,13 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
                       <div
                         className={`p-3 bg-gradient-to-br ${button.iconClasses} rounded-xl shadow-inner`}
                       >
-                        <Icon className="w-9 h-9 text-white" />
+                        {button.id === 'sell' ? (
+                          <span className="relative inline-block">
+                            <Banknote className="w-9 h-9 text-white" />
+                          </span>
+                        ) : (
+                          <Icon className="w-9 h-9 text-white" />
+                        )}
                       </div>
                       <h3 className="text-lg font-bold text-white tracking-tight">{button.title}</h3>
                     </div>
@@ -235,7 +235,7 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
             onClick={() => onNavigate('main-menu')}
             className="w-full crypto-card bg-gray-600/20 hover:bg-gray-600/30 border border-gray-600/50 text-gray-300 font-semibold py-3 px-4 rounded-lg hover:scale-105 transition-transform"
           >
-            ← Terug naar Menu
+            {t('actionsMenu.backToMenu')}
           </button>
         </div>
       </div>

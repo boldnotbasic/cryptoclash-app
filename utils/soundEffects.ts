@@ -11,8 +11,9 @@ const SOUND_URLS = {
 // Background music element (persistent)
 let backgroundMusic: HTMLAudioElement | null = null
 
-// MASTER sound toggle - controls ALL sounds (music + effects)
-let masterSoundEnabled = false
+// Separate controls for background music and sound effects
+let backgroundMusicEnabled = false
+let soundEffectsEnabled = true
 
 // Initialize background music only
 if (typeof window !== 'undefined') {
@@ -29,8 +30,8 @@ if (typeof window !== 'undefined') {
 
 // Helper: Play a one-shot sound effect
 const playSoundEffect = (url: string, volume: number = 0.8) => {
-  if (!masterSoundEnabled) {
-    console.log('🔇 Sound muted - master toggle is OFF')
+  if (!soundEffectsEnabled) {
+    console.log('🔇 Sound effects muted')
     return
   }
   
@@ -45,10 +46,10 @@ const playSoundEffect = (url: string, volume: number = 0.8) => {
   }
 }
 
-// Set master sound state (controls ALL sounds)
-export const setMasterSoundEnabled = (enabled: boolean) => {
-  console.log(`🔊 Master sound: ${enabled ? 'ON' : 'OFF'}`)
-  masterSoundEnabled = enabled
+// Set background music state
+export const setBackgroundMusicEnabled = (enabled: boolean) => {
+  console.log(`🎵 Background music: ${enabled ? 'ON' : 'OFF'}`)
+  backgroundMusicEnabled = enabled
   
   if (enabled) {
     // Start background music
@@ -66,18 +67,25 @@ export const setMasterSoundEnabled = (enabled: boolean) => {
   }
 }
 
-// Check if master sound is enabled
-export const isMasterSoundEnabled = () => masterSoundEnabled
+// Set sound effects state
+export const setSoundEffectsEnabled = (enabled: boolean) => {
+  console.log(`🔊 Sound effects: ${enabled ? 'ON' : 'OFF'}`)
+  soundEffectsEnabled = enabled
+}
+
+// Check if background music is enabled
+export const isBackgroundMusicEnabled = () => backgroundMusicEnabled
+
+// Check if sound effects are enabled
+export const areSoundEffectsEnabled = () => soundEffectsEnabled
 
 // Play positive sound (stijging)
-export const playPositiveSound = (forceMuted: boolean = false) => {
-  if (forceMuted) return
+export const playPositiveSound = () => {
   playSoundEffect(SOUND_URLS.positive, 0.8)
 }
 
 // Play negative sound (daling)
-export const playNegativeSound = (forceMuted: boolean = false) => {
-  if (forceMuted) return
+export const playNegativeSound = () => {
   playSoundEffect(SOUND_URLS.negative, 0.8)
 }
 
@@ -88,22 +96,22 @@ export const playForecastSound = () => {
 
 // Play background music
 export const playBackgroundMusic = () => {
-  setMasterSoundEnabled(true)
+  setBackgroundMusicEnabled(true)
 }
 
 // Pause background music
 export const pauseBackgroundMusic = () => {
-  setMasterSoundEnabled(false)
+  setBackgroundMusicEnabled(false)
 }
 
-// Toggle all sounds
+// Toggle background music
 export const toggleBackgroundMusic = (isPlaying: boolean) => {
-  setMasterSoundEnabled(isPlaying)
+  setBackgroundMusicEnabled(isPlaying)
 }
 
-// Check if sounds are enabled
+// Check if background music is playing
 export const isBackgroundMusicPlaying = () => {
-  return masterSoundEnabled
+  return backgroundMusicEnabled
 }
 
 // Determine if event is positive based on keywords

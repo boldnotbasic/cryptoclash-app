@@ -171,7 +171,7 @@ export class SyncMonitor {
       const latestEvent = playerEvents[0]
       
       report += `👤 Player: ${latestEvent?.playerName || playerId}\n`
-      report += `   💯 Latest Total: €${latestEvent?.data.totalValue?.toFixed(2) || 'N/A'}\n`
+      report += `   💯 Latest Total: ⚘${latestEvent?.data.totalValue?.toFixed(2) || 'N/A'}\n`
       report += `   📈 Events: ${playerEvents.length}\n`
       report += `   ⚠️ Conflict Rate: ${analysis.conflictRate.toFixed(1)}%\n`
       report += `   🏥 Health: ${analysis.syncHealth.toUpperCase()}\n\n`
@@ -241,7 +241,7 @@ export class SyncMonitor {
     }[event.type]
 
     console.log(
-      `%c${emoji} SYNC ${event.type.toUpperCase()}: ${event.playerName} → €${event.data.totalValue.toFixed(2)} (${event.source})`,
+      `%c${emoji} SYNC ${event.type.toUpperCase()}: ${event.playerName} → ⚘${event.data.totalValue.toFixed(2)} (${event.source})`,
       color
     )
 

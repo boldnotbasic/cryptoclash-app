@@ -1,9 +1,13 @@
 "use client"
 
 import { useState } from 'react'
-import { Gift, Coins } from 'lucide-react'
+import { Gift, Coins, TrendingUp, TrendingDown } from 'lucide-react'
 import Header from './Header'
 import SpinWheel from './SpinWheel'
+import CandlestickChart from './CandlestickChart'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatCurrency } from '@/utils/currency'
 
 interface CryptoCurrency {
   id: string
@@ -18,6 +22,11 @@ interface CryptoCurrency {
   marketCap: number
 }
 
+interface PriceChange {
+  percentage: number
+  timestamp: number
+}
+
 interface WinProps {
   playerName: string
   playerAvatar: string
@@ -26,6 +35,7 @@ interface WinProps {
   onWinCrypto: (cryptoSymbol: string) => void
   onWinCash: () => void
   onWinGoldHen: () => void
+  priceHistory?: Record<string, PriceChange[]>
 }
 
 const getCryptoImagePath = (symbol: string): string | null => {
@@ -47,8 +57,11 @@ export default function Win({
   onNavigate,
   onWinCrypto,
   onWinCash,
-  onWinGoldHen
+  onWinGoldHen,
+  priceHistory = {}
 }: WinProps) {
+  const { t } = useLanguage()
+  const { currency } = useCurrency()
   const topCryptos = cryptos.slice(0, 6)
   const [selectedType, setSelectedType] = useState<'crypto' | 'cash' | 'wheel' | null>(null)
   const [selectedCryptoSymbol, setSelectedCryptoSymbol] = useState<string | null>(null)
@@ -85,14 +98,14 @@ export default function Win({
     if (selectedType === 'crypto' && selectedCryptoSymbol) {
       onWinCrypto(selectedCryptoSymbol)
       const coin = cryptos.find(c => c.symbol === selectedCryptoSymbol)
-      setSuccessMessage(`Je hebt 1 ${coin?.name || selectedCryptoSymbol} gewonnen!`)
+      setSuccessMessage(`${t('win.youWon')} 1 ${coin?.name || selectedCryptoSymbol}!`)
     } else if (selectedType === 'cash' && selectedCashOption) {
       if (selectedCashOption === '500') {
         onWinCash()
-        setSuccessMessage('Je hebt €500 cash gewonnen!')
+        setSuccessMessage(t('win.youWonCash500'))
       } else {
         onWinGoldHen()
-        setSuccessMessage('Je hebt het Goudhaantje gewonnen: €1000 cash!')
+        setSuccessMessage(t('win.youWonGoldHen'))
       }
     }
   }
@@ -108,23 +121,18 @@ export default function Win({
 
         {/* Page Header - zelfde stijl als Kopen kaart */}
         <div className="crypto-card mb-4 text-center">
-          <h1 className="text-2xl font-bold text-white mb-1">Win Crypto of Cash</h1>
+          <h1 className="text-2xl font-bold text-white mb-1">{t('win.title')}</h1>
           <p className="text-gray-400 text-sm">
-            Kies een munt om 1 extra coin te winnen of kies voor een cash bonus.
+            {t('win.subtitle')}
           </p>
         </div>
 
-        {/* Opties grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {/* Win Crypto kaart */}
-          <div className="crypto-card p-4 bg-dark-bg/70 flex flex-col">
+        {/* Win Crypto kaart */}
+        <div className="crypto-card p-4 bg-dark-bg/70 flex flex-col mb-4">
             <div className="flex items-center mb-3">
               <Gift className="w-6 h-6 text-neon-turquoise mr-2" />
-              <h2 className="text-lg font-bold text-white">Win Crypto</h2>
+              <h2 className="text-lg font-bold text-white">{t('win.winCryptoTitle')}</h2>
             </div>
-            <p className="text-gray-300 text-sm mb-3">
-              Kies één van de munten hieronder om direct 1 extra coin aan je wallet toe te voegen.
-            </p>
             {/* Zelfde tegelstijl als Kopen: 2 kolommen, brede tegels */}
             <div className="grid grid-cols-2 gap-3 mt-auto">
               {topCryptos.map((crypto) => {
@@ -170,11 +178,30 @@ export default function Win({
                         <div className="flex items-center justify-between">
                           <div className="text-white font-semibold truncate mr-2">{crypto.name}</div>
                           <div className="text-neon-turquoise font-bold whitespace-nowrap">
-                            €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatCurrency(crypto.price, currency.symbol)}
                           </div>
                         </div>
-                        <div className="flex items-center justify-between mt-1">
+                        <div className="flex items-center justify-between mt-0.5">
                           <div className="text-gray-400 text-xs">{crypto.symbol}</div>
+                          {typeof crypto.change24h === 'number' && (
+                            <div
+                              className={`text-xs px-1.5 py-0.5 rounded-sm border flex items-center space-x-1 ${
+                                (crypto.change24h || 0) >= 0
+                                  ? 'text-green-400 border-green-400/30'
+                                  : 'text-red-400 border-red-400/30'
+                              }`}
+                            >
+                              {(crypto.change24h || 0) >= 0 ? (
+                                <TrendingUp className="w-3 h-3" />
+                              ) : (
+                                <TrendingDown className="w-3 h-3" />
+                              )}
+                              <span>
+                                {(crypto.change24h || 0) >= 0 ? '+' : ''}
+                                {(crypto.change24h || 0).toFixed(1)}%
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -184,20 +211,37 @@ export default function Win({
             </div>
           </div>
 
-          {/* Win Cash kaart met twee opties */}
-          <div className="crypto-card p-4 bg-dark-bg/70 flex flex-col">
+        {/* Spin the Wheel - Full width between widgets */}
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedType('wheel')
+            setSelectedCryptoSymbol(null)
+            setSelectedCashOption(null)
+            setShowWheel(true)
+          }}
+          className={`w-full p-4 rounded-xl transition shadow-sm bg-dark-bg/40 text-left flex items-center justify-center gap-3 mb-4 ${
+            selectedType === 'wheel'
+              ? 'border-4 border-neon-purple shadow-[0_0_32px_rgba(168,85,247,1)] ring-2 ring-neon-purple/50'
+              : 'border-2 border-purple-500/30 hover:border-purple-500/50'
+          }`}
+        >
+          <div className="text-6xl">🎡</div>
+          <div className="text-center">
+            <div className="text-white font-bold text-xl mb-1">{t('win.spinTheWheel')}</div>
+            <div className="text-purple-300 text-sm">{t('win.winRandomCrypto')}</div>
+          </div>
+        </button>
+
+        {/* Win Cash kaart met twee opties */}
+        <div className="crypto-card p-4 bg-dark-bg/70 flex flex-col mb-6">
             <div className="flex items-center mb-3">
               <Coins className="w-6 h-6 text-neon-gold mr-2" />
-              <h2 className="text-lg font-bold text-white">Win Cash</h2>
+              <h2 className="text-lg font-bold text-white">{t('win.winCashTitle')}</h2>
             </div>
-            <p className="text-gray-300 text-sm mb-4">
-              Kies een cash prijs:
-              <span className="text-neon-gold font-semibold"> €500</span> of
-              <span className="text-neon-gold font-semibold"> Goudhaantje €1000</span> in je Cash Wallet.
-            </p>
 
             <div className="grid grid-cols-2 gap-3 mt-auto">
-              {/* €500 Cash tegel */}
+              {/* ⚘500 Cash tegel */}
               <button
                 type="button"
                 onClick={() => handleSelectCash('500')}
@@ -211,7 +255,7 @@ export default function Win({
                 <div className="relative w-28 h-28 md:w-32 md:h-32 rounded-xl bg-transparent flex items-center justify-center overflow-visible -mt-6 mb-1">
                   <img
                     src="/wincash.png"
-                    alt="€500 Cash"
+                    alt="⚘500 Cash"
                     width={120}
                     height={120}
                     className="object-contain drop-shadow-[0_0_32px_rgba(0,0,0,1)]"
@@ -219,12 +263,12 @@ export default function Win({
                   />
                 </div>
                 <div className="w-full text-center mt-1">
-                  <div className="text-white font-semibold text-sm mb-0.5">€500 Cash</div>
-                  <div className="text-gray-400 text-xs">Direct in Cash Wallet</div>
+                  <div className="text-white font-semibold text-sm mb-0.5">{t('win.cash500')}</div>
+                  <div className="text-gray-400 text-xs">{t('win.directToCashWallet')}</div>
                 </div>
               </button>
 
-              {/* Goudhaantje €1000 tegel */}
+              {/* Goudhaantje ⚘1000 tegel */}
               <button
                 type="button"
                 onClick={() => handleSelectCash('gold')}
@@ -238,7 +282,7 @@ export default function Win({
                 <div className="relative w-28 h-28 md:w-32 md:h-32 rounded-xl bg-transparent flex items-center justify-center overflow-visible -mt-6 mb-1">
                   <img
                     src="/goudhaantje.png"
-                    alt="Goudhaantje €1000"
+                    alt="Goudhaantje ⚘1000"
                     width={120}
                     height={120}
                     className="object-contain drop-shadow-[0_0_32px_rgba(0,0,0,1)]"
@@ -246,35 +290,12 @@ export default function Win({
                   />
                 </div>
                 <div className="w-full text-center mt-1">
-                  <div className="text-neon-gold font-semibold text-sm mb-0.5">Goudhaantje €1000</div>
-                  <div className="text-gray-400 text-xs">Premium cash prijs</div>
+                  <div className="text-white font-semibold text-sm mb-0.5">{t('win.goldHen1000')}</div>
+                  <div className="text-gray-400 text-xs">{t('win.premiumCashPrize')}</div>
                 </div>
               </button>
             </div>
           </div>
-
-          {/* Spin the Wheel - Full width below cash options */}
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedType('wheel')
-              setSelectedCryptoSymbol(null)
-              setSelectedCashOption(null)
-              setShowWheel(true)
-            }}
-            className={`w-full p-4 rounded-xl transition shadow-sm bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-left flex items-center justify-center gap-3 ${
-              selectedType === 'wheel'
-                ? 'border-4 border-neon-purple shadow-[0_0_32px_rgba(168,85,247,1)] ring-2 ring-neon-purple/50'
-                : 'border-2 border-purple-500/30 hover:border-purple-500/50'
-            }`}
-          >
-            <div className="text-6xl">🎡</div>
-            <div className="text-center">
-              <div className="text-white font-bold text-xl mb-1">Spin the Wheel!</div>
-              <div className="text-purple-300 text-sm">Win een willekeurige crypto</div>
-            </div>
-          </button>
-        </div>
 
         {/* Overzicht + Valideren */}
         <div className="crypto-card">
@@ -283,7 +304,7 @@ export default function Win({
               {selectedType === 'crypto' && selectedCryptoSymbol ? (
                 (() => {
                   const coin = cryptos.find(c => c.symbol === selectedCryptoSymbol)
-                  if (!coin) return <div>Kies een prijs</div>
+                  if (!coin) return <div>{t('win.chooseAPrize')}</div>
                   const imagePath = getCryptoImagePath(coin.symbol)
                   return (
                     <div className="flex items-center gap-3">
@@ -303,7 +324,7 @@ export default function Win({
                       </div>
                       <div>
                         <div className="text-white font-semibold">{coin.name}</div>
-                        <div className="text-sm text-gray-400">Win 1 coin</div>
+                        <div className="text-sm text-gray-400">{t('win.win1Coin')}</div>
                       </div>
                     </div>
                   )
@@ -313,7 +334,7 @@ export default function Win({
                   <div className="w-9 h-9 rounded-full bg-white/10 overflow-hidden flex items-center justify-center">
                     <img
                       src={selectedCashOption === '500' ? '/wincash.png' : '/goudhaantje.png'}
-                      alt={selectedCashOption === '500' ? '€500 Cash' : 'Goudhaantje €1000'}
+                      alt={selectedCashOption === '500' ? '⚘500 Cash' : 'Goudhaantje ⚘1000'}
                       width={32}
                       height={32}
                       className="object-contain"
@@ -322,31 +343,31 @@ export default function Win({
                   </div>
                   <div>
                     <div className="text-white font-semibold">
-                      {selectedCashOption === '500' ? '€500 Cash' : 'Goudhaantje €1000'}
+                      {selectedCashOption === '500' ? t('win.cash500') : t('win.goldHen1000')}
                     </div>
-                    <div className="text-sm text-gray-400">Wordt toegevoegd aan Cash Wallet</div>
+                    <div className="text-sm text-gray-400">{t('win.addedToCashWallet')}</div>
                   </div>
                 </div>
               ) : (
-                <div>Kies een prijs</div>
+                <div>{t('win.chooseAPrize')}</div>
               )}
             </div>
             {selectedType && (
               <div className="text-right">
-                <div className="text-gray-400 text-sm">Waarde</div>
+                <div className="text-gray-400 text-sm">{t('win.value')}</div>
                 <div className="text-white font-bold text-xl">
                   {selectedType === 'crypto' && selectedCryptoSymbol
                     ? (() => {
                         const coin = cryptos.find(c => c.symbol === selectedCryptoSymbol)
                         return coin
-                          ? `€${coin.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                          : '€0,00'
+                          ? `⚘${coin.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : '⚘0,00'
                       })()
                     : selectedType === 'cash' && selectedCashOption === '500'
-                      ? '€500,00'
+                      ? '⚘500,00'
                       : selectedType === 'cash' && selectedCashOption === 'gold'
-                        ? '€1.000,00'
-                        : '€0,00'}
+                        ? '⚘1.000,00'
+                        : '⚘0,00'}
                 </div>
               </div>
             )}
@@ -358,7 +379,7 @@ export default function Win({
               onClick={() => onNavigate('actions-menu')}
               className="flex-1 crypto-card bg-gray-600/20 hover:bg-gray-600/30 text-gray-200 py-2 rounded-lg"
             >
-              Terug
+              {t('common.back')}
             </button>
             <button
               type="button"
@@ -370,7 +391,7 @@ export default function Win({
                   : 'bg-neon-gold text-black hover:opacity-90'
               }`}
             >
-              {selectedType === 'wheel' ? 'Draai het rad!' : 'Valideren'}
+              {selectedType === 'wheel' ? t('win.spinTheWheel') : t('win.validate')}
             </button>
           </div>
         </div>
@@ -379,7 +400,7 @@ export default function Win({
       {successMessage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="crypto-card bg-dark-bg/95 border border-neon-gold/40 max-w-xs w-full text-center p-6">
-            <h3 className="text-xl font-bold text-white mb-2">Gefeliciteerd!</h3>
+            <h3 className="text-xl font-bold text-white mb-2">{t('win.congratulations')}</h3>
             <p className="text-gray-300 mb-4">{successMessage}</p>
             <button
               type="button"
@@ -389,7 +410,7 @@ export default function Win({
               }}
               className="w-full py-2 rounded-lg bg-neon-gold text-black font-semibold hover:opacity-90 transition"
             >
-              Ok
+              {t('common.ok')}
             </button>
           </div>
         </div>
@@ -406,7 +427,8 @@ export default function Win({
           onWinCrypto={(symbol) => {
             onWinCrypto(symbol)
             setShowWheel(false)
-            setSuccessMessage(`Je hebt 1 ${cryptos.find(c => c.symbol === symbol)?.name || symbol} gewonnen!`)
+            const coin = cryptos.find(c => c.symbol === symbol)
+            setSuccessMessage(`${t('win.youWon')} 1 ${coin?.name || symbol}!`)
           }}
         />
       )}

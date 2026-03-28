@@ -3,6 +3,7 @@
 import { Settings as SettingsIcon, Globe, Palette, Moon, Sun, Check, ArrowLeft } from 'lucide-react'
 import { useApp } from '@/contexts/AppContext'
 import Header from './Header'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 type Theme = 'dark' | 'light'
 
@@ -23,6 +24,7 @@ const languages = [
 
 export default function Settings({ onBack, playerName, playerAvatar }: SettingsProps) {
   const { language: currentLanguage, theme: currentTheme, setLanguage, setTheme } = useApp()
+  const { t } = useLanguage()
 
   return (
     <div className={`min-h-screen p-4 ${currentTheme === 'light' ? 'bg-white' : 'bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10'}`}>
@@ -41,8 +43,8 @@ export default function Settings({ onBack, playerName, playerAvatar }: SettingsP
           <div className="flex items-center space-x-2">
             <SettingsIcon className={`w-8 h-8 ${currentTheme === 'light' ? 'text-blue-600' : 'text-neon-gold'}`} />
             <div>
-              <h1 className={`text-3xl font-bold ${currentTheme === 'light' ? 'text-gray-900' : 'text-white'}`}>Instellingen</h1>
-              <p className={currentTheme === 'light' ? 'text-gray-600' : 'text-gray-400'}>Pas je app voorkeuren aan</p>
+              <h1 className={`text-3xl font-bold ${currentTheme === 'light' ? 'text-gray-900' : 'text-white'}`}>{t('settings.title')}</h1>
+              <p className={currentTheme === 'light' ? 'text-gray-600' : 'text-gray-400'}>{t('settings.subtitle')}</p>
             </div>
           </div>
           
@@ -54,7 +56,7 @@ export default function Settings({ onBack, playerName, playerAvatar }: SettingsP
           <div className={`p-6 rounded-lg ${currentTheme === 'light' ? 'bg-white border-gray-200 shadow-lg border' : 'crypto-card'}`}>
             <div className="flex items-center space-x-3 mb-6">
               <Globe className={`w-6 h-6 ${currentTheme === 'light' ? 'text-blue-600' : 'text-neon-gold'}`} />
-              <h2 className={`text-2xl font-bold ${currentTheme === 'light' ? 'text-gray-900' : 'text-white'}`}>Taal / Language</h2>
+              <h2 className={`text-2xl font-bold ${currentTheme === 'light' ? 'text-gray-900' : 'text-white'}`}>{t('settings.language')}</h2>
             </div>
             
             <div className="grid grid-cols-4 gap-3">
@@ -79,7 +81,7 @@ export default function Settings({ onBack, playerName, playerAvatar }: SettingsP
           <div className={`p-6 rounded-lg ${currentTheme === 'light' ? 'bg-white border-gray-200 shadow-lg border' : 'crypto-card'}`}>
             <div className="flex items-center space-x-3 mb-6">
               <Palette className={`w-6 h-6 ${currentTheme === 'light' ? 'text-blue-600' : 'text-neon-gold'}`} />
-              <h2 className={`text-2xl font-bold ${currentTheme === 'light' ? 'text-gray-900' : 'text-white'}`}>Thema</h2>
+              <h2 className={`text-2xl font-bold ${currentTheme === 'light' ? 'text-gray-900' : 'text-white'}`}>{t('settings.theme')}</h2>
             </div>
             
             <div className="space-y-3">
@@ -100,8 +102,8 @@ export default function Settings({ onBack, playerName, playerAvatar }: SettingsP
                     <Moon className="w-5 h-5 text-purple-400" />
                   </div>
                   <div className="text-left">
-                    <p className={`font-semibold ${currentTheme === 'light' ? 'text-gray-900' : 'text-white'}`}>Donker Thema</p>
-                    <p className={`text-sm ${currentTheme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>Neon kleuren en donkere achtergrond</p>
+                    <p className={`font-semibold ${currentTheme === 'light' ? 'text-gray-900' : 'text-white'}`}>{t('settings.darkTheme')}</p>
+                    <p className={`text-sm ${currentTheme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>{t('settings.darkThemeDesc')}</p>
                   </div>
                 </div>
                 {currentTheme === 'dark' && (
@@ -126,8 +128,8 @@ export default function Settings({ onBack, playerName, playerAvatar }: SettingsP
                     <Sun className="w-5 h-5 text-yellow-600" />
                   </div>
                   <div className="text-left">
-                    <p className={`font-semibold ${currentTheme === 'light' ? 'text-gray-900' : 'text-white'}`}>Licht Thema</p>
-                    <p className={`text-sm ${currentTheme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>Heldere kleuren en lichte achtergrond</p>
+                    <p className={`font-semibold ${currentTheme === 'light' ? 'text-gray-900' : 'text-white'}`}>{t('settings.lightTheme')}</p>
+                    <p className={`text-sm ${currentTheme === 'light' ? 'text-gray-600' : 'text-gray-400'}`}>{t('settings.lightThemeDesc')}</p>
                   </div>
                 </div>
                 {currentTheme === 'light' && (
@@ -141,7 +143,7 @@ export default function Settings({ onBack, playerName, playerAvatar }: SettingsP
         {/* Save Notice */}
         <div className={`mt-6 p-4 rounded-lg ${currentTheme === 'light' ? 'bg-green-50 border border-green-200' : 'bg-green-900/20 border border-green-500'}`}>
           <p className={`text-center ${currentTheme === 'light' ? 'text-green-800' : 'text-green-400'}`}>
-            ✅ Je instellingen worden automatisch opgeslagen
+            {t('settings.autoSave')}
           </p>
         </div>
       </div>

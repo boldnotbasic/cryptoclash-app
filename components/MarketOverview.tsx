@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { ArrowLeft, TrendingUp, TrendingDown } from 'lucide-react'
+import { ArrowLeft, TrendingUp, TrendingDown, Trophy } from 'lucide-react'
 import Header from './Header'
 import CandlestickChart from './CandlestickChart'
 import CryptoDetail from './CryptoDetail'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface CryptoCurrency {
   id: string
@@ -46,6 +47,7 @@ interface MarketOverviewProps {
 }
 
 export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, onBack, priceHistory = {}, momentumIndicator = {}, candlestickChart = {}, onEndTurnConfirm, actionsDisabled = false }: MarketOverviewProps) {
+  const { t } = useLanguage()
   const [chartPeriod, setChartPeriod] = useState<'all' | 'last10' | 'last5'>('all')
   const [selectedCrypto, setSelectedCrypto] = useState<CryptoCurrency | null>(null)
   const [players, setPlayers] = useState<Player[]>([
@@ -192,7 +194,7 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white flex items-center space-x-2 mb-4">
             <TrendingUp className="w-6 h-6 text-neon-turquoise" />
-            <span>Markt</span>
+            <span>{t('mainMenu.market')}</span>
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></div>
           </h1>
           <div className="flex items-center justify-between gap-4">
@@ -213,7 +215,7 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
                     : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
                 }`}
               >
-                Sinds start
+                {t('common.sinceStart')}
               </button>
               <button
                 onClick={() => setChartPeriod('last10')}
@@ -223,7 +225,7 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
                     : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
                 }`}
               >
-                10 beurten
+                {t('common.tenTurns')}
               </button>
               <button
                 onClick={() => setChartPeriod('last5')}
@@ -233,7 +235,7 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
                     : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
                 }`}
               >
-                5 beurten
+                {t('common.fiveTurns')}
               </button>
             </div>
           </div>
@@ -291,7 +293,7 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
                         {crypto.name}
                       </div>
                       <div className="text-neon-turquoise font-bold whitespace-nowrap text-[11px] sm:text-xs">
-                        €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ⚘{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
 
@@ -330,7 +332,9 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
                               ? periodPercentage > 0 ? 'text-green-400' : 'text-red-400'
                               : periodPercentage > 0 ? 'text-green-500/60' : 'text-red-500/60'
                           }`}>
-                            {Math.abs(periodPercentage) > 15 ? (
+                            {periodPercentage === 0 ? (
+                              <span className="text-gray-500">-</span>
+                            ) : Math.abs(periodPercentage) > 15 ? (
                               periodPercentage > 0 ? (
                                 <>↗️ Sterk stijgend</>
                               ) : (
@@ -377,15 +381,16 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-bold text-[11px] truncate">{topGainer.symbol}</p>
-                    <p className="text-neon-gold text-[10px] font-bold">
-                      🏆 Top Performer
+                    <p className="text-neon-gold text-[10px] font-bold flex items-center gap-1">
+                      <Trophy className="w-3 h-3" />
+                      <span>Top Performer</span>
                     </p>
                     <div className="flex items-center space-x-2 mt-0.5">
                       <p className="text-green-400 text-[8px]">
                         +{getPercentageForPeriod(topGainer.symbol, topGainer.change24h || 0).toFixed(1)}%
                       </p>
                       <p className="text-neon-purple text-[8px]">
-                        €{topGainer.price.toFixed(0)}
+                        ⚘{topGainer.price.toFixed(0)}
                       </p>
                     </div>
                   </div>
@@ -430,7 +435,7 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
                           Meest waard
                         </p>
                         <p className="text-neon-purple text-[8px]">
-                          €{topValueCoin.price.toFixed(0)}
+                          ⚘{topValueCoin.price.toFixed(0)}
                         </p>
                       </div>
                     </div>

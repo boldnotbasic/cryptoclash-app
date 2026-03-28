@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ArrowLeft, Home, SkipForward } from 'lucide-react'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface HeaderProps {
   playerName: string
@@ -13,6 +14,7 @@ interface HeaderProps {
 }
 
 export default function Header({ playerName, playerAvatar, onLogoClick, onEndTurnConfirm, actionsDisabled, turnTimeLeft = 60 }: HeaderProps) {
+  const { t } = useLanguage()
   const [isEndTurnModalOpen, setIsEndTurnModalOpen] = useState(false)
 
   return (
@@ -52,7 +54,7 @@ export default function Header({ playerName, playerAvatar, onLogoClick, onEndTur
           className="crypto-card flex items-center justify-center py-3 bg-dark-bg/80 hover:bg-dark-bg/90 text-base font-semibold text-white gap-2 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Terug</span>
+          <span>{t('common.back')}</span>
         </button>
 
         <button
@@ -70,23 +72,23 @@ export default function Header({ playerName, playerAvatar, onLogoClick, onEndTur
           }`}
         >
           <SkipForward className="w-4 h-4" />
-          <span>Einde beurt</span>
+          <span>{t('common.endTurn')}</span>
         </button>
       </div>
 
       {isEndTurnModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-dark-bg/95 border border-white/10 rounded-lg p-5 w-80">
-            <h3 className="text-white font-bold text-lg mb-2 text-center">Je bent klaar?</h3>
+            <h3 className="text-white font-bold text-lg mb-2 text-center">{t('common.endTurnTitle')}</h3>
             <p className="text-gray-300 text-sm mb-4 text-center">
-              Wil je deze beurt afronden en terugkeren naar het hoofdscherm?
+              {t('common.endTurnDesc')}
             </p>
             <div className="flex items-center justify-between space-x-3">
               <button
                 className="flex-1 py-2 rounded-md bg-gray-700 text-white hover:bg-gray-600 transition"
                 onClick={() => setIsEndTurnModalOpen(false)}
               >
-                Annuleren
+                {t('common.cancel')}
               </button>
               <button
                 className="flex-1 py-2 rounded-md bg-neon-gold text-black font-semibold hover:opacity-90 transition"
@@ -97,7 +99,7 @@ export default function Header({ playerName, playerAvatar, onLogoClick, onEndTur
                   setIsEndTurnModalOpen(false)
                 }}
               >
-                Bevestigen
+                {t('common.confirm')}
               </button>
             </div>
           </div>

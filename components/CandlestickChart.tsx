@@ -69,7 +69,7 @@ export default function CandlestickChart({ priceHistory, maxBars = 6, currentPer
   
   // Add buffer for better visualization
   const dataRange = dataMax - dataMin
-  const buffer = Math.max(dataRange * 0.15, 2) // 15% buffer of minimaal €2
+  const buffer = Math.max(dataRange * 0.15, 2) // 15% buffer of minimaal ⚘2
   
   const fixedMin = dataMin - buffer
   const fixedMax = dataMax + buffer
@@ -224,7 +224,7 @@ export default function CandlestickChart({ priceHistory, maxBars = 6, currentPer
                 r="1.5"
                 fill={pointColor}
               >
-                <title>{point.price != null ? (isFirstPoint ? `Start: €${point.price.toFixed(2)}` : `€${point.price.toFixed(2)} (${point.percentage >= 0 ? '+' : ''}${point.percentage.toFixed(1)}%)`) : 'Geen data'}</title>
+                <title>{point.price != null ? (isFirstPoint ? `Start: ⚘${point.price.toFixed(2)}` : `⚘${point.price.toFixed(2)} (${point.percentage >= 0 ? '+' : ''}${point.percentage.toFixed(1)}%)`) : 'Geen data'}</title>
               </circle>
             </g>
           )

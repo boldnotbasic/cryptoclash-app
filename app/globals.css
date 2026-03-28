@@ -156,6 +156,17 @@
   }
 }
 
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @layer utilities {
   .animate-gold-glow-breathe {
     animation: gold-glow-breathe 2.6s ease-in-out infinite;
@@ -167,5 +178,9 @@
 
   .animate-gold-purple-glow-breathe {
     animation: gold-purple-glow-breathe 2.6s ease-in-out infinite;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.4s ease-out;
   }
 }

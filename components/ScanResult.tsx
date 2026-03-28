@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { CheckCircle, TrendingUp, TrendingDown, Zap, AlertTriangle, Gift } from 'lucide-react'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface ScanResultProps {
   onClose: () => void
@@ -150,6 +151,7 @@ const scanScenarios: ScanScenarioTemplate[] = [
 ]
 
 export default function ScanResult({ onClose, onApplyEffect, externalScenario }: ScanResultProps) {
+  const { t } = useLanguage()
   const [currentScenario, setCurrentScenario] = useState<ScanEffect | null>(null)
   const [isVisible, setIsVisible] = useState(false)
   const [progressStarted, setProgressStarted] = useState(false)
@@ -525,7 +527,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                       })()}
                       <div className="text-left">
                         <div className="text-white font-bold">{cryptoNames[currentScenario.topGainer.symbol] || currentScenario.topGainer.symbol}</div>
-                        <div className="text-xs text-gray-400">Sterkste Stijger</div>
+                        <div className="text-xs text-gray-400">{t('events.strongestGainer')}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -559,7 +561,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                       })()}
                       <div className="text-left">
                         <div className="text-white font-bold">{cryptoNames[currentScenario.topLoser.symbol] || currentScenario.topLoser.symbol}</div>
-                        <div className="text-xs text-gray-400">Sterkste Daler</div>
+                        <div className="text-xs text-gray-400">{t('events.strongestLoser')}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -603,7 +605,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                 }}
               ></div>
             </div>
-            Wordt automatisch toegepast...
+            {t('events.autoApplied')}
           </div>
         </div>
       </div>

@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Users, Play, Copy, Check, RefreshCw, Crown, UserPlus, Share, QrCode, GripVertical } from 'lucide-react'
+import { Users, Play, Copy, Check, RefreshCw, Crown, UserPlus, Share, QrCode, GripVertical, ChessPawn } from 'lucide-react'
 import { useSocket } from '@/hooks/useSocket'
 import QRCodeLib from 'qrcode'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface Player {
   id: string
@@ -22,6 +23,7 @@ interface WaitingRoomProps {
 }
 
 export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = false, playerName, playerAvatar }: WaitingRoomProps) {
+  const { t } = useLanguage()
   const { socket, connected, room, error, startGame, clearError, joinRoom } = useSocket()
   const [copied, setCopied] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
@@ -30,6 +32,7 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
   const [lastTestMessage, setLastTestMessage] = useState<string | null>(null)
   const [testFeedback, setTestFeedback] = useState<{type: 'success' | 'error', message: string} | null>(null)
   const [showQRCode, setShowQRCode] = useState(false)
+  const [showTips, setShowTips] = useState(false)
   const qrCanvasRef = useRef<HTMLCanvasElement>(null)
   const qrWidgetCanvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -458,9 +461,9 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
 
   const getTimeSinceJoined = (joinedAt: number) => {
     const seconds = Math.floor((Date.now() - joinedAt) / 1000)
-    if (seconds < 60) return `${seconds}s geleden`
+    if (seconds < 60) return `${seconds}${t('waitingRoom.agoseconds')}`
     const minutes = Math.floor(seconds / 60)
-    return `${minutes}m geleden`
+    return `${minutes}${t('waitingRoom.agominutes')}`
   }
 
   return (
@@ -474,10 +477,10 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
             </div>
           </div>
           <h1 className="text-4xl font-bold text-white mb-2">
-            {isHost ? 'Market Screen - Wachtlobby' : 'Wachtlobby'}
+            {isHost ? t('waitingRoom.titleHost') : t('waitingRoom.titlePlayer')}
           </h1>
           <p className="text-gray-400">
-            {isHost ? 'Informatief scherm - Wacht tot spelers klaar zijn' : 'Wacht tot de host het spel start'}
+            {isHost ? t('waitingRoom.subtitleHost') : t('waitingRoom.subtitlePlayer')}
           </p>
         </div>
 
@@ -498,73 +501,69 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* Spel Overzicht */}
           <div className="crypto-card lg:col-span-2">
-            <h3 className="text-xl font-bold text-white mb-4">Spel Overzicht</h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div>
-              <div className="text-gray-400 text-sm">Lobby ID</div>
-              <div className="text-neon-purple font-bold text-2xl font-mono">{roomId}</div>
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={copyToClipboard}
-                  className="flex-1 px-3 py-2 bg-neon-purple/20 hover:bg-neon-purple/30 border border-neon-purple/50 text-neon-purple rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-1.5"
-                >
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {copied ? 'Gekopieerd!' : 'Kopieer'}
-                </button>
-                <button
-                  onClick={() => setShowQRCode(true)}
-                  className="flex-1 px-3 py-2 bg-neon-gold/20 hover:bg-neon-gold/30 border-2 border-neon-gold/50 text-neon-gold rounded-lg text-sm font-bold transition-all hover:scale-105 flex items-center justify-center gap-1.5 shadow-[0_0_10px_rgba(251,191,36,0.3)]"
-                >
-                  <QrCode className="w-4 h-4" />
-                  Toon QR
-                </button>
+            <div className="mb-4">
+            <h3 className="text-xl font-bold text-white">{t('waitingRoom.gameOverview')}</h3>
+          </div>
+            {/* Row 1: Lobby ID + Start Jaar */}
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div>
+                <div className="text-gray-400 text-sm">{t('waitingRoom.lobbyId')}</div>
+                <div className="text-neon-purple font-bold text-2xl font-mono">{roomId}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-sm">{t('waitingRoom.startYear')}</div>
+                <div className="text-neon-blue font-bold text-2xl">{new Date().getFullYear()}</div>
+              </div>
+                            <div>
+                <div className="text-gray-400 text-sm">{t('settings.language')}</div>
+                <div className="text-neon-blue font-bold text-lg uppercase">{(room?.settings as any)?.language || 'NL'}</div>
               </div>
             </div>
-            <div>
-              <div className="text-gray-400 text-sm">Start Jaar</div>
-              <div className="text-neon-blue font-bold text-2xl">{new Date().getFullYear()}</div>
+            {/* Row 2: Spel Duur + Startgeld + Taal + Volatiliteit */}
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <div className="text-gray-400 text-sm">{t('waitingRoom.gameDuration')}</div>
+                <div className="text-neon-gold font-extrabold text-2xl">{room?.settings?.gameDuration || 1} jaar</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-sm">{t('waitingRoom.startingCash')}</div>
+                <div className="text-neon-gold font-extrabold text-2xl">⚘{room?.settings?.startingCash?.toLocaleString('nl-NL') || '1.000'}</div>
+              </div>
+              <div>
+                <div className="text-gray-400 text-sm">{t('waitingRoom.volatility')}</div>
+                <div className="text-neon-gold font-bold text-lg capitalize">{room?.settings?.volatility || 'Medium'}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-gray-400 text-sm">Spel Duur</div>
-              <div className="text-neon-gold font-extrabold text-2xl">{room?.settings?.gameDuration || 1} jaar</div>
-            </div>
-            <div>
-              <div className="text-gray-400 text-sm">Startgeld</div>
-              <div className="text-neon-gold font-extrabold text-2xl">€{room?.settings?.startingCash?.toLocaleString('nl-NL') || '1.000'}</div>
-            </div>
-            <div>
-              <div className="text-gray-400 text-sm">Volatiliteit</div>
-              <div className="text-white text-2xl">📊</div>
+            {/* Tips - always visible */}
+            <div className="mt-4 p-3 bg-neon-blue/10 border border-neon-blue/30 rounded-lg">
+              <div className="space-y-1 text-gray-300 text-xs">
+                <p>• {t('waitingRoom.tip1')}</p>
+                <p>• {t('waitingRoom.tip2')}</p>
+                <p>• {t('waitingRoom.tip3')}</p>
+                <p>• {t('waitingRoom.tip4')}</p>
+                <p>• {t('waitingRoom.tip5')}</p>
+              </div>
             </div>
           </div>
-          <div className="mt-5 p-4 bg-white/5 border border-white/10 rounded-lg">
-            <p className="text-white font-semibold">
-              🎯 Doel: Bouw de grootste crypto portefeuille op in {room?.settings?.gameDuration || 1} jaar!
-            </p>
-            <p className="text-gray-400 text-sm mt-2">
-              Alleen echte spelers kunnen joinen. Start het spel wanneer alle gewenste spelers klaar zijn.
-            </p>
-          </div>
-        </div>
 
-        {/* QR Code Widget */}
-        <div className="crypto-card flex flex-col items-center justify-center">
-          <h3 className="text-lg font-bold text-white mb-3">📱 Scan om te Joinen</h3>
-          <div className="bg-white p-4 rounded-xl shadow-[0_0_20px_rgba(251,191,36,0.4)]">
-            <canvas ref={qrWidgetCanvasRef} className="max-w-full h-auto" />
+          {/* QR Code Widget */}
+          <div className="crypto-card flex flex-col items-center justify-center">
+            <h3 className="text-lg font-bold text-white mb-3">{t('waitingRoom.scanToJoin')}</h3>
+            <div className="bg-white p-4 rounded-xl shadow-[0_0_20px_rgba(251,191,36,0.4)]">
+              <canvas ref={qrWidgetCanvasRef} className="max-w-full h-auto" />
+            </div>
+            <p className="text-gray-400 text-xs mt-3 text-center">
+              {t('waitingRoom.scanDesc')}
+            </p>
           </div>
-          <p className="text-gray-400 text-xs mt-3 text-center">
-            Scan deze QR code met je telefoon om automatisch te joinen
-          </p>
         </div>
-      </div>
 
         {/* Players Overview (Lobby Overzicht) */}
         <div className="crypto-card mb-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-white flex items-center">
               <Users className="w-6 h-6 mr-2" />
-              Lobby Overzicht
+              {t('waitingRoom.lobbyOverview')}
             </h3>
             <div className="flex items-center space-x-2">
               <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-semibold">
@@ -578,7 +577,10 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
               {Object.entries(room.players).filter(([_, player]) => player.isHost).length > 0 && (
                 <div className="p-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-lg">
                   <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-yellow-300 font-semibold flex items-center">👑 Host</h4>
+                    <h4 className="text-yellow-300 font-semibold flex items-center">
+                      <Crown className="w-5 h-5 mr-2" />
+                      {t('waitingRoom.host')}
+                    </h4>
                     <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
                   </div>
                   {Object.entries(room.players)
@@ -594,10 +596,10 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
                                 <span className="ml-2 px-1 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">ACTIEF</span>
                               )}
                             </div>
-                            <div className="text-xs text-yellow-300">Kamer eigenaar • {getTimeSinceJoined(player.joinedAt)}</div>
+                            <div className="text-xs text-yellow-300">{t('waitingRoom.roomOwner')} • {getTimeSinceJoined(player.joinedAt)}</div>
                           </div>
                         </div>
-                        <div className="text-yellow-400 text-2xl">👑</div>
+
                       </div>
                     ))}
                 </div>
@@ -607,10 +609,11 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
                 <div className="p-4 bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/30 rounded-lg">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="text-green-300 font-semibold flex items-center">
-                      🎮 Spelers ({orderedPlayers.length})
+                      <ChessPawn className="w-5 h-5 mr-2" />
+                      {t('waitingRoom.playersLabel')} ({orderedPlayers.length})
                       {isHost && (
                         <span className="ml-2 text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded">
-                          Sleep om volgorde te wijzigen
+                          {t('waitingRoom.dragToReorder')}
                         </span>
                       )}
                     </h4>
@@ -649,7 +652,7 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
                         <div className="flex items-center space-x-2">
                           {index === 0 && (
                             <div className="flex items-center space-x-1 px-2 py-1 bg-neon-gold/20 border border-neon-gold/50 rounded-full">
-                              <span className="text-xs text-neon-gold font-bold">Eerste beurt</span>
+                              <span className="text-xs text-neon-gold font-bold">{t('waitingRoom.firstTurn')}</span>
                               <span className="text-neon-gold">⚡</span>
                             </div>
                           )}
@@ -662,12 +665,16 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
                 </div>
               ) : (
                 <div className="p-4 bg-gray-500/10 border border-gray-500/30 rounded-lg text-center">
-                  <div className="text-4xl mb-4">👥</div>
-                  <p className="text-gray-400 text-lg">Wachten op spelers...</p>
-                  <p className="text-gray-500 text-sm mt-2">Deel de lobby ID zodat spelers kunnen joinen</p>
+                  <div className="flex justify-center mb-4">
+                    <div className="p-3 bg-gray-500/20 rounded-full">
+                      <Users className="w-8 h-8 text-gray-400" />
+                    </div>
+                  </div>
+                  <p className="text-gray-400 text-lg">{t('waitingRoom.waitingForPlayers')}</p>
+                  <p className="text-gray-500 text-sm mt-2">{t('waitingRoom.shareToJoin')}</p>
                   {isHost && (
                     <p className="text-blue-300 text-xs mt-3 bg-blue-500/10 p-2 rounded">
-                      💡 Als host kun je de speler volgorde wijzigen door ze te verslepen
+                      {t('waitingRoom.dragTip')}
                     </p>
                   )}
                 </div>
@@ -675,12 +682,16 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
             </div>
           ) : (
             <div className="text-center py-8">
-              <div className="text-4xl mb-4">👥</div>
-              <p className="text-gray-300 text-lg">Wachten op spelers...</p>
+              <div className="flex justify-center mb-4">
+                <div className="p-3 bg-gray-500/20 rounded-full">
+                  <Users className="w-8 h-8 text-gray-400" />
+                </div>
+              </div>
+              <p className="text-gray-300 text-lg">{t('waitingRoom.waitingForPlayers')}</p>
               <p className="text-gray-500 text-sm mt-2">
-                {!connected ? 'Geen verbinding met server...' : 
+                {!connected ? t('waitingRoom.noConnection') : 
                  error ? `Fout: ${error}` :
-                 'Deel de kamercode om vrienden uit te nodigen!'}
+                 t('waitingRoom.shareInvite')}
               </p>
               {connected && !error && (
                 <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
@@ -694,112 +705,54 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
           )}
         </div>
 
-        
-        {/* Live Room Status (moved below Lobby Overzicht) */}
-        <div className="mb-6 p-4 bg-purple-500/20 border border-purple-500/50 rounded-lg">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-purple-400 font-semibold">🔍 Live Room Status</h3>
-            <div className="text-xs text-purple-300">
-              {currentTime.toLocaleTimeString()} - Live Update
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-purple-300">Socket ID:</span>
-              <div className="font-mono text-xs text-white bg-black/30 p-1 rounded mt-1">{socket?.id || 'Geen verbinding'}</div>
-            </div>
-            <div>
-              <span className="text-purple-300">Room ID:</span>
-              <div className="font-mono text-xs text-white bg-black/30 p-1 rounded mt-1">{roomId}</div>
-            </div>
-            <div>
-              <span className="text-purple-300">Verbinding:</span>
-              <div className={`text-xs font-semibold ${connected ? 'text-green-400' : 'text-red-400'}`}>{connected ? '✅ Live Socket.io' : '❌ Offline'}</div>
-            </div>
-            <div>
-              <span className="text-purple-300">Room Data:</span>
-              <div className={`text-xs font-semibold ${room ? 'text-green-400' : 'text-yellow-400'}`}>{room ? `✅ ${Object.keys(room.players).length} spelers` : '⚠️ Lokaal'}</div>
-            </div>
-          </div>
-          <div className="mt-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs text-blue-300 font-semibold">🧪 Room Sync Test</div>
-              <button onClick={sendTestMessage} disabled={!connected} className="px-3 py-2 bg-blue-500/30 hover:bg-blue-500/50 border border-blue-500/70 text-white rounded text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed">📡 Test Sync</button>
-            </div>
-            <div className="text-xs text-blue-200">{connected ? 'Klik om bericht naar alle clients in room te sturen' : 'Geen verbinding - kan niet testen'}</div>
-          </div>
-        </div>
+        {/* Action Buttons */}
+        {isHost ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <button
+              onClick={handleStartGame}
+              disabled={isStarting || players.length < 1}
+              className="w-full bg-gradient-to-r from-neon-gold to-neon-turquoise text-white font-bold py-4 px-6 rounded-lg shadow-neon-gold transition-all duration-300 hover:shadow-neon-turquoise hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2 text-xl"
+            >
+              {isStarting ? (
+                <>
+                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>{t('waitingRoom.startingGame')}</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-6 h-6" />
+                  <span>{t('waitingRoom.startGame')}</span>
+                </>
+              )}
+            </button>
 
-        {/* Action Buttons - HOST ONLY START */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="w-full">
-            {isHost ? (
-              <>
-                <button
-                  onClick={handleStartGame}
-                  disabled={isStarting || players.length < 1}
-                  className="w-full bg-gradient-to-r from-neon-gold to-neon-turquoise text-white font-bold py-4 px-6 rounded-lg shadow-neon-gold transition-all duration-300 hover:shadow-neon-turquoise hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2 text-xl"
-                >
-                  {isStarting ? (
-                    <>
-                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Spel Starten...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-6 h-6" />
-                      <span>Start Spel</span>
-                    </>
-                  )}
-                </button>
-                <div className="mt-2 p-2 bg-blue-500/10 border border-blue-500/30 rounded text-center">
-                  <p className="text-blue-300 text-sm">
-                    📊 Je gaat naar de <strong>Live Market Screen</strong> om alle spelers te monitoren
-                  </p>
-                </div>
-              </>
-            ) : (
-              <div className="w-full p-6 bg-gray-600/20 border border-gray-600/50 rounded-lg text-center">
-                <div className="flex items-center justify-center space-x-2 mb-2">
-                  <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
-                  <span className="text-yellow-400 font-semibold">Wachten op host...</span>
-                </div>
-                <p className="text-gray-400 text-sm">
-                  De host zal het spel starten wanneer iedereen klaar is
-                </p>
-                <div className="mt-4 p-2 bg-blue-500/10 border border-blue-500/30 rounded">
-                  <p className="text-blue-300 text-sm">
-                    🎮 Je gaat naar je <strong>unieke speler interface</strong> zodra het spel begint
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Nieuwe Kamer Button - HOST ONLY */}
-          {isHost && (
             <button
               onClick={onBack}
               disabled={isStarting}
-              className="py-4 px-6 bg-gray-600/20 hover:bg-gray-600/30 border border-gray-600/50 text-gray-300 rounded-lg transition-colors flex items-center justify-center space-x-2"
+              className="py-4 px-6 bg-neon-purple/20 hover:bg-neon-purple/30 border border-neon-purple/50 text-neon-purple rounded-lg transition-colors flex items-center justify-center space-x-2 text-xl font-bold"
             >
-              <RefreshCw className="w-4 h-4" />
-              <span>Nieuwe Kamer</span>
+              <RefreshCw className="w-5 h-5" />
+              <span>{t('waitingRoom.newRoom')}</span>
             </button>
-          )}
-        </div>
-
-        {/* Tips */}
-        <div className="mt-6 p-4 bg-neon-blue/10 border border-neon-blue/30 rounded-lg">
-          <h4 className="text-neon-blue font-semibold text-sm mb-2">💡 Tips voor de Host</h4>
-          <div className="space-y-1 text-gray-300 text-xs">
-            <p>• Dit is een informatief scherm voor alle spelers</p>
-            <p>• Spelers moeten handmatig joinen met hun eigen apparaten</p>
-            <p>• Deel de lobby ID via chat, email of mondeling</p>
-            <p>• Start wanneer alle gewenste spelers hebben gejoind</p>
-            <p>• Geen automatische fictieve spelers - alleen echte deelnemers</p>
           </div>
-        </div>
+        ) : (
+          <div className="mb-6">
+            <div className="w-full p-6 bg-gray-600/20 border border-gray-600/50 rounded-lg text-center">
+              <div className="flex items-center justify-center space-x-2 mb-2">
+                <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
+              </div>
+              <p className="text-gray-400 text-sm">
+                {t('waitingRoom.hostWillStart')}
+              </p>
+              <div className="mt-4 p-2 bg-blue-500/10 border border-blue-500/30 rounded">
+                <p className="text-blue-300 text-sm">
+                  {t('waitingRoom.playerInterface')}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* QR Code Modal */}
@@ -807,7 +760,7 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="crypto-card max-w-md w-full text-center">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">Scan om te joinen</h3>
+              <h3 className="text-xl font-bold text-white">{t('waitingRoom.scanToJoinModal')}</h3>
               <button
                 onClick={() => setShowQRCode(false)}
                 className="text-gray-400 hover:text-white transition-colors"
@@ -824,12 +777,12 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
             
             <div className="text-left space-y-3">
               <div className="p-3 bg-neon-purple/10 border border-neon-purple/30 rounded-lg">
-                <p className="text-neon-purple font-semibold text-sm mb-1">📱 Voor spelers:</p>
-                <p className="text-gray-300 text-xs">Scan deze QR code met je telefoon om automatisch de lobby code in te vullen</p>
+                <p className="text-neon-purple font-semibold text-sm mb-1">{t('waitingRoom.forPlayers')}</p>
+                <p className="text-gray-300 text-xs">{t('waitingRoom.scanDescModal')}</p>
               </div>
               
               <div className="p-3 bg-neon-gold/10 border border-neon-gold/30 rounded-lg">
-                <p className="text-neon-gold font-semibold text-sm mb-1">Lobby Code:</p>
+                <p className="text-neon-gold font-semibold text-sm mb-1">{t('waitingRoom.lobbyCode')}</p>
                 <p className="text-white font-mono text-2xl">{roomId}</p>
               </div>
             </div>
@@ -838,7 +791,7 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
               onClick={() => setShowQRCode(false)}
               className="mt-4 w-full py-3 bg-neon-purple/20 hover:bg-neon-purple/30 border border-neon-purple/50 text-white rounded-lg font-semibold transition-colors"
             >
-              Sluiten
+              {t('common.close')}
             </button>
           </div>
         </div>
@@ -857,10 +810,10 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
                 />
               </div>
               <h3 className="text-xl font-bold bg-gradient-to-r from-neon-blue via-neon-purple to-neon-gold bg-clip-text text-transparent mb-2">
-                {isHost ? 'Spel wordt gestart...' : 'Spel is gestart!'}
+                {isHost ? t('waitingRoom.startingForHost') : t('waitingRoom.startingForPlayer')}
               </h3>
               <p className="text-gray-300 text-sm">
-                {isHost ? 'Even geduld, we bereiden alles voor' : 'Je wordt doorgestuurd naar je speler interface'}
+                {isHost ? t('waitingRoom.preparingGame') : t('waitingRoom.redirecting')}
               </p>
               <div className="mt-4 flex items-center justify-center space-x-2 text-xs text-gray-400">
                 <span className="w-2 h-2 bg-neon-blue rounded-full animate-bounce" />

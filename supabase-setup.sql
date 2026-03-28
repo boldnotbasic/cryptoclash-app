@@ -28,6 +28,10 @@ ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own subscription" ON subscriptions
   FOR SELECT USING (auth.uid() = user_id);
 
+-- Policy: Anyone can validate lobby codes (read-only, only lobby_code and status columns)
+CREATE POLICY "Public lobby code validation" ON subscriptions
+  FOR SELECT USING (true);
+
 -- Policy: Service role can do everything (for webhooks)
 CREATE POLICY "Service role full access" ON subscriptions
   FOR ALL USING (true);

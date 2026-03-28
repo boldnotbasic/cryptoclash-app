@@ -1,6 +1,9 @@
 'use client'
 
 import { X, AlertTriangle, CheckCircle } from 'lucide-react'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatCurrency } from '@/utils/currency'
 
 interface SellConfirmModalProps {
   isOpen: boolean
@@ -23,6 +26,8 @@ export default function SellConfirmModal({
   percentage,
   value
 }: SellConfirmModalProps) {
+  const { t } = useLanguage()
+  const { currency } = useCurrency()
   if (!isOpen) return null
 
   const isFullSale = percentage === 100
@@ -34,7 +39,7 @@ export default function SellConfirmModal({
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
             <AlertTriangle className="w-6 h-6 text-yellow-500" />
-            <h2 className="text-xl font-bold text-white">Verkoop Bevestigen</h2>
+            <h2 className="text-xl font-bold text-white">{t('sellConfirm.title')}</h2>
           </div>
           <button
             onClick={onClose}
@@ -48,25 +53,25 @@ export default function SellConfirmModal({
         <div className="space-y-4 mb-6">
           <p className="text-gray-300 text-center">
             {isFullSale 
-              ? `Ben je zeker dat je al je ${cryptoName} wil verkopen?`
-              : `Ben je zeker dat je ${percentage}% van je ${cryptoName} wil verkopen?`
+              ? t('sellConfirm.confirmAll').replace('{name}', cryptoName)
+              : t('sellConfirm.confirmPartial').replace('{pct}', String(percentage)).replace('{name}', cryptoName)
             }
           </p>
           
           {/* Sale Details */}
           <div className="bg-gray-800/50 rounded-lg p-4 space-y-2">
             <div className="flex justify-between">
-              <span className="text-gray-400">Crypto:</span>
+              <span className="text-gray-400">{t('sellConfirm.crypto')}</span>
               <span className="text-white font-semibold">{cryptoName} ({cryptoSymbol})</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Hoeveelheid:</span>
+              <span className="text-gray-400">{t('sellConfirm.amount')}</span>
               <span className="text-white font-semibold">{amount.toFixed(2)} {cryptoSymbol}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Waarde:</span>
+              <span className="text-gray-400">{t('sellConfirm.value')}</span>
               <span className="text-neon-gold font-bold text-lg">
-                €{value.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {formatCurrency(value, currency.symbol)}
               </span>
             </div>
           </div>
@@ -78,13 +83,13 @@ export default function SellConfirmModal({
             onClick={onClose}
             className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
           >
-            Annuleren
+            {t('sellConfirm.cancel')}
           </button>
           <button
             onClick={onConfirm}
             className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 hover:scale-105"
           >
-            Verkopen
+            {t('sellConfirm.sell')}
           </button>
         </div>
       </div>

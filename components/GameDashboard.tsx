@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
-import { QrCode, TrendingUp, TrendingDown, Coins, User, Zap, BarChart3, ArrowLeft, Wallet, DollarSign, PieChart } from 'lucide-react'
+import { QrCode, Banknote , TrendingUp, TrendingDown, Coins, User, Zap, BarChart3, ArrowLeft, Wallet, DollarSign, PieChart } from 'lucide-react'
 import Header from './Header'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatCurrency } from '@/utils/currency'
 import SellConfirmModal from './SellConfirmModal'
 import SellSuccessModal from './SellSuccessModal'
 import CandlestickChart from './CandlestickChart'
@@ -50,6 +53,8 @@ export default function GameDashboard({
   onEndTurnConfirm,
   actionsDisabled = false
 }: GameDashboardProps) {
+  const { t } = useLanguage()
+  const { currency } = useCurrency()
   const [totalValue, setTotalValue] = useState(0)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
@@ -106,7 +111,7 @@ export default function GameDashboard({
   }, null)
 
   const selectedCrypto = cryptos.find(c => c.id === selectedCryptoId)
-  const maxQuantity = selectedCrypto ? Math.min(Math.floor(selectedCrypto.amount), 10) : 10
+  const maxQuantity = selectedCrypto ? Math.max(Math.floor(selectedCrypto.amount), 1) : 1
   const saleValue = selectedCrypto ? selectedCrypto.price * sellQuantity : 0
   const canSell = selectedCrypto && sellQuantity > 0 && selectedCrypto.amount > 0
 
@@ -157,24 +162,23 @@ export default function GameDashboard({
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="flex items-center space-x-2">
-            <Wallet className="w-8 h-8 text-neon-gold" />
+            <Banknote className="w-8 h-8 text-red" />
             <div>
-              <h1 className="text-3xl font-bold text-white">Crypto Wallet</h1>
+              <h1 className="text-3xl font-bold text-white">Verkopen aan beurs</h1>
             </div>
           </div>
         </div>
 
         {/* Total Value Card */}
         <div className="crypto-card text-center mb-8">
-          <h2 className="text-lg font-semibold text-gray-400 mb-2">Totale Portfolio Waarde</h2>
+          <h2 className="text-lg font-semibold text-gray-400 mb-2">{t('gameDashboard.totalPortfolioValue')}</h2>
           <p className="text-4xl font-bold text-neon-gold">
-            €{totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {formatCurrency(totalValue, currency.symbol)}
           </p>
         </div>
 
         {/* Crypto Cards - selecteerbaar zoals bij Kopen */}
-        <div className="crypto-card mb-4">
-          <h2 className="text-lg font-semibold text-white mb-3">Kies een crypto</h2>
+        <div className="mb-4">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {cryptos.map((crypto) => {
             const isTopGainerTile = topGainer && crypto.id === topGainer.id
@@ -187,13 +191,9 @@ export default function GameDashboard({
               key={crypto.id}
               onClick={() => setSelectedCryptoId(crypto.id)}
               disabled={!showSellControls || crypto.amount === 0}
-              className={`crypto-card rounded-xl p-3 bg-dark-bg/40 text-left transition-all ${
-                crypto.amount === 0 
-                  ? 'opacity-40 cursor-not-allowed' 
-                  : 'opacity-100'
-              } ${
-                !showSellControls || crypto.amount === 0
-                  ? 'cursor-not-allowed'
+              className={`p-3 rounded-xl border transition shadow-sm hover:shadow-md bg-dark-bg/40 text-left ${
+                crypto.amount === 0
+                  ? 'opacity-40 cursor-not-allowed'
                   : ''
               } ${
                 selectedCryptoId === crypto.id
@@ -204,7 +204,7 @@ export default function GameDashboard({
                       ? 'border-2 border-neon-gold/80 animate-gold-glow-breathe'
                       : isTopValueTile
                         ? 'border-2 border-neon-purple/80 animate-purple-glow-breathe'
-                        : 'border border-white/10'
+                        : 'border-white/10 hover:border-white/20'
               }`}
             >
               <div className="flex flex-col items-center">
@@ -229,18 +229,17 @@ export default function GameDashboard({
                   </div>
                 </div>
 
-                <div className="w-full mt-auto">
-                  <div className="rounded-lg bg-dark-bg/80 px-2 py-0.5">
+                <div className="w-full mt-auto px-1">
                     {/* Naam + prijs */}
                     <div className="flex items-center justify-between">
                       <div className="text-white font-semibold truncate mr-2">{crypto.name}</div>
                       <div className="text-neon-turquoise font-bold whitespace-nowrap">
-                        €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {formatCurrency(crypto.price, currency.symbol)}
                       </div>
                     </div>
 
                     {/* Symbool + 24u badge */}
-                    <div className="flex items-center justify-between mt-0">
+                    <div className="flex items-center justify-between mt-0.5">
                       <div className="text-gray-400 text-xs">{crypto.symbol}</div>
                       <div
                         className={`text-xs px-1.5 py-0.5 rounded-sm border flex items-center space-x-1 ${
@@ -263,22 +262,22 @@ export default function GameDashboard({
 
                     {/* Momentum Indicator */}
                     {typeof crypto.change24h === 'number' && Math.abs(crypto.change24h) > 0 && (
-                      <div className={`text-[9px] font-semibold mb-0.5 flex items-center space-x-1 ${
+                      <div className={`text-[9px] font-semibold mt-0.5 flex items-center space-x-1 ${
                         Math.abs(crypto.change24h) > 15 
                           ? crypto.change24h > 0 ? 'text-green-400' : 'text-red-400'
                           : crypto.change24h > 0 ? 'text-green-500/60' : 'text-red-500/60'
                       }`}>
                         {Math.abs(crypto.change24h) > 15 ? (
                           crypto.change24h > 0 ? (
-                            <>↗️ Sterk stijgend</>
+                            <>↗️ {t('gameDashboard.strongRising')}</>
                           ) : (
-                            <>↘️ Sterk dalend</>
+                            <>↘️ {t('gameDashboard.strongFalling')}</>
                           )
                         ) : (
                           crypto.change24h > 0 ? (
-                            <>→ Licht stijgend</>
+                            <>→ {t('gameDashboard.lightRising')}</>
                           ) : (
-                            <>→ Licht dalend</>
+                            <>→ {t('gameDashboard.lightFalling')}</>
                           )
                         )}
                       </div>
@@ -295,9 +294,9 @@ export default function GameDashboard({
                     {/* Aankoopprijs + Winst/Verlies percentage */}
                     <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-white/5">
                       <div className="text-gray-500 text-[10px]">
-                        Aankoop: <span className="text-gray-400">
+                        {t('gameDashboard.purchasePrice')}: <span className="text-gray-400">
                           {(crypto as any).purchasePrice 
-                            ? `€${(crypto as any).purchasePrice.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            ? `⚘${(crypto as any).purchasePrice.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                             : '-'
                           }
                         </span>
@@ -315,8 +314,6 @@ export default function GameDashboard({
                         )}
                       </div>
                     </div>
-                  </div>
-
                 </div>
               </div>
             </button>
@@ -327,7 +324,7 @@ export default function GameDashboard({
         {/* Aantal Slider - alleen als controls actief zijn */}
         {showSellControls && onSellCrypto && (
           <div className="crypto-card mb-4">
-            <h2 className="text-lg font-semibold text-white mb-3">Aantal</h2>
+            <h2 className="text-lg font-semibold text-white mb-3">{t('gameDashboard.quantity')}</h2>
             <div className="space-y-3">
               {/* Custom slider met gevulde balk */}
               <div className="relative w-full h-7">
@@ -336,7 +333,7 @@ export default function GameDashboard({
                   {/* Gevulde balk (effen oranje) */}
                   <div
                     className="h-full bg-neon-gold shadow-[0_0_12px_rgba(250,204,21,0.6)] transition-all duration-200"
-                    style={{ width: `${((sellQuantity - 1) / (maxQuantity - 1)) * 100}%` }}
+                    style={{ width: `${maxQuantity <= 1 ? 100 : ((sellQuantity - 1) / (maxQuantity - 1)) * 100}%` }}
                   />
                 </div>
 
@@ -344,7 +341,7 @@ export default function GameDashboard({
                 <div
                   className="absolute top-1/2 -translate-y-1/2 w-8 h-8 rounded-full border-2 border-neon-gold bg-dark-bg shadow-[0_0_22px_rgba(250,204,21,0.95)] flex items-center justify-center"
                   style={{
-                    left: `${((sellQuantity - 1) / (maxQuantity - 1)) * 100}%`,
+                    left: `${maxQuantity <= 1 ? 100 : ((sellQuantity - 1) / (maxQuantity - 1)) * 100}%`,
                     transform: 'translate(-50%, -50%)',
                   }}
                 >
@@ -366,16 +363,24 @@ export default function GameDashboard({
                 />
               </div>
 
-              {/* Labels onder slider */}
-              <div className="flex items-center justify-between text-xs text-gray-400">
-                <span>1</span>
+              {/* +/- knoppen met aantal in het midden */}
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSellQuantity(q => Math.max(1, q - 1))}
+                  className="w-10 h-10 rounded-full border border-neon-gold/60 text-neon-gold font-bold text-xl flex items-center justify-center hover:bg-neon-gold/10 active:scale-95 transition-all"
+                >−</button>
                 <div className="flex flex-col items-center">
-                  <span className="text-[10px] uppercase tracking-wide text-gray-500">Geselecteerd</span>
-                  <span className="mt-0.5 w-9 h-9 rounded-full bg-transparent border border-neon-gold/80 text-neon-gold font-bold text-base flex items-center justify-center shadow-[0_0_16px_rgba(250,204,21,0.7)]">
+                  <span className="text-[10px] uppercase tracking-wide text-gray-500">{t('gameDashboard.quantity')}</span>
+                  <span className="mt-0.5 w-10 h-10 rounded-full bg-transparent border border-neon-gold/80 text-neon-gold font-bold text-base flex items-center justify-center shadow-[0_0_16px_rgba(250,204,21,0.7)]">
                     {sellQuantity}
                   </span>
                 </div>
-                <span>{maxQuantity}</span>
+                <button
+                  type="button"
+                  onClick={() => setSellQuantity(q => Math.min(maxQuantity, q + 1))}
+                  className="w-10 h-10 rounded-full border border-neon-gold/60 text-neon-gold font-bold text-xl flex items-center justify-center hover:bg-neon-gold/10 active:scale-95 transition-all"
+                >+</button>
               </div>
             </div>
           </div>
@@ -393,35 +398,35 @@ export default function GameDashboard({
                     </div>
                     <div>
                       <div><span className="text-white font-semibold">{selectedCrypto.name}</span> × {sellQuantity}</div>
-                      <div className="text-sm text-gray-400">Prijs per stuk: €{selectedCrypto.price.toFixed(2)}</div>
+                      <div className="text-sm text-gray-400">{t('gameDashboard.pricePerUnit')}: {formatCurrency(selectedCrypto.price, currency.symbol)}</div>
                     </div>
                   </div>
                 ) : (
-                  <div>Kies een crypto</div>
+                  <div>{t('gameDashboard.chooseCrypto')}</div>
                 )}
               </div>
               <div className="text-right">
-                <div className="text-gray-400 text-sm">Totaal</div>
-                <div className="text-white font-bold text-xl">€{saleValue.toFixed(2)}</div>
+                <div className="text-gray-400 text-sm">{t('gameDashboard.total')}</div>
+                <div className="text-white font-bold text-xl">{formatCurrency(saleValue, currency.symbol)}</div>
               </div>
             </div>
 
             <div className="mt-4 flex gap-3">
-              <button onClick={onBack} className="flex-1 crypto-card bg-gray-600/20 hover:bg-gray-600/30 text-gray-200 py-2 rounded-lg">Terug</button>
+              <button onClick={onBack} className="flex-1 crypto-card bg-gray-600/20 hover:bg-gray-600/30 text-gray-200 py-2 rounded-lg">{t('gameDashboard.back')}</button>
               <button
                 disabled={!canSell}
                 onClick={handleValidateSell}
                 className={`flex-1 py-2 rounded-lg font-semibold ${!canSell ? 'bg-gray-500 text-gray-300 cursor-not-allowed' : 'bg-green-500 text-white hover:bg-green-600'}`}
               >
-                Valideren
+                {t('gameDashboard.validate')}
               </button>
             </div>
 
             {!canSell && selectedCrypto && sellQuantity === 0 && (
-              <div className="text-yellow-400 text-sm mt-2">Selecteer een aantal</div>
+              <div className="text-yellow-400 text-sm mt-2">{t('gameDashboard.selectAmount')}</div>
             )}
             {!canSell && selectedCrypto && selectedCrypto.amount === 0 && (
-              <div className="text-red-400 text-sm mt-2">Geen crypto beschikbaar</div>
+              <div className="text-red-400 text-sm mt-2">{t('gameDashboard.noStock')}</div>
             )}
           </div>
         )}
@@ -429,7 +434,7 @@ export default function GameDashboard({
         {/* Game Stats */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="crypto-card text-center">
-            <h3 className="text-lg font-semibold text-neon-purple mb-2">Beste Investering</h3>
+            <h3 className="text-lg font-semibold text-neon-purple mb-2">{t('gameDashboard.bestInvestment')}</h3>
             <p className="text-2xl font-bold text-white">
               {cryptos.reduce((best, crypto) => 
                 crypto.change24h > best.change24h ? crypto : best
@@ -443,7 +448,7 @@ export default function GameDashboard({
           </div>
           
           <div className="crypto-card text-center">
-            <h3 className="text-lg font-semibold text-neon-blue mb-2">Totaal Munten</h3>
+            <h3 className="text-lg font-semibold text-neon-blue mb-2">{t('gameDashboard.totalCoins')}</h3>
             <p className="text-2xl font-bold text-white">
               {Math.floor(cryptos.reduce((sum, crypto) => sum + crypto.amount, 0))}
             </p>
@@ -451,7 +456,7 @@ export default function GameDashboard({
           </div>
           
           <div className="crypto-card text-center">
-            <h3 className="text-lg font-semibold text-neon-turquoise mb-2">Markt Status</h3>
+            <h3 className="text-lg font-semibold text-neon-turquoise mb-2">{t('gameDashboard.marketStatus')}</h3>
             <p className="text-2xl font-bold text-white">
               {cryptos.filter(c => c.change24h > 0).length > cryptos.length / 2 ? 'Bull' : 'Bear'}
             </p>

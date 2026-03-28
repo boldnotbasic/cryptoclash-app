@@ -17,8 +17,32 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
   const [error, setError] = useState<string | null>(null)
   const [isRegister, setIsRegister] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
   const { signIn, signUp, user } = useAuth()
-  const hasClosedRef = useRef(false)
+  const hasTriggeredSuccess = useRef(false)
+
+  // When user becomes available after login, trigger success
+  useEffect(() => {
+    if (isOpen && user && isLoading && !hasTriggeredSuccess.current) {
+      hasTriggeredSuccess.current = true
+      setIsLoading(false)
+      setShowSuccess(true)
+      setTimeout(() => {
+        setShowSuccess(false)
+        hasTriggeredSuccess.current = false
+        handleClose()
+        onSuccess?.()
+      }, 1200)
+    }
+  }, [user, isOpen, isLoading])
+
+  // Reset on open
+  useEffect(() => {
+    if (isOpen) {
+      hasTriggeredSuccess.current = false
+      setShowSuccess(false)
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -56,14 +80,18 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
           return
         }
       }
-
-      // Success - immediately close modal and trigger success
-      setIsLoading(false)
-      handleClose()
-      setTimeout(() => {
-        onSuccess?.()
-      }, 100)
-      
+      // Success state will be triggered by the useEffect watching `user`
+      // If user was already set (rare), handle it directly
+      if (user) {
+        setIsLoading(false)
+        setShowSuccess(true)
+        setTimeout(() => {
+          setShowSuccess(false)
+          handleClose()
+          onSuccess?.()
+        }, 1200)
+      }
+      // Otherwise keep isLoading=true until useEffect detects user
     } catch (err) {
       setError('Er ging iets mis. Probeer opnieuw.')
       setIsLoading(false)
@@ -88,6 +116,16 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
           <X className="w-6 h-6" />
         </button>
 
+        {showSuccess ? (
+          <div className="text-center py-8">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center animate-pulse">
+              <span className="text-4xl">✅</span>
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Ingelogd!</h2>
+            <p className="text-gray-400 text-sm">Welkom terug, je wordt doorgestuurd...</p>
+          </div>
+        ) : (
+        <>
         <div className="text-center mb-6">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neon-blue/20 flex items-center justify-center">
             <Mail className="w-8 h-8 text-neon-blue" />
@@ -177,6 +215,8 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             </>
           )}
         </p>
+        </>
+        )}
       </div>
     </div>
   )

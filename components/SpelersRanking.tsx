@@ -2,6 +2,9 @@
 
 import { ArrowLeft, Crown, Medal, Trophy, Users } from 'lucide-react'
 import Header from './Header'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatCurrency } from '@/utils/currency'
 
 interface CryptoCurrency {
   id: string
@@ -32,6 +35,8 @@ interface SpelersRankingProps {
 }
 
 export default function SpelersRanking({ onBack, playerName, playerAvatar, players, cryptos }: SpelersRankingProps) {
+  const { t } = useLanguage()
+  const { currency } = useCurrency()
   const getRankIcon = (rank: number) => {
     switch (rank) {
       case 1: return <Crown className="w-5 h-5 text-neon-gold" />
@@ -58,15 +63,15 @@ export default function SpelersRanking({ onBack, playerName, playerAvatar, playe
           <div className="flex items-center space-x-2">
             <Users className="w-8 h-8 text-neon-blue" />
             <div>
-              <h1 className="text-3xl font-bold text-white">Spelers Ranking</h1>
-              <p className="text-gray-400">Live leaderboard en portfolio's</p>
+              <h1 className="text-3xl font-bold text-white">{t('rankings.title')}</h1>
+              <p className="text-gray-400">{t('rankings.subtitle')}</p>
             </div>
           </div>
         </div>
 
         {/* Quick Ranking Indicator - Row Layout */}
         <div className="crypto-card mb-8">
-          <h3 className="text-2xl font-bold text-white mb-6 text-center">🏆 Live Rankings</h3>
+          <h3 className="text-2xl font-bold text-white mb-6 text-center">{t('rankings.liveRankings')}</h3>
           <div className="space-y-4">
             {players.map((player, index) => (
                 <div key={player.id} className={`flex items-center justify-between p-4 rounded-lg transition-all duration-300 ${
@@ -95,12 +100,12 @@ export default function SpelersRanking({ onBack, playerName, playerAvatar, playe
                             {player.name}
                             {player.name === playerName && (
                               <span className="ml-2 text-xs bg-neon-gold text-dark-bg px-2 py-1 rounded-full font-bold">
-                                JIJ
+                                {t('rankings.you')}
                               </span>
                             )}
                           </p>
                           <p className="text-neon-purple text-sm font-bold">
-                            €{player.totalValue.toLocaleString('nl-NL', { maximumFractionDigits: 0 })}
+                            {formatCurrency(player.totalValue, currency.symbol)}
                           </p>
                         </div>
                       </div>
@@ -115,7 +120,7 @@ export default function SpelersRanking({ onBack, playerName, playerAvatar, playe
         {/* Detailed Rankings */}
         <div className="space-y-6">
           <h2 className="text-2xl font-bold text-white text-center mb-6">
-            📊 Gedetailleerde Rankings
+            {t('rankings.detailedRankings')}
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -134,19 +139,19 @@ export default function SpelersRanking({ onBack, playerName, playerAvatar, playe
                         <span>{player.name}</span>
                         {player.name === playerName && (
                           <span className="text-xs bg-neon-gold text-dark-bg px-2 py-1 rounded-full font-bold">
-                            JIJ
+                            {t('rankings.you')}
                           </span>
                         )}
                       </h3>
-                      <p className="text-gray-400">Rang #{player.rank}</p>
+                      <p className="text-gray-400">{t('rankings.rank')}{player.rank}</p>
                     </div>
                   </div>
                   
                   <div className="text-right">
                     <p className="text-xl font-bold text-neon-gold">
-                      €{player.totalValue.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatCurrency(player.totalValue, currency.symbol)}
                     </p>
-                    <p className="text-gray-400 text-sm">Totale Waarde</p>
+                    <p className="text-gray-400 text-sm">{t('rankings.totalValue')}</p>
                   </div>
                 </div>
                 
@@ -161,7 +166,7 @@ export default function SpelersRanking({ onBack, playerName, playerAvatar, playe
                         <p className="text-xs text-gray-400">{symbol}</p>
                         <p className="text-sm font-bold text-white">{amount}</p>
                         <p className="text-xs text-gray-500">
-                          €{(crypto.price * amount).toLocaleString('nl-NL', { maximumFractionDigits: 0 })}
+                          {formatCurrency((crypto.price * amount), currency.symbol)}
                         </p>
                       </div>
                     )

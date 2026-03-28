@@ -118,7 +118,7 @@ export class RoomStateManager {
     this.state.players[playerId] = sanitized
     this.notify()
     
-    console.log(`✅ Player ${sanitized.name} updated: €${sanitized.totalValue}`)
+    console.log(`✅ Player ${sanitized.name} updated: ⚘${sanitized.totalValue}`)
     return true
   }
 
@@ -241,15 +241,15 @@ export class SyncManager {
     const conflicts: string[] = []
     
     if (Math.abs(local.cashBalance - remote.cashBalance) > 0.01) {
-      conflicts.push(`Cash: Local €${local.cashBalance} vs Remote €${remote.cashBalance}`)
+      conflicts.push(`Cash: Local ⚘${local.cashBalance} vs Remote ⚘${remote.cashBalance}`)
     }
     
     if (Math.abs(local.portfolioValue - remote.portfolioValue) > 0.01) {
-      conflicts.push(`Portfolio: Local €${local.portfolioValue} vs Remote €${remote.portfolioValue}`)
+      conflicts.push(`Portfolio: Local ⚘${local.portfolioValue} vs Remote ⚘${remote.portfolioValue}`)
     }
     
     if (Math.abs(local.totalValue - remote.totalValue) > 0.01) {
-      conflicts.push(`Total: Local €${local.totalValue} vs Remote €${remote.totalValue}`)
+      conflicts.push(`Total: Local ⚘${local.totalValue} vs Remote ⚘${remote.totalValue}`)
     }
     
     return conflicts

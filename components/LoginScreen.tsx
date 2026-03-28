@@ -3,12 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Coins, TrendingUp, RefreshCw, ArrowLeft, QrCode, X } from 'lucide-react'
 import QrScanner from 'qr-scanner'
-
-// List of 20 random avatars
-const avatars = [
-  '🤡', '🚀', '💎', '⚡️', '💀', '🦊', '🦄', '🌝', '👾', '👽', 
-  '👻', '🦁', '🐲', '🦉', '🦅', '🦈', '🐙', '🤯', '😎', '🤠'
-];
+import { useIcons } from '@/contexts/IconContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface LoginScreenProps {
   onLogin: (name: string, avatar: string, roomCode: string) => void
@@ -17,6 +13,9 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps) {
+  const { t } = useLanguage()
+  const { icons } = useIcons()
+  const avatars = icons.avatars.list
   const [step, setStep] = useState<'roomCode' | 'profile'>('roomCode')
   const [roomCode, setRoomCode] = useState('')
   const [playerName, setPlayerName] = useState('')
@@ -76,7 +75,7 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
         // Check if camera is available
         const hasCamera = await QrScanner.hasCamera()
         if (!hasCamera) {
-          setScanError('Geen camera gevonden op dit apparaat.')
+          setScanError(t('login.noCameraFound'))
           return
         }
         
@@ -86,11 +85,11 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
       } catch (err: any) {
         console.error('❌ Scanner error:', err)
         if (err.name === 'NotAllowedError') {
-          setScanError('Camera toegang geweigerd. Geef toestemming om de camera te gebruiken.')
+          setScanError(t('login.cameraAccessDenied'))
         } else if (err.name === 'NotFoundError') {
-          setScanError('Geen camera gevonden op dit apparaat.')
+          setScanError(t('login.noCameraFound'))
         } else if (err.name === 'NotReadableError') {
-          setScanError('Camera is al in gebruik door een andere app.')
+          setScanError(t('login.cameraInUse'))
         } else {
           setScanError(`Camera fout: ${err.message || 'Onbekende fout'}`)
         }
@@ -121,7 +120,7 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
       setStep('profile')
     } catch (err) {
       console.error('File scan error:', err)
-      setScanError('Geen QR code gevonden in deze afbeelding. Probeer een andere foto.')
+      setScanError(t('login.noQrInImage'))
     }
   }
 
@@ -155,7 +154,7 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
             className="mb-4 flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
-            <span>Terug</span>
+            <span>{t('common.back')}</span>
           </button>
         )}
 
@@ -164,7 +163,7 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
           <div className="crypto-card">
             <div className="flex items-center justify-center mb-6">
               <TrendingUp className="w-6 h-6 text-neon-turquoise mr-2" />
-              <h2 className="text-xl font-semibold text-white">Join Game</h2>
+              <h2 className="text-xl font-semibold text-white">{t('login.joinGame')}</h2>
             </div>
             
             <form onSubmit={handleRoomCodeSubmit} className="space-y-6">
@@ -178,7 +177,7 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
                 className="w-full py-4 px-4 bg-neon-gold/20 hover:bg-neon-gold/30 border-2 border-neon-gold/50 text-neon-gold rounded-lg font-bold transition-all hover:scale-[1.02] flex items-center justify-center gap-3 shadow-[0_0_15px_rgba(251,191,36,0.3)]"
               >
                 <QrCode className="w-6 h-6" />
-                <span className="text-lg">Scan QR Code</span>
+                <span className="text-lg">{t('login.scanQr')}</span>
               </button>
 
               <div className="relative">
@@ -186,21 +185,21 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
                   <div className="w-full border-t border-gray-600"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-dark-bg text-gray-400">of</span>
+                  <span className="px-2 bg-dark-bg text-gray-400">{t('common.or')}</span>
                 </div>
               </div>
 
               {/* Manual Code Input - Onder 'of' lijn */}
               <div>
                 <label htmlFor="roomCode" className="block text-sm font-medium text-gray-300 mb-2">
-                  Voer de lobby code in:
+                  {t('login.enterCode')}
                 </label>
                 <input
                   id="roomCode"
                   type="text"
                   value={roomCode}
                   onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                  placeholder="Bijv. ABC123"
+                  placeholder={t('login.codePlaceholder')}
                   className="neon-input w-full text-center text-2xl tracking-widest"
                   maxLength={6}
                   required
@@ -219,7 +218,7 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
                 className="neon-button w-full"
                 disabled={!roomCode.trim()}
               >
-                Volgende →
+                {t('login.nextStep')}
               </button>
             </form>
           </div>
@@ -230,7 +229,7 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
           <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4">
             <div className="w-full max-w-md">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-white">Scan QR Code</h3>
+                <h3 className="text-xl font-bold text-white">{t('login.scanTitle')}</h3>
                 <button
                   onClick={stopScanner}
                   className="p-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
@@ -262,14 +261,14 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
                     onClick={() => fileInputRef.current?.click()}
                     className="mt-2 w-full py-2 bg-neon-purple/20 hover:bg-neon-purple/30 border border-neon-purple/50 text-neon-purple rounded-lg text-sm font-semibold transition-colors"
                   >
-                    Probeer foto upload in plaats daarvan
+                    {t('login.tryFileUpload')}
                   </button>
                 </div>
               )}
               
               <div className="mt-4 p-4 bg-neon-gold/10 border border-neon-gold/30 rounded-lg">
                 <p className="text-neon-gold text-sm text-center">
-                  📱 Richt je camera op de QR code in de wachtlobby
+                  {t('login.pointCamera')}
                 </p>
               </div>
             </div>
@@ -281,20 +280,20 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
           <div className="crypto-card">
             <div className="flex items-center justify-center mb-6">
               <TrendingUp className="w-6 h-6 text-neon-turquoise mr-2" />
-              <h2 className="text-xl font-semibold text-white">Welkom Speler!</h2>
+              <h2 className="text-xl font-semibold text-white">{t('login.welcomePlayer')}</h2>
             </div>
             
             <form onSubmit={handleProfileSubmit} className="space-y-6">
               <div>
                 <label htmlFor="playerName" className="block text-sm font-medium text-gray-300 mb-2">
-                  Voer je spelernaam in:
+                  {t('login.enterName')}
                 </label>
                 <input
                   id="playerName"
                   type="text"
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
-                  placeholder="Bijv. CryptoKoning"
+                  placeholder={t('login.namePlaceholder')}
                   className="neon-input w-full"
                   maxLength={20}
                   required
@@ -303,7 +302,7 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Kies je avatar:
+                  {t('login.chooseAvatar')}
                 </label>
                 <div className="grid grid-cols-5 gap-3">
                   {avatars.map((avatar) => {
@@ -342,7 +341,7 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
                               ? 'bg-neon-gold/30 ring-2 ring-neon-gold scale-110' 
                               : 'bg-dark-bg/50 hover:bg-neon-purple/20'
                         }`}
-                        title={isTaken ? 'Deze avatar is al in gebruik' : avatar}
+                        title={isTaken ? t('login.avatarTaken') : avatar}
                       >
                         {avatar}
                       </button>
@@ -351,7 +350,7 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
                 </div>
                 {room?.players && Object.keys(room.players).length > 0 && (
                   <p className="text-xs text-gray-400 mt-2">
-                    💡 Grijze avatars zijn al in gebruik door andere spelers
+                    {t('login.avatarsTaken')}
                   </p>
                 )}
               </div>
@@ -362,14 +361,14 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
                   onClick={() => setStep('roomCode')}
                   className="flex-1 py-3 rounded-lg bg-gray-700 text-white hover:bg-gray-600 transition-colors font-semibold"
                 >
-                  ← Terug
+                  ← {t('common.back')}
                 </button>
                 <button
                   type="submit"
                   className="neon-button flex-1"
                   disabled={!playerName.trim()}
                 >
-                  Start! 🚀
+                  {t('login.start')}
                 </button>
               </div>
             </form>

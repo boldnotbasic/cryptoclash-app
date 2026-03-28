@@ -35,12 +35,16 @@ const roomMomentum = {} // { roomCode: { DSHEEP: [+5, -2, +8], NGT: [-3, -5, +2]
 // Track per-player cleanup timers for disconnected players
 const playerCleanupTimers = new Map()
 
-// Track turn timers per room (auto-end turn after 120 seconds)
+// Track turn timers per room (auto-end turn after 90 seconds)
 const turnTimers = new Map()
-const TURN_DURATION = 120 * 1000 // 120 seconds
+const TURN_DURATION = 90 * 1000 // 90 seconds
 
 // Track pause state per room
 const roomPauseState = {}
+
+// Global marketplace orders map - persists across socket reconnections
+// orderId -> { order, roomCode }
+const globalMarketplaceOrders = new Map()
 
 // 🚨 CRITICAL: Global crypto prices - SINGLE SOURCE OF TRUTH
 const globalCryptoPrices = {
@@ -492,6 +496,26 @@ app.prepare().then(() => {
     socket.emit('crypto:priceUpdate', globalCryptoPrices)
     console.log('💰 Sent initial crypto prices to new client:', globalCryptoPrices)
 
+    // Player checks if room exists WITHOUT joining
+    socket.on('room:exists', ({ roomCode }) => {
+      console.log(`\n🔍 === ROOM EXISTS CHECK ===`)
+      console.log(`🏠 Room Code: ${roomCode}`)
+      const room = rooms[roomCode]
+      if (room && !room.started) {
+        console.log(`✅ Room ${roomCode} exists and is open`)
+        const playerAvatars = room.players
+          ? Object.values(room.players).map((p) => p.avatar)
+          : []
+        socket.emit('room:existsResult', { exists: true, roomCode, playerAvatars })
+      } else if (room && room.started) {
+        console.log(`❌ Room ${roomCode} already started`)
+        socket.emit('room:existsResult', { exists: false, error: 'Dit spel is al gestart' })
+      } else {
+        console.log(`❌ Room ${roomCode} does not exist`)
+        socket.emit('room:existsResult', { exists: false, error: 'Lobby bestaat nog niet. Vraag de host om eerst een lobby aan te maken.' })
+      }
+    })
+
     // Host checks if room already has a host
     socket.on('host:checkRoom', ({ roomCode }) => {
       console.log(`\n🔍 === HOST CHECK REQUEST ===`)
@@ -606,7 +630,7 @@ app.prepare().then(() => {
       // Create room if doesn't exist
       if (!rooms[roomCode]) {
         rooms[roomCode] = { 
-          code: roomCode, 
+          code: roomCode.toUpperCase(), // Ensure uppercase for consistency
           players: {}, 
           started: false, 
           settings: settings || {}, 
@@ -651,6 +675,7 @@ app.prepare().then(() => {
       })
       
       // SET NEW HOST - NO QUESTIONS ASKED
+      rooms[roomCode].code = roomCode.toUpperCase() // Ensure code is always set
       rooms[roomCode].hostId = socket.id
       rooms[roomCode].hostName = hostName
       rooms[roomCode].hostAvatar = hostAvatar
@@ -661,9 +686,9 @@ app.prepare().then(() => {
         avatar: hostAvatar,
         joinedAt: Date.now(),
         isHost: true,
-        // Initialize host with starting portfolio and cash (even though host uses Market Screen)
+        // Initialize host with empty portfolio and starting cash
         portfolio: { 
-          DSHEEP: 1.0,
+          DSHEEP: 0,
           NUGGET: 0,
           LNTR: 0,
           OMLT: 0,
@@ -738,6 +763,7 @@ app.prepare().then(() => {
       // Check if player already exists with CURRENT socket ID (already joined)
       if (room.players[socket.id]) {
         console.log(`✅ Player ${playerName} already in room with socket ${socket.id} - sending success`)
+        room.code = roomCode // Ensure room.code is set for client validation
         socket.emit('player:joinSuccess', { roomCode, room })
         return
       }
@@ -782,21 +808,9 @@ app.prepare().then(() => {
         
         console.log(`✅ ${playerName} successfully rejoined with preserved data`)
       } else {
-        // Check if avatar is already taken by another player
-        const avatarTaken = Object.values(room.players).some(p => p.avatar === playerAvatar)
-        if (avatarTaken) {
-          socket.emit('player:joinError', `Avatar ${playerAvatar} is al in gebruik. Kies een andere avatar.`)
-          console.log(`❌ Avatar ${playerAvatar} already taken in room ${roomCode}`)
-          return
-        }
-        
-        // Check if it's a completely new player with existing name
-        const nameExists = Object.values(room.players).some(p => p.name === playerName)
-        if (nameExists) {
-          socket.emit('player:joinError', 'Naam is al in gebruik')
-          console.log(`❌ Name ${playerName} already exists in room ${roomCode}`)
-          return
-        }
+        // New player joining - no avatar/name validation needed
+        // Players can use default avatars and the system will handle duplicates
+        console.log(`👤 New player ${playerName} joining room ${roomCode}`)
         
         // New player joining
         room.players[socket.id] = {
@@ -806,9 +820,9 @@ app.prepare().then(() => {
           isHost: false,
           isRejoining: false,
           disconnected: false,
-          // Initialize with starting portfolio and cash
+          // Initialize with empty portfolio and starting cash
           portfolio: { 
-            DSHEEP: 1.0,
+            DSHEEP: 0,
             NUGGET: 0,
             LNTR: 0,
             OMLT: 0,
@@ -821,8 +835,19 @@ app.prepare().then(() => {
       
       // Socket.IO room join already happened at the start of this handler
       
+      // Ensure room.code is set for client-side validation
+      room.code = roomCode
+      
       console.log(`📤 Sending joinSuccess to ${socket.id}`)
       console.log(`📤 Join success data:`, { roomCode, playersCount: Object.keys(room.players).length })
+      console.log(`📤 Room.code in response:`, room.code)
+      
+      // Send room language to player if available
+      if (room.settings && room.settings.language) {
+        console.log(`🌐 Room language: ${room.settings.language}`)
+        socket.emit('room:languageUpdate', { language: room.settings.language })
+      }
+      
       socket.emit('player:joinSuccess', { roomCode, room })
       
       // === INITIALIZATION: Ensure price history exists for this room ===
@@ -1091,6 +1116,11 @@ app.prepare().then(() => {
       console.log(`🏁 === PLAYER FINISH COMPLETE ===\n`)
     })
 
+    // Dice roll broadcast for DiceRoll screen
+    socket.on('dice:roll', ({ roomId, roll }) => {
+      socket.to(roomId).emit('dice:rolled', { socketId: socket.id, roll })
+    })
+
     // Start game - NO LOGIC, JUST START
     socket.on('host:startGame', ({ roomCode }) => {
       console.log(`\n🚀 === GAME START - NO QUESTIONS ASKED ===`)
@@ -1135,8 +1165,8 @@ app.prepare().then(() => {
         console.log(`✅ GAME STARTED IN ROOM ${roomCode}`)
         
         // Normalize initial crypto prices for a fair start:
-        // - Minimum price: €50
-        // - Maximum spread (max - min): €300
+        // - Minimum price: ⚘50
+        // - Maximum spread (max - min): ⚘300
         try {
           const symbols = Object.keys(globalCryptoPrices)
           if (symbols.length > 0) {
@@ -1218,6 +1248,12 @@ app.prepare().then(() => {
         const room = rooms[roomCode]
         if (!room) {
           console.log('❌ Room not found for turn:end')
+          return
+        }
+
+        // Block turn advance if bidding is in progress
+        if (room._activeBiddingOrderId) {
+          console.log(`⚠️ turn:end IGNORED - bidding in progress (orderId: ${room._activeBiddingOrderId})`)
           return
         }
 
@@ -1633,7 +1669,7 @@ app.prepare().then(() => {
     })
 
     // Test message for room sync verification
-    socket.on('test:message', ({ roomCode, message, sender }) => {
+    socket.on('test:message', ({ roomCode, message, sender, avatar }) => {
       console.log(`\n📡 === TEST MESSAGE RECEIVED ===`)
       console.log(`🏠 Room Code: ${roomCode}`)
       console.log(`👤 Sender: ${sender}`)
@@ -1659,6 +1695,7 @@ app.prepare().then(() => {
       io.to(roomCode).emit('test:messageReceived', {
         message,
         sender,
+        avatar,
         timestamp: Date.now(),
         roomCode
       })
@@ -1840,6 +1877,62 @@ app.prepare().then(() => {
       
       return { topGainer, topLoser, predictions }
     }
+
+    // Player requests insider info - send forecast data ONLY to this player
+    socket.on('player:requestInsiderInfo', ({ roomCode, playerName }) => {
+      console.log(`\n🕵️ === INSIDER INFO REQUESTED ===`)
+      console.log(`🏠 Room: ${roomCode}`)
+      console.log(`👤 Player: ${playerName}`)
+      
+      if (!rooms[roomCode]) {
+        console.log(`❌ Room ${roomCode} not found`)
+        return
+      }
+      
+      // Initialize upcoming events if not exists
+      if (!roomUpcomingEvents[roomCode] || roomUpcomingEvents[roomCode].length === 0) {
+        generateUpcomingEvents(roomCode)
+      }
+      
+      // Get upcoming events (exclude forecast events)
+      const upcomingEvents = roomUpcomingEvents[roomCode].filter(evt => evt.type !== 'forecast')
+      
+      // Pick 2 random events from upcoming events for dynamic insider info
+      const availableEvents = upcomingEvents.slice(0, 9) // Look at next 9 events
+      const shuffled = [...availableEvents].sort(() => Math.random() - 0.5)
+      const selectedEvents = shuffled.slice(0, 2)
+      
+      // Map events to insider format (one "up" direction, one "down" direction for variety)
+      const event1 = selectedEvents[0]
+      const event2 = selectedEvents[1]
+      
+      // Determine direction based on event percentage
+      const info1 = {
+        symbol: event1.crypto,
+        percentage: event1.percentage,
+        direction: event1.percentage > 0 ? 'up' : 'down'
+      }
+      
+      const info2 = {
+        symbol: event2.crypto,
+        percentage: event2.percentage,
+        direction: event2.percentage > 0 ? 'up' : 'down'
+      }
+      
+      console.log(`🕵️ Sending insider forecast to ${playerName}:`)
+      console.log(`   📰 Event 1: ${info1.symbol} ${info1.percentage > 0 ? '+' : ''}${info1.percentage}% (${info1.direction})`)
+      console.log(`   📰 Event 2: ${info2.symbol} ${info2.percentage > 0 ? '+' : ''}${info2.percentage}% (${info2.direction})`)
+      
+      // Send ONLY to this player (not broadcast)
+      // Use topGainer/topLoser keys for backwards compatibility with client
+      socket.emit('player:insiderInfo', {
+        topGainer: { symbol: info1.symbol, percentage: info1.percentage },
+        topLoser: { symbol: info2.symbol, percentage: info2.percentage }
+      })
+      
+      console.log(`✅ Insider info sent privately to ${playerName}`)
+      console.log(`🕵️ === INSIDER INFO COMPLETE ===\n`)
+    })
 
     // Player triggers event - server generates and broadcasts to ALL players
     socket.on('player:triggerEvent', ({ roomCode, playerName, playerAvatar }) => {
@@ -2038,25 +2131,27 @@ app.prepare().then(() => {
       if (!shouldGenerateForecast && randomEvent.type === 'event') {
         // Market-wide events
         if (scanAction.effect.includes('Bull Run')) {
+          const bullPct = randomEvent.percentage
+          const bullMultiplier = 1 + bullPct / 100
           Object.keys(globalCryptoPrices).forEach(symbol => {
-            globalCryptoPrices[symbol] = Math.round(globalCryptoPrices[symbol] * 1.05 * 100) / 100
+            globalCryptoPrices[symbol] = Math.round(globalCryptoPrices[symbol] * bullMultiplier * 100) / 100
             // Track price history for candlestick chart
             if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][symbol]) {
-              roomPriceHistory[roomCode][symbol].push({ percentage: 5, timestamp: Date.now() })
+              roomPriceHistory[roomCode][symbol].push({ percentage: bullPct, timestamp: Date.now() })
               if (roomPriceHistory[roomCode][symbol].length > 10) {
                 roomPriceHistory[roomCode][symbol].shift()
               }
-              console.log(`📊 AUTO EVENT: ${symbol} price history updated (+5%) - now ${roomPriceHistory[roomCode][symbol].length} events`)
+              console.log(`📊 AUTO EVENT: ${symbol} price history updated (+${bullPct}%) - now ${roomPriceHistory[roomCode][symbol].length} events`)
             }
             // 📈 Update momentum tracking for market-wide event
             if (!roomMomentum[roomCode]) roomMomentum[roomCode] = {}
             if (!roomMomentum[roomCode][symbol]) roomMomentum[roomCode][symbol] = []
-            roomMomentum[roomCode][symbol].push(5)
+            roomMomentum[roomCode][symbol].push(bullPct)
             if (roomMomentum[roomCode][symbol].length > 5) {
               roomMomentum[roomCode][symbol].shift() // Keep last 5 moves
             }
           })
-          console.log(`🐂 Bull Run applied: All cryptos +${scanAction.percentageValue}%`)
+          console.log(`🐂 Bull Run applied: All cryptos +${bullPct}%`)
         } else if (scanAction.effect.includes('Bear Market')) {
           Object.keys(globalCryptoPrices).forEach(symbol => {
             globalCryptoPrices[symbol] = Math.round(globalCryptoPrices[symbol] * 0.9 * 100) / 100
@@ -2140,7 +2235,7 @@ app.prepare().then(() => {
               roomMomentum[roomCode][altcoin].shift()
             }
             
-            console.log(`🔗 ${altcoin}: €${altOldPrice.toFixed(2)} → €${globalCryptoPrices[altcoin].toFixed(2)} (${correlationPercentage > 0 ? '+' : ''}${correlationPercentage.toFixed(1)}%)`)
+            console.log(`🔗 ${altcoin}: ⚘${altOldPrice.toFixed(2)} → ⚘${globalCryptoPrices[altcoin].toFixed(2)} (${correlationPercentage > 0 ? '+' : ''}${correlationPercentage.toFixed(1)}%)`)
           })
           
           console.log(`🔗 === NGT LEADER EFFECT COMPLETE ===\n`)
@@ -2165,64 +2260,6 @@ app.prepare().then(() => {
       
       console.log(`✅ Event broadcast to all players in room ${roomCode}`)
       console.log(`📊 Price history broadcast:`, Object.keys(roomPriceHistory[roomCode] || {}).map(sym => `${sym}:${roomPriceHistory[roomCode][sym].length}`).join(', '))
-    })
-
-    // Player requests insider info - send 2 random upcoming events
-    socket.on('player:requestInsiderInfo', ({ roomCode }) => {
-      console.log(`\n🕵️ === PLAYER INSIDER INFO REQUEST ===`)
-      console.log(`🏠 Room: ${roomCode}`)
-      
-      if (!rooms[roomCode]) {
-        console.log('❌ Room not found')
-        return
-      }
-
-      // Find player name from socket
-      const playerName = Object.keys(rooms[roomCode].players || {}).find(
-        name => rooms[roomCode].players[name]?.socketId === socket.id
-      ) || 'Unknown'
-
-      // Initialize upcoming events if not exists
-      if (!roomUpcomingEvents[roomCode] || roomUpcomingEvents[roomCode].length === 0) {
-        generateUpcomingEvents(roomCode)
-      }
-
-      const upcomingEvents = roomUpcomingEvents[roomCode] || []
-      
-      // Pick 2 random events from upcoming events for dynamic insider info
-      const availableEvents = upcomingEvents.slice(0, 9) // Look at next 9 events
-      const shuffled = [...availableEvents].sort(() => Math.random() - 0.5)
-      const selectedEvents = shuffled.slice(0, 2)
-
-      if (selectedEvents.length < 2) {
-        console.log('❌ Not enough events for insider info')
-        return
-      }
-
-      const event1 = selectedEvents[0]
-      const event2 = selectedEvents[1]
-
-      const info1 = {
-        symbol: event1.crypto || event1.symbol,
-        percentage: event1.percentage,
-        direction: event1.percentage > 0 ? 'up' : 'down'
-      }
-
-      const info2 = {
-        symbol: event2.crypto || event2.symbol,
-        percentage: event2.percentage,
-        direction: event2.percentage > 0 ? 'up' : 'down'
-      }
-
-      console.log(`🕵️ Sending insider forecast to ${playerName}:`)
-      console.log(`   📰 Event 1: ${info1.symbol} ${info1.percentage > 0 ? '+' : ''}${info1.percentage}% (${info1.direction})`)
-      console.log(`   📰 Event 2: ${info2.symbol} ${info2.percentage > 0 ? '+' : ''}${info2.percentage}% (${info2.direction})`)
-
-      // Send ONLY to this player (not broadcast)
-      socket.emit('player:insiderInfo', {
-        topGainer: { symbol: info1.symbol, percentage: info1.percentage },
-        topLoser: { symbol: info2.symbol, percentage: info2.percentage }
-      })
     })
 
     // Player scan action - broadcast to all players in room (including Market Screen)
@@ -2281,7 +2318,7 @@ app.prepare().then(() => {
               const oldPrice = globalCryptoPrices[symbol]
               globalCryptoPrices[symbol] = Math.max(0.01, Math.round(oldPrice * 1.05 * 100) / 100)
               // Price history tracking happens in scan:event handler to avoid duplicates
-              console.log(`  ${symbol}: €${oldPrice.toFixed(2)} → €${globalCryptoPrices[symbol].toFixed(2)}`)
+              console.log(`  ${symbol}: ⚘${oldPrice.toFixed(2)} → ⚘${globalCryptoPrices[symbol].toFixed(2)}`)
             })
           } else if (scanAction.effect.includes('Bear Market')) {
             console.log('🐻 SERVER: Applying Bear Market - All coins -10%')
@@ -2289,7 +2326,7 @@ app.prepare().then(() => {
               const oldPrice = globalCryptoPrices[symbol]
               globalCryptoPrices[symbol] = Math.max(0.01, Math.round(oldPrice * 0.9 * 100) / 100)
               // Price history tracking happens in scan:event handler to avoid duplicates
-              console.log(`  ${symbol}: €${oldPrice.toFixed(2)} → €${globalCryptoPrices[symbol].toFixed(2)}`)
+              console.log(`  ${symbol}: ⚘${oldPrice.toFixed(2)} → ⚘${globalCryptoPrices[symbol].toFixed(2)}`)
             })
           } else if (scanAction.effect.includes('Whale Alert')) {
             let targetSymbol = scanAction.cryptoSymbol
@@ -2305,7 +2342,7 @@ app.prepare().then(() => {
             const oldPrice = globalCryptoPrices[whaleAlertSymbol]
             globalCryptoPrices[whaleAlertSymbol] = Math.max(0.01, Math.round(oldPrice * 1.5 * 100) / 100)
             // Price history tracking happens in scan:event handler to avoid duplicates
-            console.log(`  ${whaleAlertSymbol}: €${oldPrice.toFixed(2)} → €${globalCryptoPrices[whaleAlertSymbol].toFixed(2)} (+50%)`)
+            console.log(`  ${whaleAlertSymbol}: ⚘${oldPrice.toFixed(2)} → ⚘${globalCryptoPrices[whaleAlertSymbol].toFixed(2)} (+50%)`)
           }
         }
         
@@ -2368,14 +2405,16 @@ app.prepare().then(() => {
                   console.log(`   👤 Target player: "${targetPlayerName}" (normalized: "${normalizedTargetPlayer}")`)
                   console.log(`   ✅ Match: ${normalizedScanPlayer === normalizedTargetPlayer}`)
                   
-                  // If this is a forecast and the target player is NOT the trigger player
-                  if (normalizedScanPlayer !== normalizedTargetPlayer) {
+                  // Market Dashboard is the operator - always sees full forecast
+                  const isMarketDashboard = targetPlayerName === 'Market Dashboard'
+                  // If this is a forecast and the target player is NOT the trigger player AND not Market Dashboard
+                  if (normalizedScanPlayer !== normalizedTargetPlayer && !isMarketDashboard) {
                     // Remove forecast data for other players
                     console.log(`   ❌ Removing forecastData for ${targetPlayerName}`)
                     const { forecastData, ...scanWithoutForecast } = scan
                     return scanWithoutForecast
                   } else {
-                    console.log(`   ✅ Keeping forecastData for trigger player ${targetPlayerName}`)
+                    console.log(`   ✅ Keeping forecastData for ${isMarketDashboard ? 'Market Dashboard (operator)' : `trigger player ${targetPlayerName}`}`)
                   }
                 }
                 // Return full scan data for trigger player or non-forecast events
@@ -2527,8 +2566,8 @@ app.prepare().then(() => {
       if (action.action === 'Nieuwjaar bonus' || action.effect?.includes('START BONUS')) {
         console.log(`🗓️ Detected speeljaar action - reversing year and cash bonus`)
         
-        // Extract cash amount from effect (e.g. "START BONUS +€500")
-        const cashMatch = action.effect?.match(/\+€(\d+)/)
+        // Extract cash amount from effect (e.g. "START BONUS +⚘500")
+        const cashMatch = action.effect?.match(/\+⚘(\d+)/)
         const cashAmount = cashMatch ? parseInt(cashMatch[1]) : 500
         
         // Find the player who triggered this action
@@ -2543,7 +2582,7 @@ app.prepare().then(() => {
           const oldCash = player.cashBalance || 0
           player.cashBalance = Math.max(0, oldCash - cashAmount)
           
-          console.log(`💰 UNDO: ${action.player} cash ${oldCash.toFixed(2)} → ${player.cashBalance.toFixed(2)} (-€${cashAmount})`)
+          console.log(`💰 UNDO: ${action.player} cash ${oldCash.toFixed(2)} → ${player.cashBalance.toFixed(2)} (-⚘${cashAmount})`)
           
           // Broadcast player update to trigger year decrease AND cash update on client
           io.to(roomCode).emit('player:yearUndo', {
@@ -2552,7 +2591,7 @@ app.prepare().then(() => {
             cashAmount: cashAmount
           })
           
-          console.log(`🗓️ Sent year undo signal to ${action.player} with cash adjustment -€${cashAmount}`)
+          console.log(`🗓️ Sent year undo signal to ${action.player} with cash adjustment -⚘${cashAmount}`)
         } else {
           console.warn(`⚠️ Player ${action.player} not found in room`)
         }
@@ -2563,7 +2602,7 @@ app.prepare().then(() => {
         console.log(`🛒 Detected koop action - reversing purchase`)
         
         // Extract crypto symbol and amount from effect
-        // Format: "1x DigiSheep gekocht voor €100"
+        // Format: "1x DigiSheep gekocht voor ⚘100"
         const amountMatch = action.effect?.match(/(\d+)x/)
         const amount = amountMatch ? parseInt(amountMatch[1]) : 1
         
@@ -2578,11 +2617,11 @@ app.prepare().then(() => {
         const cryptoSymbol = symbolMatch ? (nameToSymbol[symbolMatch[0]] || symbolMatch[0]) : null
         
         // Extract price from effect
-        const priceMatch = action.effect?.match(/€(\d+(?:\.\d+)?)/)
+        const priceMatch = action.effect?.match(/⚘(\d+(?:\.\d+)?)/)
         const price = priceMatch ? parseFloat(priceMatch[1]) : 0
         
         if (cryptoSymbol && price > 0) {
-          console.log(`🔄 Reversing: ${amount}x ${cryptoSymbol} for €${price}`)
+          console.log(`🔄 Reversing: ${amount}x ${cryptoSymbol} for ⚘${price}`)
           
           io.to(roomCode).emit('player:undoAction', {
             playerName: action.player,
@@ -2616,11 +2655,11 @@ app.prepare().then(() => {
         const cryptoSymbol = symbolMatch ? (nameToSymbol[symbolMatch[0]] || symbolMatch[0]) : null
         
         // Extract price from effect
-        const priceMatch = action.effect?.match(/€(\d+(?:\.\d+)?)/)
+        const priceMatch = action.effect?.match(/⚘(\d+(?:\.\d+)?)/)
         const price = priceMatch ? parseFloat(priceMatch[1]) : 0
         
         if (cryptoSymbol && price > 0) {
-          console.log(`🔄 Reversing: ${amount}x ${cryptoSymbol} for €${price}`)
+          console.log(`🔄 Reversing: ${amount}x ${cryptoSymbol} for ⚘${price}`)
           
           io.to(roomCode).emit('player:undoAction', {
             playerName: action.player,
@@ -2823,7 +2862,7 @@ app.prepare().then(() => {
       console.log(`🏠 Room: ${roomCode}`)
       console.log(`👤 Player: ${playerData.name}`)
       console.log(`🔌 Socket: ${socket.id}`)
-      console.log(`💯 Total Value: €${playerData.totalValue}`)
+      console.log(`💯 Total Value: ⚘${playerData.totalValue}`)
       
       if (!rooms[roomCode] || !rooms[roomCode].players[socket.id]) {
         console.log(`❌ Room ${roomCode} or player not found`)
@@ -2851,10 +2890,10 @@ app.prepare().then(() => {
       const expectedTotal = Math.round((playerData.portfolioValue + playerData.cashBalance) * 100) / 100
       
       console.log(`🔍 VALIDATION CHECK:`)
-      console.log(`💎 Client Portfolio: €${playerData.portfolioValue}`)
-      console.log(`💰 Cash: €${playerData.cashBalance}`)
-      console.log(`💯 Client Total: €${clientTotal}`)
-      console.log(`🧮 Expected (Portfolio + Cash): €${expectedTotal}`)
+      console.log(`💎 Client Portfolio: ⚘${playerData.portfolioValue}`)
+      console.log(`💰 Cash: ⚘${playerData.cashBalance}`)
+      console.log(`💯 Client Total: ⚘${clientTotal}`)
+      console.log(`🧮 Expected (Portfolio + Cash): ⚘${expectedTotal}`)
       
       // If client's total doesn't match their own portfolio+cash, fix it
       if (Math.abs(clientTotal - expectedTotal) > 0.01) {
@@ -2873,9 +2912,9 @@ app.prepare().then(() => {
       
       const isHostPlayer = rooms[roomCode].players[socket.id]?.isHost
       console.log(`✅ Server state updated for ${playerData.name} ${isHostPlayer ? '(HOST)' : ''}`)
-      console.log(`💰 Cash: €${playerData.cashBalance}`)
-      console.log(`💎 Portfolio: €${playerData.portfolioValue}`)
-      console.log(`💯 Total: €${playerData.totalValue}`)
+      console.log(`💰 Cash: ⚘${playerData.cashBalance}`)
+      console.log(`💎 Portfolio: ⚘${playerData.portfolioValue}`)
+      console.log(`💯 Total: ⚘${playerData.totalValue}`)
 
       // 📡 BROADCAST TO ALL PLAYERS IN ROOM (EXCLUDING HOST AS PLAYER)
       if (isHostPlayer) {
@@ -2890,6 +2929,7 @@ app.prepare().then(() => {
         totalValue: playerData.totalValue,
         portfolioValue: playerData.portfolioValue,
         cashBalance: playerData.cashBalance,
+        portfolio: playerData.portfolio || {},
         timestamp: timestamp
       }
       
@@ -2897,15 +2937,234 @@ app.prepare().then(() => {
       console.log(`   Player ID: ${socket.id}`)
       console.log(`   Player Name: ${playerData.name}`)
       console.log(`   Player Avatar: ${playerData.avatar}`)
-      console.log(`   Total Value: €${playerData.totalValue.toFixed(2)}`)
-      console.log(`   Portfolio Value: €${playerData.portfolioValue.toFixed(2)}`)
-      console.log(`   Cash Balance: €${playerData.cashBalance.toFixed(2)}`)
+      console.log(`   Total Value: ⚘${playerData.totalValue.toFixed(2)}`)
+      console.log(`   Portfolio Value: ⚘${playerData.portfolioValue.toFixed(2)}`)
+      console.log(`   Cash Balance: ⚘${playerData.cashBalance.toFixed(2)}`)
       console.log(`   Clients in room: ${io.sockets.adapter.rooms.get(roomCode)?.size || 0}`)
       
       io.to(roomCode).emit('dashboard:livePlayerUpdate', broadcastData)
 
       console.log(`✅ Broadcast complete`)
       console.log(`🎯 === UNIFIED UPDATE COMPLETE ===\n`)
+    })
+
+    // ==========================================
+    // ROOM-WIDE SOUND EFFECTS SYNC
+    // ==========================================
+    socket.on('room:soundEffectsUpdated', ({ roomCode, enabled }) => {
+      io.to(roomCode).emit('room:soundEffectsUpdated', { enabled })
+      console.log(`🔔 room:soundEffectsUpdated → room ${roomCode}: enabled=${enabled}`)
+    })
+
+    // ==========================================
+    // MARKETPLACE BIDDING SYSTEM
+    // ==========================================
+    
+    // Store active bidding timers (per socket, fine since timer fires before disconnect)
+    const biddingTimers = new Map()
+    
+    // Handle new marketplace order creation
+    socket.on('marketplace:createOrder', ({ roomCode, order }) => {
+      console.log('\n📦 === MARKETPLACE ORDER CREATED ===')
+      console.log('📦 Order:', order)
+      console.log('🏠 Room:', roomCode)
+      
+      // Store order in global map - persists if seller socket reconnects
+      globalMarketplaceOrders.set(order.id, { order, roomCode })
+      console.log(`📦 Stored order ${order.id} for seller ${order.playerName} (total stored: ${globalMarketplaceOrders.size})`)
+
+      // Pause turn timer during bidding so the turn doesn't advance mid-bid
+      if (rooms[roomCode]) {
+        rooms[roomCode]._activeBiddingOrderId = order.id
+        if (turnTimers.has(roomCode)) {
+          clearTimeout(turnTimers.get(roomCode))
+          turnTimers.delete(roomCode)
+          console.log(`⏸️ Turn timer PAUSED for room ${roomCode} during bidding`)
+        }
+      }
+
+      // Broadcast order to ALL players in the room
+      io.to(roomCode).emit('marketplace:newOrder', { order })
+      
+      console.log('📡 Broadcast marketplace:newOrder to room:', roomCode)
+      console.log(`👥 Players in room: ${io.sockets.adapter.rooms.get(roomCode)?.size || 0}`)
+      
+      // Start 10-second bidding timer
+      const timerId = setTimeout(() => {
+        console.log('⏰ Bidding time ended for order:', order.id)
+        io.to(roomCode).emit('marketplace:biddingEnded', { orderId: order.id })
+        biddingTimers.delete(order.id)
+        // Resume turn timer after bidding ends
+        if (rooms[roomCode]?._activeBiddingOrderId === order.id) {
+          delete rooms[roomCode]._activeBiddingOrderId
+          console.log(`▶️ Turn timer RESUMED after bidding ended for room ${roomCode}`)
+          startTurnTimer(roomCode, io)
+        }
+      }, 10000) // 10 seconds
+      
+      biddingTimers.set(order.id, timerId)
+      console.log('✅ Bidding timer started (10 seconds)')
+      console.log('📦 === ORDER BROADCAST COMPLETE ===\n')
+    })
+    
+    // Handle bid placement
+    socket.on('marketplace:placeBid', ({ roomCode, orderId, bid }) => {
+      console.log('\n💰 === BID RECEIVED ===')
+      console.log('💰 Bid:', bid)
+      console.log('📦 Order ID:', orderId)
+      console.log('🏠 Room:', roomCode)
+      
+      // Broadcast bid to all players (seller will filter it)
+      io.to(roomCode).emit('marketplace:bidReceived', { orderId, bid })
+      
+      console.log('📡 Broadcast bid to room:', roomCode)
+      console.log('✅ === BID BROADCAST COMPLETE ===\n')
+    })
+    
+    // Handle bid acceptance
+    socket.on('marketplace:acceptBid', ({ roomCode, orderId, winningBid }) => {
+      console.log('\n✅ === BID ACCEPTED ===')
+      console.log('✅ Winning bid:', winningBid)
+      console.log('📦 Order ID:', orderId)
+      console.log('🏠 Room:', roomCode)
+      
+      // Clear the bidding timer if still active
+      if (biddingTimers.has(orderId)) {
+        clearTimeout(biddingTimers.get(orderId))
+        biddingTimers.delete(orderId)
+        console.log('⏰ Cleared bidding timer')
+      }
+
+      // Resume turn timer - bidding ended early via acceptance
+      if (rooms[roomCode]?._activeBiddingOrderId === orderId) {
+        delete rooms[roomCode]._activeBiddingOrderId
+        console.log(`▶️ Turn timer RESUMED after bid accepted for room ${roomCode}`)
+        startTurnTimer(roomCode, io)
+      }
+      
+      // Retrieve stored order from global map
+      const stored = globalMarketplaceOrders.get(orderId)
+      if (!stored) {
+        console.log(`❌ Order ${orderId} not found in globalMarketplaceOrders (size: ${globalMarketplaceOrders.size})`)
+        console.log('❌ Available orders:', Array.from(globalMarketplaceOrders.keys()))
+        // Still broadcast so UI closes
+        io.to(roomCode).emit('marketplace:bidAccepted', { orderId, winningBid: winningBid.amount, winnerName: winningBid.playerName, winnerId: winningBid.playerId })
+        return
+      }
+      const { order: storedOrder } = stored
+      globalMarketplaceOrders.delete(orderId)
+      console.log(`✅ Order found: seller=${storedOrder.playerName}, crypto=${storedOrder.crypto}, amount=${storedOrder.amount}`)
+
+      if (!rooms[roomCode]) {
+        console.log('❌ Room not found')
+        return
+      }
+
+      // Find seller and buyer WITH their socket IDs
+      const sellerEntry = Object.entries(rooms[roomCode].players).find(([, p]) => p.name === storedOrder.playerName)
+      const buyerEntry = Object.entries(rooms[roomCode].players).find(([, p]) => p.name === winningBid.playerName)
+
+      if (!sellerEntry || !buyerEntry) {
+        console.log('❌ Seller or buyer not found:', { sellerName: storedOrder.playerName, buyerName: winningBid.playerName })
+        console.log('❌ Available players:', Object.values(rooms[roomCode].players).map(p => p.name))
+        io.to(roomCode).emit('marketplace:bidAccepted', { orderId, winningBid: winningBid.amount, winnerName: winningBid.playerName, winnerId: winningBid.playerId })
+        return
+      }
+
+      const [sellerSocketId, seller] = sellerEntry
+      const [buyerSocketId, buyer] = buyerEntry
+
+      // Sanitize amounts
+      const bidAmount = typeof winningBid.amount === 'number'
+        ? winningBid.amount
+        : parseFloat(String(winningBid.amount).replace(/[^\d.]/g, ''))
+      const quantity = typeof storedOrder.amount === 'number' ? storedOrder.amount : Number(storedOrder.amount)
+      const cryptoSymbol = storedOrder.crypto
+
+      if (isNaN(bidAmount) || isNaN(quantity) || bidAmount <= 0 || quantity <= 0) {
+        console.log('❌ Invalid amounts:', { bidAmount, quantity })
+        return
+      }
+
+      // Init portfolios
+      if (!seller.portfolio) seller.portfolio = {}
+      if (!buyer.portfolio) buyer.portfolio = {}
+
+      console.log('💰 TRANSACTION START')
+      console.log(`  Seller ${seller.name}: cash=⚘${seller.cashBalance}, ${cryptoSymbol}=${seller.portfolio[cryptoSymbol] || 0}`)
+      console.log(`  Buyer  ${buyer.name}: cash=⚘${buyer.cashBalance}, ${cryptoSymbol}=${buyer.portfolio[cryptoSymbol] || 0}`)
+
+      // CRYPTO: seller loses, buyer gains
+      seller.portfolio[cryptoSymbol] = (seller.portfolio[cryptoSymbol] || 0) - quantity
+      buyer.portfolio[cryptoSymbol] = (buyer.portfolio[cryptoSymbol] || 0) + quantity
+
+      // CASH: buyer loses, seller gains
+      buyer.cashBalance = Number((buyer.cashBalance - bidAmount).toFixed(2))
+      seller.cashBalance = Number((seller.cashBalance + bidAmount).toFixed(2))
+
+      console.log(`  ✅ Seller ${seller.name}: cash=⚘${seller.cashBalance} (+${bidAmount}), ${cryptoSymbol}=${seller.portfolio[cryptoSymbol]} (-${quantity})`)
+      console.log(`  ✅ Buyer  ${buyer.name}: cash=⚘${buyer.cashBalance} (-${bidAmount}), ${cryptoSymbol}=${buyer.portfolio[cryptoSymbol]} (+${quantity})`)
+
+      // Emit DIRECTLY to each player's socket by ID - no name matching needed
+      const sellerSocket = io.sockets.sockets.get(sellerSocketId)
+      const buyerSocket = io.sockets.sockets.get(buyerSocketId)
+
+      if (sellerSocket) {
+        sellerSocket.emit('player:balanceUpdate', {
+          cashBalance: seller.cashBalance,
+          portfolio: { ...seller.portfolio }
+        })
+        console.log(`📩 Sent balanceUpdate directly to SELLER ${seller.name} (${sellerSocketId})`)
+      } else {
+        console.warn(`⚠️ Seller socket not found: ${sellerSocketId}`)
+      }
+
+      if (buyerSocket) {
+        buyerSocket.emit('player:balanceUpdate', {
+          cashBalance: buyer.cashBalance,
+          portfolio: { ...buyer.portfolio }
+        })
+        console.log(`📩 Sent balanceUpdate directly to BUYER ${buyer.name} (${buyerSocketId})`)
+      } else {
+        console.warn(`⚠️ Buyer socket not found: ${buyerSocketId}`)
+      }
+
+      // Broadcast to room so all UIs close (bidAccepted still used for modal/popup close)
+      io.to(roomCode).emit('marketplace:bidAccepted', {
+        orderId,
+        winningBid: bidAmount,
+        winnerName: winningBid.playerName,
+        winnerId: winningBid.playerId,
+        sellerName: storedOrder.playerName,
+        crypto: cryptoSymbol,
+        quantity
+      })
+
+      // Update room rankings
+      io.to(roomCode).emit('lobby:update', rooms[roomCode])
+
+      console.log('📡 Broadcast bid acceptance + player updates to room:', roomCode)
+      console.log('✅ === BID ACCEPTANCE COMPLETE ===\n')
+    })
+    
+    // Handle order cancellation
+    socket.on('marketplace:cancelOrder', ({ roomCode, orderId }) => {
+      console.log('\n🚫 === ORDER CANCELLED ===')
+      console.log('📦 Order ID:', orderId)
+      console.log('🏠 Room:', roomCode)
+      
+      // Clear the bidding timer if active
+      if (biddingTimers.has(orderId)) {
+        clearTimeout(biddingTimers.get(orderId))
+        biddingTimers.delete(orderId)
+        console.log('⏰ Cleared bidding timer')
+      }
+      
+      // Broadcast cancellation to all players
+      io.to(roomCode).emit('marketplace:orderCancelled', { orderId })
+      
+      console.log('📡 Broadcast order cancellation to room:', roomCode)
+      console.log('✅ === ORDER CANCELLATION COMPLETE ===\n')
     })
 
     // 🔄 PLAYER SWAP - Exchange 1 crypto coin between two players

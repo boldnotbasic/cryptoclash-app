@@ -1,6 +1,7 @@
 'use client'
 
-import { Users, Crown, Gamepad2, BarChart3 } from 'lucide-react'
+import { Users, Crown, Gamepad2, BarChart3, Languages, TrendingUp, Trophy } from 'lucide-react'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface StartScreenProps {
   onSelectRole: (role: 'host' | 'player') => void
@@ -11,6 +12,8 @@ interface StartScreenProps {
 }
 
 export default function StartScreen({ onSelectRole, onBypass, onSignOut, userName, lobbyCode }: StartScreenProps) {
+  const { language, setLanguage, t } = useLanguage()
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
@@ -60,7 +63,7 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
           {/* Host Option */}
           <button
             onClick={() => onSelectRole('host')}
-            className="crypto-card hover:scale-105 transition-all duration-300 group cursor-pointer border-2 border-neon-purple/30 hover:border-neon-purple/60 shadow-[0_0_15px_rgba(168,85,247,0.4)] hover:shadow-[0_0_25px_rgba(168,85,247,0.6)]"
+            className="crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 hover:border-purple-500/90 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-105 transition-all duration-300 group cursor-pointer"
           >
             <div className="px-4 py-5 text-center space-y-3">
               {/* Icoon boven titel */}
@@ -68,7 +71,7 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
                 <div className="p-3 bg-neon-blue/20 rounded-full group-hover:bg-neon-blue/30 transition-colors">
                   <Crown className="w-8 h-8 text-neon-blue" />
                 </div>
-                <h2 className="text-2xl font-bold text-white">Hosting</h2>
+                <h2 className="text-2xl font-bold text-white">{t('startScreen.hosting')}</h2>
               </div>
             </div>
           </button>
@@ -76,7 +79,7 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
           {/* Player Option */}
           <button
             onClick={() => onSelectRole('player')}
-            className="crypto-card hover:scale-105 transition-all duration-300 group cursor-pointer border-2 border-neon-purple/30 hover:border-neon-purple/60 shadow-[0_0_15px_rgba(168,85,247,0.4)] hover:shadow-[0_0_25px_rgba(168,85,247,0.6)]"
+            className="crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 hover:border-purple-500/90 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-105 transition-all duration-300 group cursor-pointer"
           >
             <div className="px-4 py-5 text-center space-y-3">
               {/* Icoon boven titel */}
@@ -84,7 +87,7 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
                 <div className="p-3 bg-neon-purple/20 rounded-full group-hover:bg-neon-purple/30 transition-colors">
                   <Users className="w-8 h-8 text-neon-purple" />
                 </div>
-                <h2 className="text-2xl font-bold text-white">Spelen</h2>
+                <h2 className="text-2xl font-bold text-white">{t('startScreen.playing')}</h2>
               </div>
             </div>
           </button>
@@ -95,35 +98,85 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
           <div className="mt-6">
             <button
               onClick={onBypass}
-              className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+              className="w-full py-4 border-2 border-orange-500 hover:border-orange-600 text-orange-500 hover:text-orange-600 font-bold rounded-xl transition-all duration-300"
             >
-              🚀 Doorgaan zonder Stripe
+              🚀 {t('startScreen.bypassStripe')}
             </button>
           </div>
         )}
 
-        {/* Game Info */}
-        <div className="mt-12 crypto-card">
-          <h3 className="text-xl font-bold text-white mb-4 text-center flex items-center justify-center space-x-2">
-            <BarChart3 className="w-6 h-6 text-neon-turquoise" />
-            <span>Over CryptoClash</span>
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-center">
-            <div>
-              <h4 className="text-neon-gold font-semibold mb-2">🎮 Multiplayer Trading</h4>
-              <p className="text-gray-300 text-sm">Compete met andere spelers in real-time crypto trading</p>
+        {/* Language Selector */}
+        <div className="crypto-card mt-6">
+          <div className="flex items-center justify-center space-x-3 mb-4">
+            <Languages className="w-5 h-5 text-neon-blue" />
+            <h3 className="text-lg font-bold text-white">{t('common.selectLanguage')}</h3>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <button
+              onClick={() => setLanguage('nl')}
+              className={`p-3 rounded-lg border-2 transition-all duration-200 text-center font-semibold ${
+                language === 'nl'
+                  ? 'border-neon-blue bg-neon-blue/20 text-neon-blue'
+                  : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
+              }`}
+            >
+              🇳🇱 Nederlands
+            </button>
+            <button
+              onClick={() => setLanguage('en')}
+              className={`p-3 rounded-lg border-2 transition-all duration-200 text-center font-semibold ${
+                language === 'en'
+                  ? 'border-neon-blue bg-neon-blue/20 text-neon-blue'
+                  : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
+              }`}
+            >
+              🇬🇧 English
+            </button>
+            <button
+              onClick={() => setLanguage('fr')}
+              className={`p-3 rounded-lg border-2 transition-all duration-200 text-center font-semibold ${
+                language === 'fr'
+                  ? 'border-neon-blue bg-neon-blue/20 text-neon-blue'
+                  : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
+              }`}
+            >
+              🇫🇷 Français
+            </button>
+          </div>
+        </div>
+
+        {/* Game Info - USPs */}
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Multiplayer Trading */}
+          <div className="crypto-card text-center">
+            <div className="flex flex-col items-center space-y-3">
+              <div className="p-3 bg-neon-purple/20 rounded-full">
+                <Users className="w-8 h-8 text-neon-purple" />
+              </div>
+              <h4 className="text-neon-gold font-bold text-lg">{t('startScreen.features.multiplayer.title')}</h4>
+              <p className="text-gray-300 text-sm leading-relaxed">{t('startScreen.features.multiplayer.desc')}</p>
             </div>
-            <div>
-              <h4 className="text-neon-gold font-semibold mb-2">📱 QR Code Boosts</h4>
-              <p className="text-gray-300 text-sm">Scan QR codes voor speciale markt effecten en voordelen</p>
+          </div>
+
+          {/* Live Market */}
+          <div className="crypto-card text-center">
+            <div className="flex flex-col items-center space-y-3">
+              <div className="p-3 bg-neon-turquoise/20 rounded-full">
+                <TrendingUp className="w-8 h-8 text-neon-turquoise" />
+              </div>
+              <h4 className="text-neon-gold font-bold text-lg">{t('startScreen.features.liveMarket.title')}</h4>
+              <p className="text-gray-300 text-sm leading-relaxed">{t('startScreen.features.liveMarket.desc')}</p>
             </div>
-            <div>
-              <h4 className="text-neon-gold font-semibold mb-2">📊 Live Markt</h4>
-              <p className="text-gray-300 text-sm">Dynamische prijzen en marktbewegingen tijdens het spel</p>
-            </div>
-            <div>
-              <h4 className="text-neon-gold font-semibold mb-2">🏆 Leaderboard</h4>
-              <p className="text-gray-300 text-sm">Zie wie de beste crypto trader is in je groep</p>
+          </div>
+
+          {/* Leaderboard */}
+          <div className="crypto-card text-center">
+            <div className="flex flex-col items-center space-y-3">
+              <div className="p-3 bg-neon-gold/20 rounded-full">
+                <Trophy className="w-8 h-8 text-neon-gold" />
+              </div>
+              <h4 className="text-neon-gold font-bold text-lg">{t('startScreen.features.leaderboard.title')}</h4>
+              <p className="text-gray-300 text-sm leading-relaxed">{t('startScreen.features.leaderboard.desc')}</p>
             </div>
           </div>
         </div>

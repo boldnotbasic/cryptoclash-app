@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { ArrowLeftRight, Check, X } from 'lucide-react'
 import Image from 'next/image'
 import Header from './Header'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatCurrency } from '@/utils/currency'
 
 interface CryptoCurrency {
   id: string
@@ -59,6 +62,8 @@ export default function SwapScreen({
   onNavigate,
   onSwapConfirm 
 }: SwapScreenProps) {
+  const { t } = useLanguage()
+  const { currency } = useCurrency()
   const [selectedMyCrypto, setSelectedMyCrypto] = useState<string | null>(null)
   const [selectedOtherPlayer, setSelectedOtherPlayer] = useState<string | null>(null)
   const [selectedOtherCrypto, setSelectedOtherCrypto] = useState<string | null>(null)
@@ -121,8 +126,8 @@ export default function SwapScreen({
 
         {/* Page Title */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-white mb-2">Swap Crypto's</h1>
-          <p className="text-gray-400 text-sm">Ruil één van jouw crypto's met die van een andere speler</p>
+          <h1 className="text-3xl font-bold text-white mb-2">{t('swap.title')}</h1>
+          <p className="text-gray-400 text-sm">{t('swap.subtitle')}</p>
         </div>
 
         {/* Swap Interface */}
@@ -131,11 +136,11 @@ export default function SwapScreen({
           <div className="crypto-card bg-gradient-to-br from-gray-900/95 via-orange-500/5 to-gray-900/95 border-2 border-orange-500/70">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
               <span className="bg-orange-500/20 text-orange-400 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">1</span>
-              <span>Selecteer jouw crypto</span>
+              <span>{t('swap.step1')}</span>
             </h2>
             
             {myCryptos.length === 0 ? (
-              <p className="text-gray-400 text-center py-4">Je hebt nog geen crypto's om te ruilen</p>
+              <p className="text-gray-400 text-center py-4">{t('swap.noCryptos')}</p>
             ) : (
               <div className="grid grid-cols-3 gap-3">
                 {myCryptos.map((crypto) => {
@@ -166,7 +171,7 @@ export default function SwapScreen({
                           </span>
                         )}
                         <p className="text-sm font-bold text-white tracking-tight text-center">{crypto.symbol}</p>
-                        <p className="text-xs text-cyan-400 font-semibold">€{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="text-xs text-cyan-400 font-semibold">{formatCurrency(crypto.price, currency.symbol)}</p>
                         {/* Amount pill zonder paarse background */}
                         <div className="w-full mt-1">
                           <div className="w-full rounded-full border border-white/40 shadow-md px-2 py-0.5 text-center">
@@ -194,11 +199,11 @@ export default function SwapScreen({
           <div className="crypto-card bg-gradient-to-br from-gray-900/95 via-cyan-500/5 to-gray-900/95 border-2 border-cyan-500/70">
             <h2 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
               <span className="bg-cyan-500/20 text-cyan-400 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">2</span>
-              <span>Selecteer andere speler</span>
+              <span>{t('swap.step2')}</span>
             </h2>
             
             {otherPlayers.length === 0 ? (
-              <p className="text-gray-400 text-center py-4">Geen andere spelers beschikbaar</p>
+              <p className="text-gray-400 text-center py-4">{t('swap.noPlayers')}</p>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {otherPlayers.map((player) => {
@@ -220,7 +225,7 @@ export default function SwapScreen({
                         <span className="text-3xl">{player.avatar}</span>
                         <div className="flex-1 text-left">
                           <p className="text-white font-bold">{player.name}</p>
-                          <p className="text-xs text-gray-400">€{player.totalValue.toLocaleString('nl-NL')}</p>
+                          <p className="text-xs text-gray-400">{formatCurrency(player.totalValue, currency.symbol)}</p>
                         </div>
                         {isSelected && <Check className="w-5 h-5 text-cyan-500" />}
                       </div>
@@ -236,11 +241,11 @@ export default function SwapScreen({
             <div className="crypto-card bg-gradient-to-br from-gray-900/95 via-cyan-500/5 to-gray-900/95 border-2 border-cyan-500/70">
               <h2 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
                 <span className="bg-cyan-500/20 text-cyan-400 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">3</span>
-                <span>Selecteer crypto van {selectedPlayer?.name}</span>
+                <span>{t('swap.step3').replace('{name}', selectedPlayer?.name || '')}</span>
               </h2>
               
               {otherPlayerCryptos.length === 0 ? (
-                <p className="text-gray-400 text-center py-4">Deze speler heeft geen crypto's om te ruilen</p>
+                <p className="text-gray-400 text-center py-4">{t('swap.noPlayerCryptos')}</p>
               ) : (
                 <div className="grid grid-cols-3 gap-3">
                   {otherPlayerCryptos.map((crypto) => {
@@ -272,7 +277,7 @@ export default function SwapScreen({
                             </span>
                           )}
                           <p className="text-sm font-bold text-white tracking-tight text-center">{crypto.symbol}</p>
-                          <p className="text-xs text-cyan-400 font-semibold">€{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                          <p className="text-xs text-cyan-400 font-semibold">{formatCurrency(crypto.price, currency.symbol)}</p>
                           {/* Amount pill zonder paarse background */}
                           <div className="w-full mt-1">
                             <div className="w-full rounded-full border border-white/40 shadow-md px-2 py-0.5 text-center">
@@ -302,7 +307,7 @@ export default function SwapScreen({
           >
             <div className="flex items-center justify-center space-x-2">
               <ArrowLeftRight className="w-6 h-6" />
-              <span>Ruil Crypto's</span>
+              <span>{t('swap.swapButton')}</span>
             </div>
           </button>
         </div>
@@ -314,7 +319,7 @@ export default function SwapScreen({
               {/* Gradient border top */}
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-neon-purple via-neon-gold to-neon-purple rounded-t-2xl"></div>
               <div className="crypto-card bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-orange-500/70 rounded-2xl">
-                <h2 className="text-2xl font-bold text-white mb-4">Bevestig Swap</h2>
+                <h2 className="text-2xl font-bold text-white mb-4">{t('swap.confirmTitle')}</h2>
               
               <div className="space-y-4 mb-6">
                 <div className="flex items-center justify-between p-3 bg-orange-500/10 rounded-lg border border-orange-500/30">
@@ -322,12 +327,12 @@ export default function SwapScreen({
                     <span className="text-2xl">{playerAvatar}</span>
                     <div>
                       <p className="text-white font-bold">{playerName}</p>
-                      <p className="text-sm text-gray-400">Geeft: {myCrypto.symbol}</p>
+                      <p className="text-sm text-gray-400">{t('swap.gives')} {myCrypto.symbol}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-white font-bold">{myCrypto.amount.toFixed(4)}</p>
-                    <p className="text-xs text-gray-400">coins</p>
+                    <p className="text-xs text-gray-400">{t('swap.coins')}</p>
                   </div>
                 </div>
 
@@ -340,12 +345,12 @@ export default function SwapScreen({
                     <span className="text-2xl">{selectedPlayer.avatar}</span>
                     <div>
                       <p className="text-white font-bold">{selectedPlayer.name}</p>
-                      <p className="text-sm text-gray-400">Geeft: {otherCrypto.symbol}</p>
+                      <p className="text-sm text-gray-400">{t('swap.gives')} {otherCrypto.symbol}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-white font-bold">{(selectedPlayer.portfolio[otherCrypto.symbol] || 0).toFixed(4)}</p>
-                    <p className="text-xs text-gray-400">coins</p>
+                    <p className="text-xs text-gray-400">{t('swap.coins')}</p>
                   </div>
                 </div>
               </div>
@@ -357,7 +362,7 @@ export default function SwapScreen({
                 >
                   <div className="flex items-center justify-center space-x-2">
                     <X className="w-5 h-5" />
-                    <span>Annuleer</span>
+                    <span>{t('swap.cancel')}</span>
                   </div>
                 </button>
                 <button
@@ -366,7 +371,7 @@ export default function SwapScreen({
                 >
                   <div className="flex items-center justify-center space-x-2">
                     <Check className="w-5 h-5" />
-                    <span>Bevestig</span>
+                    <span>{t('swap.confirm')}</span>
                   </div>
                 </button>
               </div>
@@ -381,7 +386,7 @@ export default function SwapScreen({
             onClick={() => onNavigate('actions-menu')}
             className="w-full crypto-card bg-gray-600/20 hover:bg-gray-600/30 border border-gray-600/50 text-gray-300 font-semibold py-3 px-4 rounded-lg hover:scale-105 transition-transform"
           >
-            ← Terug naar Acties
+            {t('swap.backToActions')}
           </button>
         </div>
       </div>

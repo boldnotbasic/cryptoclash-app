@@ -168,7 +168,7 @@ export default function Settings({ onBack }: SettingsProps) {
                 <span className={`font-bold ${themeClasses.text}`}>Virticoin</span>
               </div>
               <p className={`text-2xl font-bold ${currentTheme === 'light' ? 'text-blue-600' : 'text-neon-gold'}`}>
-                €1,250.50
+                ⚘1,250.50
               </p>
               <p className={`text-sm ${currentTheme === 'light' ? 'text-green-600' : 'text-green-400'}`}>
                 +5.2%
@@ -181,7 +181,7 @@ export default function Settings({ onBack }: SettingsProps) {
                 <span className={`font-bold ${themeClasses.text}`}>LedgerX</span>
               </div>
               <p className={`text-2xl font-bold ${currentTheme === 'light' ? 'text-green-600' : 'text-neon-gold'}`}>
-                €445.75
+                ⚘445.75
               </p>
               <p className={`text-sm ${currentTheme === 'light' ? 'text-green-600' : 'text-green-400'}`}>
                 +8.7%
@@ -194,7 +194,7 @@ export default function Settings({ onBack }: SettingsProps) {
                 <span className={`font-bold ${themeClasses.text}`}>BitCoin</span>
               </div>
               <p className={`text-2xl font-bold ${currentTheme === 'light' ? 'text-orange-600' : 'text-neon-gold'}`}>
-                €3,450.00
+                ⚘3,450.00
               </p>
               <p className={`text-sm ${currentTheme === 'light' ? 'text-red-600' : 'text-red-400'}`}>
                 -0.8%

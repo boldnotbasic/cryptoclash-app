@@ -2,13 +2,16 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
-import { TrendingUp, TrendingDown, DollarSign, Users, Activity, Clock, ListChecks, RefreshCw, VolumeX, Music, QrCode, Zap, SkipForward, Power } from 'lucide-react'
+import { TrendingUp, TrendingDown, BarChart3, Users, Zap, Crown, Medal, Trophy, Volume2, X, ChevronDown, ChevronRight, Bell, Music, VolumeX, Clock, QrCode, Activity, SkipForward, Power, Dices } from 'lucide-react'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import { formatCurrency } from '@/utils/currency'
 import EventPopup, { ScanEffect } from './EventPopup'
 import CryptoDetail from './CryptoDetail'
 import CandlestickChart from './CandlestickChart'
 import Header from './Header'
 import AnimatedNumber from './AnimatedNumber'
-import { playBackgroundMusic, pauseBackgroundMusic } from '@/utils/soundEffects'
+import { playBackgroundMusic, pauseBackgroundMusic, setSoundEffectsEnabled } from '@/utils/soundEffects'
 
 interface CryptoCurrency {
   id: string
@@ -53,7 +56,7 @@ interface MarketDashboardProps {
   isConnected?: boolean
   connectedPlayers?: number
   roomId?: string
-  dashboardToasts?: { id: string; message: string; sender: string }[]
+  dashboardToasts?: { id: string; message: string; sender: string; senderAvatar?: string }[]
   socket?: any
   onEndGame?: () => void
   isMarketDashboard?: boolean
@@ -79,6 +82,8 @@ export default function MarketDashboard({
   externalPriceHistory = {},
   isGamePaused: externalGamePaused = false
 }: MarketDashboardProps) {
+  const { t } = useLanguage()
+  const { currency } = useCurrency()
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [showEndGameModal, setShowEndGameModal] = useState(false)
   const [timerEnabled, setTimerEnabled] = useState(true)
@@ -122,6 +127,7 @@ export default function MarketDashboard({
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([])
   const [scanCount, setScanCount] = useState(0)
   const [isMusicPlaying, setIsMusicPlaying] = useState(false)
+  const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(true)
   const [priceHistory, setPriceHistory] = useState<{[key: string]: Array<{percentage: number, timestamp: number}>}>({
     DSHEEP: [],
     NGT: [],
@@ -188,8 +194,8 @@ export default function MarketDashboard({
   const isPositiveEvent = (effect: string) => {
     // Bull Run and Whale Alert are always positive
     if (effect.includes('Bull Run') || effect.includes('Whale Alert')) return true
-    // Market Crash is always negative
-    if (effect.includes('Market Crash')) return false
+    // Bear Market / Market Crash is always negative
+    if (effect.includes('Bear Market') || effect.includes('Market Crash')) return false
     // Otherwise check for + or -
     return effect.includes('+') || effect.includes('stijgt') || effect.includes('rally') || effect.includes('move')
   }
@@ -210,6 +216,14 @@ export default function MarketDashboard({
     socket.emit('turn:end', { roomCode: roomId })
     console.log('✅ Force next turn request sent')
   }
+
+  // Sync sound effects state with utility AND broadcast to all players in room
+  useEffect(() => {
+    setSoundEffectsEnabled(soundEffectsEnabled)
+    if (socket && roomId) {
+      socket.emit('room:soundEffectsUpdated', { roomCode: roomId, enabled: soundEffectsEnabled })
+    }
+  }, [soundEffectsEnabled, socket, roomId])
 
   // Handle music toggle
   const handleMusicToggle = () => {
@@ -394,7 +408,7 @@ export default function MarketDashboard({
     
     // Check if this is a forecast, market-wide event or individual crypto event
     const isForecast = effect.includes('Market Forecast') || (latestEvent as any).isForecast
-    const isMarketEvent = effect.includes('Bull Run') || effect.includes('Market Crash') || effect.includes('Whale Alert')
+    const isMarketEvent = effect.includes('Bull Run') || effect.includes('Bear Market') || effect.includes('Market Crash') || effect.includes('Whale Alert')
     
     // Expanded detection for individual crypto events - check for various formats
     const isIndividualEvent = 
@@ -436,10 +450,11 @@ export default function MarketDashboard({
         icon = '🚀'
         color = 'neon-gold'  // Bull Run = ORANJE
         eventType = 'event'
-        percentage = 5
-      } else if (effect.includes('Market Crash')) {
-        message = effect  // Use original effect: "Market Crash! Alle munten -10%!"
-        icon = '📉'
+        const bullMatch = effect.match(/\+(\d+(?:\.\d+)?)%/)
+        percentage = bullMatch ? parseFloat(bullMatch[1]) : 5
+      } else if (effect.includes('Bear Market') || effect.includes('Market Crash')) {
+        message = effect
+        icon = '🐻'
         color = 'red-500'  // Negative event = RED
         eventType = 'event'
         percentage = -10
@@ -513,20 +528,21 @@ export default function MarketDashboard({
         console.log('  🔄 Is positive check:', isPositive)
       }
 
-      // Show kans event with ScanResult component
-      // CRITICAL: Market Dashboard should NEVER see forecast data, only eye icon
+      // Show kans event - Market Dashboard sees FULL forecast including topGainer/topLoser
       const isForecastEvent = effect.includes('Market Forecast')
+      const fd = (latestEvent as any).forecastData
       
       setCurrentKansEvent({
         type: isForecastEvent ? 'forecast' : eventType,
-        cryptoSymbol: isForecastEvent ? null : cryptoSymbol,
+        cryptoSymbol: isForecastEvent ? undefined : cryptoSymbol,
         percentage: isForecastEvent ? 0 : percentage,
-        message: isForecastEvent ? `${latestEvent.player} bekijkt Market Forecast` : message,
-        icon: isForecastEvent ? '👁️' : icon,
+        message: isForecastEvent
+          ? (fd ? 'Market Forecast' : `${latestEvent.player} bekijkt Market Forecast`)
+          : message,
+        icon: isForecastEvent ? '🔮' : icon,
         color: isForecastEvent ? 'neon-purple' : color,
-        // Market Dashboard NEVER gets forecast data - only eye icon
-        topGainer: undefined,
-        topLoser: undefined
+        topGainer: fd?.topGainer ?? undefined,
+        topLoser: fd?.topLoser ?? undefined
       })
       
       setShowKansEvent(true)
@@ -560,7 +576,7 @@ export default function MarketDashboard({
     console.log('\n🔄 === REFRESH RANKINGS TRIGGERED ===')
     console.log('📊 Current player data (before refresh):')
     players.forEach(player => {
-      console.log(`  ${player.name}: Total €${player.totalValue?.toFixed(2) || 'N/A'}, Cash €${player.cashBalance?.toFixed(2) || 'N/A'}`)
+      console.log(`  ${player.name}: Total ⚘${player.totalValue?.toFixed(2) || 'N/A'}, Cash ⚘${player.cashBalance?.toFixed(2) || 'N/A'}`)
     })
     
     // Request all players to send their latest data
@@ -618,90 +634,106 @@ export default function MarketDashboard({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
           {/* CryptoClash Market Dashboard Titel */}
           <div className="crypto-card">
-            <div className="flex items-center justify-between w-full">
-              <div className="flex flex-col space-y-2">
-                <div className="w-40 md:w-56 relative">
+            <div className="flex flex-col gap-2">
+              {/* Row 1: logo + title */}
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-28 md:w-36 relative">
                   <Image
                     src="/cryptoclash-logo-horizontal.png"
                     alt="CryptoClash"
-                    width={224}
-                    height={40}
+                    width={144}
+                    height={32}
                     className="object-contain"
                   />
                 </div>
-                <h1 className="text-2xl font-bold text-white">
-                  {playerName === 'Market Dashboard' ? (
-                    <span className="block">Market Dashboard</span>
-                  ) : (
-                    'Live Markt Dashboard'
-                  )}
+                <h1 className="text-xl md:text-2xl font-bold text-white">
+                  {playerName === 'Market Dashboard' ? 'Market Dashboard' : t('marketDashboard.liveMarketDashboard')}
                 </h1>
               </div>
-              <div className="text-right space-y-2">
-                {roomId && playerName === 'Market Dashboard' && (
-                  <div className="flex items-center gap-2">
-                    {/* Music Toggle */}
-                    <button
-                      onClick={handleMusicToggle}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all active:scale-95 ${
-                        isMusicPlaying 
-                          ? 'bg-blue-500/20 border-blue-500/50 hover:bg-blue-500/30' 
-                          : 'bg-gray-500/20 border-gray-500/50 hover:bg-gray-500/30'
-                      }`}
-                      title={isMusicPlaying ? 'Muziek aan' : 'Muziek uit'}
-                    >
-                      {isMusicPlaying ? (
-                        <Music className="w-3 h-3 text-blue-400" />
-                      ) : (
-                        <VolumeX className="w-3 h-3 text-gray-400" />
-                      )}
-                      <span className={`text-xs font-bold ${isMusicPlaying ? 'text-blue-400' : 'text-gray-400'}`}>
-                        {isMusicPlaying ? 'ON' : 'OFF'}
-                      </span>
-                    </button>
-                    {/* Timer Toggle */}
-                    <button
-                      onClick={handleTimerToggle}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all active:scale-95 ${
-                        timerEnabled 
-                          ? 'bg-green-500/20 border-green-500/50 hover:bg-green-500/30' 
-                          : 'bg-red-500/20 border-red-500/50 hover:bg-red-500/30'
-                      }`}
-                      title={timerEnabled ? 'Timer ingeschakeld (60s auto turn)' : 'Timer uitgeschakeld (manueel einde beurt)'}
-                    >
-                      <Clock className={`w-3 h-3 ${timerEnabled ? 'text-green-400' : 'text-red-400'}`} />
-                      <span className={`text-xs font-bold ${timerEnabled ? 'text-green-400' : 'text-red-400'}`}>
-                        {timerEnabled ? 'AAN' : 'UIT'}
-                      </span>
-                    </button>
-                    {roomId && roomId !== 'solo-mode' && (
-                      <div className="px-3 py-1.5 rounded-full bg-neon-purple/10 border border-neon-purple/30">
-                        <span className="text-xs text-neon-purple font-bold">Room: {roomId}</span>
-                      </div>
+              {/* Row 2: controls — same height, left-aligned */}
+              {roomId && playerName === 'Market Dashboard' && (
+                <div className="flex items-center gap-2">
+                  {/* Background Music Toggle */}
+                  <button
+                    onClick={handleMusicToggle}
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-full border transition-all active:scale-95 ${
+                      isMusicPlaying
+                        ? 'bg-green-500/20 border-green-500/50 hover:bg-green-500/30'
+                        : 'bg-red-500/20 border-red-500/50 hover:bg-red-500/30'
+                    }`}
+                    title={isMusicPlaying ? 'Background Music aan' : 'Background Music uit'}
+                  >
+                    {isMusicPlaying ? (
+                      <Music className="w-3 h-3 text-green-400" />
+                    ) : (
+                      <VolumeX className="w-3 h-3 text-red-400" />
                     )}
-                  </div>
-                )}
-              </div>
+                    <span className={`text-[10px] font-bold ${isMusicPlaying ? 'text-green-400' : 'text-red-400'}`}>
+                      {isMusicPlaying ? 'AAN' : 'UIT'}
+                    </span>
+                  </button>
+                  {/* Sound Effects Toggle */}
+                  <button
+                    onClick={() => setSoundEffectsEnabled(!soundEffectsEnabled)}
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-full border transition-all active:scale-95 ${
+                      soundEffectsEnabled
+                        ? 'bg-green-500/20 border-green-500/50 hover:bg-green-500/30'
+                        : 'bg-red-500/20 border-red-500/50 hover:bg-red-500/30'
+                    }`}
+                    title={soundEffectsEnabled ? 'Sound Effects aan' : 'Sound Effects uit'}
+                  >
+                    {soundEffectsEnabled ? (
+                      <Volume2 className="w-3 h-3 text-green-400" />
+                    ) : (
+                      <VolumeX className="w-3 h-3 text-red-400" />
+                    )}
+                    <span className={`text-[10px] font-bold ${soundEffectsEnabled ? 'text-green-400' : 'text-red-400'}`}>
+                      {soundEffectsEnabled ? 'AAN' : 'UIT'}
+                    </span>
+                  </button>
+                  {/* Timer Toggle */}
+                  <button
+                    onClick={handleTimerToggle}
+                    className={`flex items-center gap-1.5 px-3 h-8 rounded-full border transition-all active:scale-95 ${
+                      timerEnabled
+                        ? 'bg-green-500/20 border-green-500/50 hover:bg-green-500/30'
+                        : 'bg-red-500/20 border-red-500/50 hover:bg-red-500/30'
+                    }`}
+                    title={timerEnabled ? 'Timer ingeschakeld' : 'Timer uitgeschakeld'}
+                  >
+                    <Clock className={`w-3 h-3 ${timerEnabled ? 'text-green-400' : 'text-red-400'}`} />
+                    <span className={`text-xs font-bold ${timerEnabled ? 'text-green-400' : 'text-red-400'}`}>
+                      {timerEnabled ? 'AAN' : 'UIT'}
+                    </span>
+                  </button>
+                  {/* Room ID */}
+                  {roomId !== 'solo-mode' && (
+                    <div className="flex items-center h-8 px-3 rounded-full bg-neon-purple/10 border border-neon-purple/30">
+                      <span className="text-xs text-neon-purple font-bold">Room: {roomId}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div className="bg-dark-bg/30 rounded-lg p-2 text-center">
-                <p className="text-gray-400 text-xs">Marktwaarde</p>
+                <p className="text-gray-400 text-xs">{t('marketDashboard.marketValue')}</p>
                 <p className="text-sm sm:text-lg font-bold text-neon-gold">
-                  €{(totalMarketCap / 1000000).toFixed(1)}M
+                  {formatCurrency((totalMarketCap / 1000000), currency.symbol)}M
                 </p>
               </div>
               <div className="bg-dark-bg/30 rounded-lg p-2 text-center">
-                <p className="text-gray-400 text-xs">Volume</p>
+                <p className="text-gray-400 text-xs">{t('marketDashboard.volume')}</p>
                 <p className="text-sm sm:text-lg font-bold text-neon-blue">
-                  €{(totalVolume / 1000000).toFixed(1)}M
+                  {formatCurrency((totalVolume / 1000000), currency.symbol)}M
                 </p>
               </div>
               <div className="bg-dark-bg/30 rounded-lg p-2 text-center">
-                <p className="text-gray-400 text-xs">Stijgers</p>
+                <p className="text-gray-400 text-xs">{t('marketDashboard.gainers')}</p>
                 <p className="text-sm sm:text-lg font-bold text-green-400">{gainers}</p>
               </div>
               <div className="bg-dark-bg/30 rounded-lg p-2 text-center">
-                <p className="text-gray-400 text-xs">Dalers</p>
+                <p className="text-gray-400 text-xs">{t('marketDashboard.losers')}</p>
                 <p className="text-sm sm:text-lg font-bold text-red-400">{losers}</p>
               </div>
             </div>
@@ -712,8 +744,8 @@ export default function MarketDashboard({
             <div className="crypto-card">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                  <span>🏆</span>
-                  <span>Live Rankings</span>
+                  <Trophy className="w-5 h-5 text-neon-gold" />
+                  <span>{t('marketDashboard.liveRankings')}</span>
                 </h3>
                 <div className="flex items-center space-x-1">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -724,8 +756,15 @@ export default function MarketDashboard({
               <div className="space-y-2">
                 {players
                   .slice()
-                  // Dashboard toont enkel de totalValue die van de server komt
-                  .sort((a, b) => (b.totalValue || 0) - (a.totalValue || 0))
+                  .map(player => ({
+                    ...player,
+                    // Recalculate totalValue live from current crypto prices
+                    liveTotalValue: (player.cashBalance || 0) + Object.entries(player.portfolio || {}).reduce((sum, [sym, amt]) => {
+                      const price = cryptos.find(c => c.symbol === sym)?.price || 0
+                      return sum + (Number(amt) * price)
+                    }, 0)
+                  }))
+                  .sort((a, b) => b.liveTotalValue - a.liveTotalValue)
                   .slice(0, 3)
                   .map((player, index) => (
                     <div key={player.id} className="flex items-center justify-between p-2 bg-dark-bg/30 rounded-lg">
@@ -742,14 +781,14 @@ export default function MarketDashboard({
                         <div className="text-2xl">{player.avatar}</div>
                         <div>
                           <p className="text-white text-sm font-semibold">{player.name}</p>
-                          <p className="text-gray-400 text-xs">#{player.rank}</p>
+                          <p className="text-gray-400 text-xs">#{index + 1}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="text-neon-gold font-bold text-sm">
                           <AnimatedNumber 
-                            value={player.totalValue || 0}
-                            prefix="€"
+                            value={player.liveTotalValue}
+                            prefix="⚘"
                             decimals={2}
                             locale="nl-NL"
                           />
@@ -780,22 +819,18 @@ export default function MarketDashboard({
                   />
                 </div>
               ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 h-full w-full">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 w-full" style={{gridAutoRows: '1fr'}}>
                 {cryptos.map((crypto) => {
                   const imagePath = getCryptoImagePath(crypto.symbol)
                   const isTopGainerTile = topGainer && crypto.id === topGainer.id
                   const isTopValueTile = topValueCoin && crypto.id === topValueCoin.id
                   const isBothHighlight = isTopGainerTile && isTopValueTile
-                  const isNugget = crypto.symbol === 'NGT'
-                  const isLentra = crypto.symbol === 'LNTR'
-                  const isRex = crypto.symbol === 'REX'
-                  const isOrlo = crypto.symbol === 'ORLO'
 
                   return (
                     <div
                       key={crypto.id}
                       onClick={() => setSelectedCrypto(crypto)}
-                      className={`crypto-card rounded-xl p-3 flex flex-col items-center h-full min-h-[250px] md:min-h-[290px] transition-all cursor-pointer hover:scale-[1.02] ${
+                      className={`crypto-card rounded-xl pt-4 pb-3 px-3 flex flex-col items-center h-full transition-all cursor-pointer hover:scale-[1.02] ${
                         isBothHighlight
                           ? 'border-2 border-neon-gold/80 animate-gold-purple-glow-breathe'
                           : isTopGainerTile
@@ -805,25 +840,15 @@ export default function MarketDashboard({
                               : 'border border-white/10'
                       }`}
                     >
-                      {/* Coin image boven, nog groter en extra uit de kaart laten steken */}
-                      <div
-                        className={`rounded-xl bg-transparent flex items-center justify-center overflow-visible -mt-8 mb-2 ${
-                          isLentra ? 'w-44 h-44 md:w-48 md:h-48' : 'w-32 h-32 md:w-36 md:h-36'
-                        }`}
-                      >
+                      {/* Coin image - large size, 10px above dark info box */}
+                      <div className="w-36 h-36 md:w-40 md:h-40 flex-shrink-0 flex items-center justify-center overflow-visible -mt-10">
                         {imagePath ? (
                           <img
                             src={imagePath}
                             alt={crypto.name}
-                            width={160}
-                            height={160}
-                            className={`object-contain drop-shadow-[0_0_32px_rgba(0,0,0,1)] ${
-                              isLentra
-                                ? 'scale-300'
-                                : crypto.symbol === 'DSHEEP'
-                                  ? 'scale-100'
-                                  : 'scale-125'
-                            }`}
+                            width={128}
+                            height={128}
+                            className="w-full h-full object-contain drop-shadow-[0_0_24px_rgba(0,0,0,0.9)]"
                             loading="lazy"
                           />
                         ) : (
@@ -831,15 +856,15 @@ export default function MarketDashboard({
                         )}
                       </div>
 
-                      {/* Donkere achtergrond alleen achter info-blok onderaan, nog compacter */}
-                      <div className="w-full mt-auto">
-                        <div className="rounded-lg bg-dark-bg/80 px-2 py-0.5">
+                      {/* Info blok exact 10px onder afbeelding, fixed height */}
+                      <div className="w-full mt-2.5 flex-1">
+                        <div className="rounded-lg bg-dark-bg/80 px-2 py-1 h-full flex flex-col">
                           <div className="flex items-center justify-between">
                             <div className="text-white font-semibold truncate mr-2 text-xs sm:text-sm">
                               {crypto.name}
                             </div>
                             <div className="text-neon-turquoise font-bold whitespace-nowrap text-[11px] sm:text-xs">
-                              €{crypto.price.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {formatCurrency(crypto.price, currency.symbol)}
                             </div>
                           </div>
 
@@ -872,11 +897,11 @@ export default function MarketDashboard({
                           {/* Momentum Indicator */}
                           {typeof crypto.change24h === 'number' && (() => {
                             const periodPercentage = getPercentageForPeriod(crypto.symbol, crypto.change24h)
-                            return Math.abs(periodPercentage) > 0 && (
+                            return (
                               <div className={`text-[9px] font-semibold mb-0.5 flex items-center space-x-1 ${
                                 Math.abs(periodPercentage) > 15 
                                   ? periodPercentage > 0 ? 'text-green-400' : 'text-red-400'
-                                  : periodPercentage > 0 ? 'text-green-500/60' : 'text-red-500/60'
+                                  : 'text-gray-500'
                               }`}>
                                 {Math.abs(periodPercentage) > 15 ? (
                                   periodPercentage > 0 ? (
@@ -885,11 +910,7 @@ export default function MarketDashboard({
                                     <>↘️ Sterk dalend</>
                                   )
                                 ) : (
-                                  periodPercentage > 0 ? (
-                                    <>→ Licht stijgend</>
-                                  ) : (
-                                    <>→ Licht dalend</>
-                                  )
+                                  <>-</>
                                 )}
                               </div>
                             )
@@ -925,7 +946,7 @@ export default function MarketDashboard({
                   </div>
                   {/* Periode Selector - boven Statistieken */}
                   <div className="mb-3 pb-3 border-b border-white/10">
-                    <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-2">Periode</p>
+                    <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-2">{t('marketDashboard.period')}</p>
                     <div className="grid grid-cols-3 gap-1.5">
                       <button
                         onClick={() => setChartPeriod('all')}
@@ -935,7 +956,7 @@ export default function MarketDashboard({
                             : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
                         }`}
                       >
-                        Sinds start
+                        {t('common.sinceStart')}
                       </button>
                       <button
                         onClick={() => setChartPeriod('last10')}
@@ -945,7 +966,7 @@ export default function MarketDashboard({
                             : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
                         }`}
                       >
-                        10 beurten
+                        {t('common.tenTurns')}
                       </button>
                       <button
                         onClick={() => setChartPeriod('last5')}
@@ -955,7 +976,7 @@ export default function MarketDashboard({
                             : 'bg-dark-bg/40 border border-white/10 text-gray-400 hover:bg-dark-bg/60 hover:text-white'
                         }`}
                       >
-                        5 beurten
+                        {t('common.fiveTurns')}
                       </button>
                     </div>
                   </div>
@@ -965,7 +986,7 @@ export default function MarketDashboard({
                     <div className="flex flex-col pb-1.5 mb-1">
                       {cryptos.length > 0 && (
                         <div className="pt-0">
-                          <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-0.5">Statistieken</p>
+                          <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-0.5">{t('marketDashboard.statistics')}</p>
                           <div className="flex items-end space-x-1 h-16 mb-0.5">
                             {cryptos.map(c => {
                               const v = getPercentageForPeriod(c.symbol, c.change24h || 0)
@@ -1052,7 +1073,7 @@ export default function MarketDashboard({
                   {/* Miniaturen naast elkaar onderaan */}
                   {(topGainer || topValueCoin) && (
                     <div className="mt-3 pt-3 border-t border-white/10">
-                      <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-3">Top picks</p>
+                      <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-3">{t('marketDashboard.topPicks')}</p>
                       {/* Check if same crypto is both top gainer AND top value */}
                       {topGainer && topValueCoin && topGainer.id === topValueCoin.id ? (
                         <div className="flex flex-col p-2 bg-dark-bg/40 rounded-lg border-2 border-neon-gold/50">
@@ -1064,15 +1085,16 @@ export default function MarketDashboard({
                             />
                             <div className="flex-1 min-w-0">
                               <p className="text-white font-bold text-[11px] truncate">{topGainer.symbol}</p>
-                              <p className="text-neon-gold text-[10px] font-bold">
-                                🏆 Top Performer
+                              <p className="text-neon-gold text-[10px] font-bold flex items-center gap-1">
+                                <Trophy className="w-3 h-3" />
+                                <span>Top Performer</span>
                               </p>
                               <div className="flex items-center space-x-2 mt-0.5">
                                 <p className="text-green-400 text-[8px]">
                                   +{getPercentageForPeriod(topGainer.symbol, topGainer.change24h || 0).toFixed(1)}%
                                 </p>
                                 <p className="text-neon-purple text-[8px]">
-                                  €{topGainer.price.toFixed(0)}
+                                  {formatCurrency(topGainer.price, currency.symbol)}
                                 </p>
                               </div>
                             </div>
@@ -1092,7 +1114,7 @@ export default function MarketDashboard({
                                 <div className="flex-1 min-w-0">
                                   <p className="text-white font-bold text-[10px] truncate">{topGainer.symbol}</p>
                                   <p className="text-neon-gold text-[9px] font-bold">
-                                    Beste stijger
+                                    {t('marketDashboard.topGainer')}
                                   </p>
                                   <p className="text-neon-gold text-[8px]">
                                     +{getPercentageForPeriod(topGainer.symbol, topGainer.change24h || 0).toFixed(1)}%
@@ -1114,10 +1136,10 @@ export default function MarketDashboard({
                                 <div className="flex-1 min-w-0">
                                   <p className="text-white font-bold text-[10px] truncate">{topValueCoin.symbol}</p>
                                   <p className="text-neon-purple text-[9px] font-bold">
-                                    Meest waard
+                                    {t('marketDashboard.highestValue')}
                                   </p>
                                   <p className="text-neon-purple text-[8px]">
-                                    €{topValueCoin.price.toFixed(0)}
+                                    {formatCurrency(topValueCoin.price, currency.symbol)}
                                   </p>
                                 </div>
                               </div>
@@ -1130,16 +1152,16 @@ export default function MarketDashboard({
 
                   {/* Market Forecast Countdown */}
                   <div className="mt-3 pt-3 border-t border-white/10">
-                    <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-3">Market Forecast</p>
+                    <p className="text-[13px] uppercase tracking-wide text-gray-300 font-bold mb-3">{t('marketDashboard.marketForecast')}</p>
                     <div className="flex items-center justify-between p-2 bg-dark-bg/40 rounded-lg border border-neon-blue/30">
                       <div className="flex items-center space-x-3">
                         <div className="text-2xl font-bold text-neon-blue">
                           {10 - (scanCount % 10)}
                         </div>
-                        <div className="text-xs text-gray-400 uppercase tracking-wide">scans</div>
+                        <div className="text-xs text-gray-400 uppercase tracking-wide">{t('marketDashboard.scans')}</div>
                       </div>
                       <div className="text-[9px] text-gray-500 text-right">
-                        tot volgende market forecast
+                        {t('marketDashboard.nextForecast')}
                       </div>
                     </div>
                   </div>
@@ -1154,11 +1176,11 @@ export default function MarketDashboard({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
 
           {/* Live Activities - Uniform met MainMenu */}
-          <div className="crypto-card bg-gradient-to-r from-neon-purple/10 to-neon-blue/10 border border-neon-purple/30">
+          <div className="crypto-card bg-gradient-to-r from-neon-purple/10 to-neon-blue/10 border border-neon-purple/40 shadow-[0_0_18px_rgba(192,132,252,0.45)]">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                <span className="animate-pulse">🔔</span>
-                <span>Beurs</span>
+                <Bell className="w-5 h-5 text-neon-purple animate-pulse" />
+                <span>{t('marketDashboard.exchange')}</span>
               </h3>
               <div className="flex items-center gap-2">
                 <button
@@ -1182,7 +1204,7 @@ export default function MarketDashboard({
                 onClick={() => onNavigate('scan-transcript')}
                 className="text-neon-blue hover:text-neon-purple text-sm font-semibold transition-colors"
               >
-                Toon volledig transcript →
+                {t('marketDashboard.showTranscript')}
               </button>
             </div>
             
@@ -1223,18 +1245,18 @@ export default function MarketDashboard({
               
               {autoScanActions.length === 0 && (
                 <div className="text-center py-3">
-                  <p className="text-gray-400 text-sm">Wachten op scan activiteit...</p>
+                  <p className="text-gray-400 text-sm">{t('marketDashboard.waitingScan')}</p>
                 </div>
               )}
             </div>
           </div>
 
           {/* Acties - Uniform met MainMenu */}
-          <div className="crypto-card bg-gradient-to-r from-neon-purple/10 to-neon-blue/10 border border-neon-purple/30">
+          <div className="crypto-card bg-gradient-to-r from-neon-purple/10 to-neon-blue/10 border border-neon-purple/40 shadow-[0_0_18px_rgba(192,132,252,0.45)]">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                <ListChecks className="w-5 h-5 text-neon-purple" />
-                <span>Acties</span>
+                <Dices className="w-5 h-5 text-neon-purple" />
+                <span>{t('marketDashboard.actions')}</span>
               </h3>
               <div className="flex items-center gap-2">
                 <button
@@ -1257,7 +1279,7 @@ export default function MarketDashboard({
                 onClick={() => onNavigate('scan-transcript')}
                 className="text-neon-blue hover:text-neon-purple text-sm font-semibold transition-colors"
               >
-                Toon volledig transcript →
+                {t('marketDashboard.showTranscript')}
               </button>
             </div>
             
@@ -1282,7 +1304,7 @@ export default function MarketDashboard({
                 if (uniqueScans.length === 0) {
                   return (
                     <div className="text-center py-6">
-                      <p className="text-gray-400">Nog geen scan acties...</p>
+                      <p className="text-gray-400">{t('marketDashboard.noScanActions')}</p>
                     </div>
                   )
                 }
@@ -1330,28 +1352,28 @@ export default function MarketDashboard({
         {/* Quick Actions - Only show for regular players, not market screen */}
         {playerName !== 'Market Dashboard' && (
           <div className="crypto-card mt-4">
-            <h3 className="text-lg font-bold text-white mb-4">Snelle Acties</h3>
+            <h3 className="text-lg font-bold text-white mb-4">{t('marketDashboard.quickActions')}</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <button
                 onClick={() => onNavigate('qr-scanner')}
                 className="bg-gradient-to-r from-neon-purple to-neon-blue text-white font-semibold py-3 px-4 rounded-lg hover:scale-105 transition-transform text-sm flex items-center justify-center space-x-2"
               >
                 <QrCode className="w-4 h-4" />
-                <span>Scan</span>
+                <span>{t('marketDashboard.scan')}</span>
               </button>
               <button
                 onClick={() => onNavigate('portfolio')}
                 className="bg-gradient-to-r from-neon-turquoise to-neon-gold text-white font-semibold py-3 px-4 rounded-lg hover:scale-105 transition-transform text-sm flex items-center justify-center space-x-2"
               >
                 <Zap className="w-4 h-4" />
-                <span>Portfolio</span>
+                <span>{t('marketDashboard.portfolio')}</span>
               </button>
               <button
                 onClick={() => onNavigate('rankings')}
                 className="bg-gradient-to-r from-neon-gold to-green-500 text-white font-semibold py-3 px-4 rounded-lg hover:scale-105 transition-transform text-sm flex items-center justify-center space-x-2"
               >
                 <Users className="w-4 h-4" />
-                <span>Rankings</span>
+                <span>{t('marketDashboard.rankings')}</span>
               </button>
               <button
                 onClick={() => onNavigate('main-menu')}
@@ -1373,10 +1395,8 @@ export default function MarketDashboard({
               className="animate-fadeIn bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-4 rounded-lg shadow-2xl border-2 border-blue-400"
             >
               <div className="flex items-start space-x-3">
-                <div className="flex-shrink-0 mt-1">
-                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-2xl">
-                    {toast.sender === 'Systeem' ? '👤' : '💬'}
-                  </div>
+                <div className="flex-shrink-0">
+                  <span className="text-4xl leading-none">{toast.senderAvatar && toast.senderAvatar !== '👤' ? toast.senderAvatar : '🙂'}</span>
                 </div>
                 <div className="flex-1">
                   <p className="font-bold text-sm text-blue-100 mb-1">Bericht van {toast.sender}</p>
@@ -1387,8 +1407,10 @@ export default function MarketDashboard({
           ))}
         </div>
       )}
+
       
       <div className="max-w-6xl mx-auto mt-3">
+        {/*
         <div className="crypto-card">
           <h3 className="text-lg font-bold text-white mb-3 flex items-center space-x-2">
             <Activity className="w-5 h-5 text-neon-turquoise" />
@@ -1458,7 +1480,7 @@ export default function MarketDashboard({
                       const eff = sanitizeEffect(a.effect)
                       const p = parse(eff)
 
-                      const isMarketEvent = eff.includes('Bull Run') || eff.includes('Market Crash') || eff.includes('Whale Alert')
+                      const isMarketEvent = eff.includes('Bull Run') || eff.includes('Bear Market') || eff.includes('Market Crash') || eff.includes('Whale Alert')
 
                       const calc = (() => {
                         // Marktbrede events: toon één samengestelde 'Markt' regel
@@ -1467,8 +1489,8 @@ export default function MarketDashboard({
                             ? cryptos.reduce((sum, c) => sum + (typeof c.change24h === 'number' ? c.change24h : 0), 0) / cryptos.length
                             : 0
                           let eventPct = 0
-                          if (eff.includes('Bull Run')) eventPct = 5
-                          else if (eff.includes('Market Crash')) eventPct = -10
+                          if (eff.includes('Bull Run')) { const m = eff.match(/\+(\d+(?:\.\d+)?)%/); eventPct = m ? parseFloat(m[1]) : 5 }
+                          else if (eff.includes('Bear Market') || eff.includes('Market Crash')) eventPct = -10
                           else if (eff.includes('Whale Alert')) eventPct = 50
 
                           const baselineBeforeEvent = Math.round((avgCurrent - eventPct) * 10) / 10
@@ -1533,7 +1555,7 @@ export default function MarketDashboard({
               </div>
             )
           })()}
-        </div>
+        </div>/*}
 
         {/* Komende Events Widget */}
         <div className="crypto-card mt-4">
@@ -1559,7 +1581,7 @@ export default function MarketDashboard({
                 const displaySymbol = isWhaleAlert ? event.symbol : event.symbol
                 
                 const eventName = isMarketEvent 
-                  ? (event.percentage > 0 ? 'Bull Run (+5%)' : 'Market Crash (-10%)')
+                  ? (event.percentage > 0 ? `Bull Run (+${event.percentage}%)` : 'Market Crash (-10%)')
                   : isWhaleAlert
                     ? displaySymbol // Toon crypto symbol in plaats van "Whale Alert"
                     : isForecast

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { CheckCircle, TrendingUp, TrendingDown, Zap, AlertTriangle, Gift } from 'lucide-react'
 
 interface ScanResultProps {
@@ -131,6 +132,7 @@ const scanScenarios: ScanScenarioTemplate[] = [
 ]
 
 export default function EventPopup({ onClose, onApplyEffect, externalScenario, cryptos, nonForecastDurationMs, forecastDurationMs, transitionEase }: ScanResultProps) {
+  const { t } = useLanguage()
   const [currentScenario, setCurrentScenario] = useState<ScanEffect | null>(null)
   const [isVisible, setIsVisible] = useState(false)
   const [progressStarted, setProgressStarted] = useState(false)
@@ -607,7 +609,11 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
             {/* Show message for forecast AND market-wide events (Bull Run, Bear Market, Whale Alert) */}
             {(currentScenario.type === 'forecast' || currentScenario.type === 'event') && (
               <div className="flex items-center justify-center">
-                <h3 className={`text-3xl font-bold ${getTextColor()}`}>
+                <h3 className={`text-3xl font-bold ${
+                  currentScenario.message.includes('Bear Market') || currentScenario.message.includes('Market Crash')
+                    ? 'text-white'
+                    : getTextColor()
+                }`}>
                   {currentScenario.message.includes('Bull Run') ? 'Bull Run!' : 
                    currentScenario.message.includes('Bear Market') ? 'Bear Market!' :
                    currentScenario.message.includes('Market Crash') ? 'Bear Market!' : 
@@ -641,7 +647,7 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
                       })()}
                       <div className="text-left">
                         <div className="text-white font-bold">{cryptoNames[currentScenario.topGainer.symbol] || currentScenario.topGainer.symbol}</div>
-                        <div className="text-xs text-gray-400">Aankomende Stijger</div>
+                        <div className="text-xs text-gray-400">{t('events.upcomingGainer')}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -675,7 +681,7 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
                       })()}
                       <div className="text-left">
                         <div className="text-white font-bold">{cryptoNames[currentScenario.topLoser.symbol] || currentScenario.topLoser.symbol}</div>
-                        <div className="text-xs text-gray-400">Aankomende Daler</div>
+                        <div className="text-xs text-gray-400">{t('events.upcomingLoser')}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -706,7 +712,7 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
                 </div>
                 {/* Show "Alle munten" for Bull Run and Bear Market */}
                 {(currentScenario.message.includes('Bull Run') || currentScenario.message.includes('Bear Market') || currentScenario.message.includes('Market Crash')) && (
-                  <div className="text-lg text-gray-300 mt-2">Alle munten</div>
+                  <div className="text-lg text-gray-300 mt-2">{t('events.allCoins')}</div>
                 )}
               </div>
             )}
