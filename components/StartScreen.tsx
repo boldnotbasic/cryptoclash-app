@@ -71,7 +71,7 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
                 <div className="p-3 bg-neon-blue/20 rounded-full group-hover:bg-neon-blue/30 transition-colors">
                   <Crown className="w-8 h-8 text-neon-blue" />
                 </div>
-                <h2 className="text-2xl font-bold text-white">{t('startScreen.hosting')}</h2>
+                <h2 className="text-2xl font-bold text-white" suppressHydrationWarning>{t('startScreen.hosting')}</h2>
               </div>
             </div>
           </button>

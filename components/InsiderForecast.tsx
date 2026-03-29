@@ -142,6 +142,14 @@ export default function InsiderForecast({ onClose, forecastData }: InsiderForeca
   }, []) // Empty deps - stable
 
   const timeLeft = Math.max(1, Math.ceil((progress / 100) * 8))
+  
+  // Check if this is a market-wide event (both symbols are MARKET)
+  const isMarketEvent = forecastData.topGainer.symbol === 'MARKET' && forecastData.topLoser.symbol === 'MARKET'
+  
+  // Determine which direction to show for market event
+  const marketDirection = isMarketEvent 
+    ? (forecastData.topGainer.percentage > 0 ? 'up' : 'down')
+    : null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -160,8 +168,16 @@ export default function InsiderForecast({ onClose, forecastData }: InsiderForeca
 
         {/* News items */}
         <div className="px-5">
-          <NewsItem symbol={forecastData.topGainer.symbol} direction="up" />
-          <NewsItem symbol={forecastData.topLoser.symbol} direction="down" />
+          {isMarketEvent ? (
+            // Market event: show only 1 item
+            <NewsItem symbol="MARKET" direction={marketDirection!} />
+          ) : (
+            // Crypto events: show 2 items (different cryptos)
+            <>
+              <NewsItem symbol={forecastData.topGainer.symbol} direction="up" />
+              <NewsItem symbol={forecastData.topLoser.symbol} direction="down" />
+            </>
+          )}
         </div>
 
         {/* Progress bar - orange and centered (not full width) */}

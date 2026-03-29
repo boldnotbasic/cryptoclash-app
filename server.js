@@ -1897,41 +1897,68 @@ app.prepare().then(() => {
       // Get upcoming events (exclude forecast events)
       const upcomingEvents = roomUpcomingEvents[roomCode].filter(evt => evt.type !== 'forecast')
       
-      // Pick 2 random events from upcoming events for dynamic insider info
+      // Pick events from upcoming events for dynamic insider info
       const availableEvents = upcomingEvents.slice(0, 9) // Look at next 9 events
-      const shuffled = [...availableEvents].sort(() => Math.random() - 0.5)
-      const selectedEvents = shuffled.slice(0, Math.min(2, shuffled.length))
       
-      if (selectedEvents.length < 1) {
-        console.log('❌ No events available for insider info')
-        return
-      }
+      // Check if there's a market-wide event (Bull Run / Bear Market)
+      const marketEvent = availableEvents.find(evt => evt.type === 'event' && !evt.symbol)
       
-      // Build insider items from selected events
-      const insiderItems = selectedEvents.map(evt => {
-        // Market-wide events (Bull Run / Bear Market) use 'MARKET' as symbol
-        const isMarketEvent = evt.type === 'event' && !evt.symbol
-        return {
-          symbol: isMarketEvent ? 'MARKET' : (evt.symbol || 'MARKET'),
+      let insiderItems = []
+      
+      if (marketEvent) {
+        // If there's a market event, show ONLY that one (not 2 items)
+        insiderItems = [{
+          symbol: 'MARKET',
+          percentage: marketEvent.percentage,
+          direction: marketEvent.percentage > 0 ? 'up' : 'down',
+          isMarketEvent: true
+        }]
+        console.log('🌍 Market-wide event detected - showing single market forecast')
+      } else {
+        // No market event - pick 2 DIFFERENT crypto events
+        const cryptoEvents = availableEvents.filter(evt => evt.symbol)
+        const shuffled = [...cryptoEvents].sort(() => Math.random() - 0.5)
+        
+        // Pick 2 events with DIFFERENT symbols
+        const selectedEvents = []
+        const usedSymbols = new Set()
+        
+        for (const evt of shuffled) {
+          if (!usedSymbols.has(evt.symbol)) {
+            selectedEvents.push(evt)
+            usedSymbols.add(evt.symbol)
+            if (selectedEvents.length >= 2) break
+          }
+        }
+        
+        if (selectedEvents.length < 1) {
+          console.log('❌ No crypto events available for insider info')
+          return
+        }
+        
+        insiderItems = selectedEvents.map(evt => ({
+          symbol: evt.symbol,
           percentage: evt.percentage,
           direction: evt.percentage > 0 ? 'up' : 'down',
-          isMarketEvent: isMarketEvent
-        }
-      })
-      
-      // Ensure we always have 2 items (duplicate first if only 1)
-      while (insiderItems.length < 2) {
-        insiderItems.push(insiderItems[0])
+          isMarketEvent: false
+        }))
+        
+        // If only 1 crypto event found, that's fine - show just 1
       }
       
       console.log(`🕵️ Sending insider forecast to ${playerName}:`)
       console.log(`   📰 Event 1: ${insiderItems[0].symbol} ${insiderItems[0].percentage > 0 ? '+' : ''}${insiderItems[0].percentage}% (${insiderItems[0].direction}) market=${insiderItems[0].isMarketEvent}`)
-      console.log(`   📰 Event 2: ${insiderItems[1].symbol} ${insiderItems[1].percentage > 0 ? '+' : ''}${insiderItems[1].percentage}% (${insiderItems[1].direction}) market=${insiderItems[1].isMarketEvent}`)
+      if (insiderItems[1]) {
+        console.log(`   📰 Event 2: ${insiderItems[1].symbol} ${insiderItems[1].percentage > 0 ? '+' : ''}${insiderItems[1].percentage}% (${insiderItems[1].direction}) market=${insiderItems[1].isMarketEvent}`)
+      }
       
       // Send ONLY to this player (not broadcast)
+      // For market events, send same item twice (client expects 2 items but will only render 1)
       socket.emit('player:insiderInfo', {
         topGainer: { symbol: insiderItems[0].symbol, percentage: insiderItems[0].percentage },
-        topLoser: { symbol: insiderItems[1].symbol, percentage: insiderItems[1].percentage }
+        topLoser: insiderItems[1] 
+          ? { symbol: insiderItems[1].symbol, percentage: insiderItems[1].percentage }
+          : { symbol: insiderItems[0].symbol, percentage: insiderItems[0].percentage }
       })
       
       console.log(`✅ Insider info sent privately to ${playerName}`)
