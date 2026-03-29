@@ -29,31 +29,52 @@ const DISPLAY_NAME: Record<string, string> = {
   ORLO: 'ORLO'
 }
 
-const NEWS_HEADLINES: Record<string, { up: string; down: string }> = {
+const MARKET_CRASH_HEADLINES = [
+  'Er dreigt een oorlog aan te komen',
+  'Door schaarste in grondstoffen dreigen moeilijke tijden',
+  'Investeerders verkopen massaal hun aandelen',
+  'Nieuwe regelgeving zorgt voor onzekerheid'
+]
+
+const BULL_RUN_HEADLINES = [
+  'Oorlog lijkt bijna achter de rug',
+  'Investeerders stappen massaal in',
+  'Crypto wordt officieel geaccepteerd als betaalmiddel'
+]
+
+const NEWS_HEADLINES: Record<string, { up: string[]; down: string[] }> = {
   DSHEEP: {
-    up: 'Wolproductie explodeert wereldwijd',
-    down: 'Mysterieziekte treft kuddes'
+    up: ['Wolproductie explodeert wereldwijd'],
+    down: ['Mysterieziekte treft kuddes']
   },
   REX: {
-    up: 'Rex CEO koopt massaal eigen tokens',
-    down: 'Rex mining farm stilgelegd door hack'
+    up: ['Rex CEO koopt massaal eigen tokens'],
+    down: ['Rex mining farm stilgelegd door hack']
   },
   ORLO: {
-    up: 'Orlo ontdekt nieuwe planeet vol resources',
-    down: 'Signaal van Orlo vloot plots verdwenen'
+    up: ['Orlo ontdekt nieuwe planeet vol resources'],
+    down: ['Signaal van Orlo vloot plots verdwenen']
   },
   LNTR: {
-    up: 'Sterke kwartaalcijfers voor Lentra',
-    down: 'Lentra launch mislukt na technische fout'
+    up: ['Sterke kwartaalcijfers voor Lentra'],
+    down: ['Lentra launch mislukt na technische fout']
   },
   NGT: {
-    up: 'Goudprijs stijgt naar recordhoogte',
-    down: 'Nieuwe goudvoorraad ontdekt \u2013 aanbod explodeert'
+    up: ['Goudprijs stijgt naar recordhoogte'],
+    down: ['Nieuwe goudvoorraad ontdekt \u2013 aanbod explodeert']
   },
   OMLT: {
-    up: 'Eierprijzen schieten omhoog door schaarste',
-    down: 'Massaproductie eieren drukt marktprijs'
+    up: ['Eierprijzen schieten omhoog door schaarste'],
+    down: ['Massaproductie eieren drukt marktprijs']
+  },
+  MARKET: {
+    up: BULL_RUN_HEADLINES,
+    down: MARKET_CRASH_HEADLINES
   }
+}
+
+function pickRandom(arr: string[]): string {
+  return arr[Math.floor(Math.random() * arr.length)]
 }
 
 interface NewsItemProps {
@@ -62,20 +83,26 @@ interface NewsItemProps {
 }
 
 function NewsItem({ symbol, direction }: NewsItemProps) {
-  const headline = NEWS_HEADLINES[symbol]?.[direction] ?? symbol
-  const displayName = DISPLAY_NAME[symbol] ?? symbol
-  const imageSrc = CRYPTO_IMAGES[symbol]
+  const headlines = NEWS_HEADLINES[symbol]?.[direction]
+  const headline = headlines ? pickRandom(headlines) : symbol
+  const isMarketEvent = symbol === 'MARKET'
+  const displayName = isMarketEvent ? 'HELE MARKT' : (DISPLAY_NAME[symbol] ?? symbol)
+  const imageSrc = isMarketEvent ? null : CRYPTO_IMAGES[symbol]
   const isUp = direction === 'up'
 
   return (
     <div className="flex items-center space-x-4 py-4 border-b border-white/10 last:border-0">
-      {imageSrc && (
+      {isMarketEvent ? (
+        <div className={`w-16 h-16 flex-shrink-0 flex items-center justify-center rounded-xl ${isUp ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+          <span className="text-4xl">{isUp ? '📈' : '📉'}</span>
+        </div>
+      ) : imageSrc ? (
         <img
           src={imageSrc}
           alt={symbol}
           className="w-16 h-16 object-contain flex-shrink-0"
         />
-      )}
+      ) : null}
       <div className="flex-1 min-w-0">
         <p className="text-white font-semibold text-base leading-snug">
           &ldquo;{headline}&rdquo;

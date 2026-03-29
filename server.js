@@ -1900,34 +1900,38 @@ app.prepare().then(() => {
       // Pick 2 random events from upcoming events for dynamic insider info
       const availableEvents = upcomingEvents.slice(0, 9) // Look at next 9 events
       const shuffled = [...availableEvents].sort(() => Math.random() - 0.5)
-      const selectedEvents = shuffled.slice(0, 2)
+      const selectedEvents = shuffled.slice(0, Math.min(2, shuffled.length))
       
-      // Map events to insider format (one "up" direction, one "down" direction for variety)
-      const event1 = selectedEvents[0]
-      const event2 = selectedEvents[1]
-      
-      // Determine direction based on event percentage
-      const info1 = {
-        symbol: event1.crypto,
-        percentage: event1.percentage,
-        direction: event1.percentage > 0 ? 'up' : 'down'
+      if (selectedEvents.length < 1) {
+        console.log('❌ No events available for insider info')
+        return
       }
       
-      const info2 = {
-        symbol: event2.crypto,
-        percentage: event2.percentage,
-        direction: event2.percentage > 0 ? 'up' : 'down'
+      // Build insider items from selected events
+      const insiderItems = selectedEvents.map(evt => {
+        // Market-wide events (Bull Run / Bear Market) use 'MARKET' as symbol
+        const isMarketEvent = evt.type === 'event' && !evt.symbol
+        return {
+          symbol: isMarketEvent ? 'MARKET' : (evt.symbol || 'MARKET'),
+          percentage: evt.percentage,
+          direction: evt.percentage > 0 ? 'up' : 'down',
+          isMarketEvent: isMarketEvent
+        }
+      })
+      
+      // Ensure we always have 2 items (duplicate first if only 1)
+      while (insiderItems.length < 2) {
+        insiderItems.push(insiderItems[0])
       }
       
       console.log(`🕵️ Sending insider forecast to ${playerName}:`)
-      console.log(`   📰 Event 1: ${info1.symbol} ${info1.percentage > 0 ? '+' : ''}${info1.percentage}% (${info1.direction})`)
-      console.log(`   📰 Event 2: ${info2.symbol} ${info2.percentage > 0 ? '+' : ''}${info2.percentage}% (${info2.direction})`)
+      console.log(`   📰 Event 1: ${insiderItems[0].symbol} ${insiderItems[0].percentage > 0 ? '+' : ''}${insiderItems[0].percentage}% (${insiderItems[0].direction}) market=${insiderItems[0].isMarketEvent}`)
+      console.log(`   📰 Event 2: ${insiderItems[1].symbol} ${insiderItems[1].percentage > 0 ? '+' : ''}${insiderItems[1].percentage}% (${insiderItems[1].direction}) market=${insiderItems[1].isMarketEvent}`)
       
       // Send ONLY to this player (not broadcast)
-      // Use topGainer/topLoser keys for backwards compatibility with client
       socket.emit('player:insiderInfo', {
-        topGainer: { symbol: info1.symbol, percentage: info1.percentage },
-        topLoser: { symbol: info2.symbol, percentage: info2.percentage }
+        topGainer: { symbol: insiderItems[0].symbol, percentage: insiderItems[0].percentage },
+        topLoser: { symbol: insiderItems[1].symbol, percentage: insiderItems[1].percentage }
       })
       
       console.log(`✅ Insider info sent privately to ${playerName}`)
