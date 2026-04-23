@@ -3685,15 +3685,25 @@ export default function Home() {
                 }}
                 onApplyScanEffect={handleQRScan}
                 onTriggerEvent={() => {
-                  console.log('🎲 Trigger event via server')
+                  console.log('🎲 === CLIENT TRIGGERING EVENT ===')
+                  console.log('🏠 Room ID:', roomId)
+                  console.log('👤 Player Name:', playerName)
+                  console.log('🔌 Socket connected:', !!socket)
+                  console.log('🔌 Socket ID:', socket?.id)
+                  console.log('📡 Timestamp:', new Date().toISOString())
+                  
                   if (socket && roomId) {
                     socket.emit('player:triggerEvent', {
                       roomCode: roomId,
                       playerName: playerName,
                       playerAvatar: playerAvatar
                     })
-                    console.log('✅ player:triggerEvent emitted')
+                    console.log('✅ player:triggerEvent emitted to server')
                     navigateToScreen('main-menu')
+                  } else {
+                    console.log('❌ Cannot emit event - socket or roomId missing')
+                    console.log('❌ Socket exists:', !!socket)
+                    console.log('❌ RoomId exists:', !!roomId)
                   }
                 }}
                 onShowInsider={() => {

@@ -440,13 +440,17 @@ app.prepare().then(() => {
   const io = new Server(httpServer, {
     cors: {
       origin: "*",
-      methods: ["GET", "POST"]
+      methods: ["GET", "POST"],
+      credentials: true
     },
     transports: ['polling', 'websocket'], // Start with polling for Render
     perMessageDeflate: false,
     allowEIO3: true,
-    pingTimeout: 60000,
-    pingInterval: 25000,
+    pingTimeout: 120000, // Increased from 60s to 120s
+    pingInterval: 30000, // Increased from 25s to 30s
+    connectTimeout: 45000, // Add connection timeout
+    maxHttpBufferSize: 1e6, // 1 MB
+    upgradeTimeout: 10000, // Transport upgrade timeout
     cookie: false, // Disable cookies for better compatibility
     path: '/socket.io',
     serveClient: false,
@@ -2495,9 +2499,12 @@ app.prepare().then(() => {
       console.log(`\n🎲 === PLAYER TRIGGERED EVENT ===`)
       console.log(`🏠 Room: ${roomCode}`)
       console.log(`👤 Player: ${playerName}`)
+      console.log(`🔌 Socket ID: ${socket.id}`)
+      console.log(`📡 Timestamp: ${new Date().toISOString()}`)
       
       if (!rooms[roomCode]) {
         console.log(`❌ Room ${roomCode} not found`)
+        console.log(`❌ Available rooms:`, Object.keys(rooms))
         return
       }
       
@@ -2878,6 +2885,10 @@ app.prepare().then(() => {
       }
       
       // Broadcast to ALL players in room (including trigger)
+      console.log(`📡 Broadcasting scanData:update to room ${roomCode}`)
+      console.log(`📡 Player scan actions count: ${roomScanData[roomCode].playerScanActions.length}`)
+      console.log(`📡 Auto scan actions count: ${roomScanData[roomCode].autoScanActions.length}`)
+      
       io.to(roomCode).emit('scanData:update', {
         autoScanActions: roomScanData[roomCode].autoScanActions,
         playerScanActions: roomScanData[roomCode].playerScanActions,
@@ -2898,6 +2909,7 @@ app.prepare().then(() => {
       
       console.log(`✅ Event broadcast to all players in room ${roomCode}`)
       console.log(`📊 Price history broadcast:`, Object.keys(roomPriceHistory[roomCode] || {}).map(sym => `${sym}:${roomPriceHistory[roomCode][sym].length}`).join(', '))
+      console.log(`📡 === PLAYER TRIGGERED EVENT COMPLETE ===\n`)
     })
 
     // Player scan action - broadcast to all players in room (including Market Screen)

@@ -121,29 +121,32 @@ export const useSocket = (): UseSocketReturn => {
     console.log('🌐 Environment:', process.env.NODE_ENV)
     console.log('📱 User Agent:', navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop')
     
-    // Primary attempt
+    // Primary attempt with enhanced error handling
     socketRef.current = io(socketUrl, forcePollingOnly ? {
       path: '/socket.io',
       transports: ['polling'],
       upgrade: false,
-      timeout: 40000,
+      timeout: 60000, // Increased timeout
       forceNew: false,
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 15,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000
+      reconnectionAttempts: 20, // More attempts
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 15000,
+      // Handle network issues
+      withCredentials: false
     } : {
       path: '/socket.io',
       transports: ['polling', 'websocket'],
       rememberUpgrade: true,
-      timeout: 35000,
+      timeout: 45000, // Increased timeout
       forceNew: false,
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: 15, // More attempts
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000
+      reconnectionDelayMax: 10000,
+      withCredentials: false
     })
 
     // Store in global variable to prevent multiple connections
