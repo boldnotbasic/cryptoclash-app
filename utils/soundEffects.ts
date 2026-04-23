@@ -140,3 +140,18 @@ export const playEventSound = (effect: string) => {
     playNegativeSound()
   }
 }
+
+// Play event sound based on percentage value (more reliable than parsing text)
+// Use this when you have the percentage directly - it's 100% accurate
+export const playEventSoundByPercentage = (percentage: number | undefined | null) => {
+  if (percentage === undefined || percentage === null || percentage === 0) {
+    // Fallback: no percentage info, play positive by default
+    playPositiveSound()
+    return
+  }
+  if (percentage > 0) {
+    playPositiveSound()
+  } else {
+    playNegativeSound()
+  }
+}

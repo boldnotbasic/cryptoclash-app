@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Image from 'next/image'
 import StartScreen from '@/components/StartScreen'
 import LoginScreen from '@/components/LoginScreen'
-import { playPositiveSound, playNegativeSound, playEventSound, playForecastSound } from '@/utils/soundEffects'
+import { playPositiveSound, playNegativeSound, playEventSound, playEventSoundByPercentage, playForecastSound } from '@/utils/soundEffects'
 import { useAuth } from '@/hooks/useAuth'
 import AuthModal from '@/components/AuthModal'
 import SubscriptionModal from '@/components/SubscriptionModal'
@@ -2469,11 +2469,17 @@ export default function Home() {
         }, 150)
         
         // Play sound based on event type
-        console.log('🔊 Playing sound for event:', scanEffect.type, scanEffect.message)
+        console.log('🔊 Playing sound for event:', scanEffect.type, scanEffect.message, 'percentage:', scanEffect.percentage)
         if (scanEffect.type === 'forecast') {
           playForecastSound()
         } else {
-          playEventSound(scanEffect.message)
+          // Use percentage-based detection (100% accurate, no text parsing)
+          // Falls back to text parsing if no percentage available
+          if (scanEffect.percentage !== undefined && scanEffect.percentage !== null) {
+            playEventSoundByPercentage(scanEffect.percentage)
+          } else {
+            playEventSound(scanEffect.message)
+          }
         }
         
         // REMOVED: Auto-close timer - EventPopup component handles its own timing
