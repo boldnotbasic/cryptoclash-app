@@ -55,13 +55,21 @@ export function useAuth() {
         const { data: { session } } = await supabase.auth.getSession()
         
         if (session?.user) {
-          const subscription = await checkSubscription(session.user.id)
+          // Set user immediately without waiting for subscription check
           setAuthState({
             user: session.user,
             session,
-            subscription,
+            subscription: null,
             isLoading: false,
-            isSubscribed: subscription?.status === 'active'
+            isSubscribed: false
+          })
+          // Check subscription in background
+          checkSubscription(session.user.id).then(subscription => {
+            setAuthState(prev => ({
+              ...prev,
+              subscription,
+              isSubscribed: subscription?.status === 'active'
+            }))
           })
         } else {
           setAuthState({
@@ -86,13 +94,20 @@ export function useAuth() {
         console.log('Auth state changed:', event)
         
         if (session?.user) {
-          const subscription = await checkSubscription(session.user.id)
-          setAuthState({
+          // Set user immediately without waiting for subscription check
+          setAuthState(prev => ({
+            ...prev,
             user: session.user,
             session,
-            subscription,
             isLoading: false,
-            isSubscribed: subscription?.status === 'active'
+          }))
+          // Check subscription in background
+          checkSubscription(session.user.id).then(subscription => {
+            setAuthState(prev => ({
+              ...prev,
+              subscription,
+              isSubscribed: subscription?.status === 'active'
+            }))
           })
         } else {
           setAuthState({

@@ -20,6 +20,7 @@ export interface ScanEffect {
   color: string
   topGainer?: { symbol: string; percentage: number }
   topLoser?: { symbol: string; percentage: number }
+  headline?: string  // Header text for popup (e.g., "Beurs update" for automatic Bot events)
 }
 
 interface ScanScenarioTemplate {
@@ -32,22 +33,22 @@ interface ScanScenarioTemplate {
   color: string
 }
 
-const whaleSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+const whaleSymbols = ['DSHP', 'ORX', 'LNTR', 'SIL', 'REX', 'GLX']
 
 // Crypto symbol to full name mapping
 const cryptoNames: Record<string, string> = {
-  'DSHEEP': 'DigiSheep',
-  'NGT': 'Nugget',
+  'DSHP': 'DigiSheep',
+  'ORX': 'Orex',
   'LNTR': 'Lentra',
-  'OMLT': 'Omlet',
+  'SIL': 'Silica',
   'REX': 'Rex',
-  'ORLO': 'Orlo'
+  'GLX': 'Glooma'
 }
 
 const scanScenarios: ScanScenarioTemplate[] = [
   {
     type: 'boost',
-    cryptoSymbol: 'DSHEEP',
+    cryptoSymbol: 'DSHP',
     minPercentage: -30,
     maxPercentage: 30,
     baseMessage: 'DigiSheep stijgt {PERCENTAGE}!',
@@ -56,10 +57,10 @@ const scanScenarios: ScanScenarioTemplate[] = [
   },
   {
     type: 'boost',
-    cryptoSymbol: 'NGT',
+    cryptoSymbol: 'ORX',
     minPercentage: -30,
     maxPercentage: 30,
-    baseMessage: 'Nugget rally {PERCENTAGE}!',
+    baseMessage: 'Orex rally {PERCENTAGE}!',
     icon: '🐔',
     color: 'neon-gold'
   },
@@ -74,10 +75,10 @@ const scanScenarios: ScanScenarioTemplate[] = [
   },
   {
     type: 'boost',
-    cryptoSymbol: 'OMLT',
+    cryptoSymbol: 'SIL',
     minPercentage: 10,
     maxPercentage: 25,
-    baseMessage: 'Omlet beweegt {PERCENTAGE}!',
+    baseMessage: 'Silica AI-chip doorbraak {PERCENTAGE}!',
     icon: '🥚',
     color: 'neon-turquoise'
   },
@@ -92,10 +93,10 @@ const scanScenarios: ScanScenarioTemplate[] = [
   },
   {
     type: 'crash',
-    cryptoSymbol: 'ORLO',
+    cryptoSymbol: 'GLX',
     minPercentage: -30,
     maxPercentage: 30,
-    baseMessage: 'Orlo dip {PERCENTAGE}',
+    baseMessage: 'Glooma dip {PERCENTAGE},',
     icon: '🎵',
     color: 'neon-gold'
   },
@@ -165,12 +166,12 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
   // Simulate next 10 events to calculate top gainer and loser
   const simulateFutureEvents = (numEvents: number = 10): { topGainer: { symbol: string; percentage: number }; topLoser: { symbol: string; percentage: number } } => {
     const cryptoChanges: Record<string, number> = {
-      DSHEEP: 0,
-      NGT: 0,
+      DSHP: 0,
+      ORX: 0,
       LNTR: 0,
-      OMLT: 0,
+      SIL: 0,
       REX: 0,
-      ORLO: 0
+      GLX: 0
     }
 
     // Simulate 10 future events
@@ -199,8 +200,8 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
     }
 
     // Find top gainer and loser
-    let topGainer = { symbol: 'DSHEEP', percentage: cryptoChanges.DSHEEP }
-    let topLoser = { symbol: 'DSHEEP', percentage: cryptoChanges.DSHEEP }
+    let topGainer = { symbol: 'DSHP', percentage: cryptoChanges.DSHP }
+    let topLoser = { symbol: 'DSHP', percentage: cryptoChanges.DSHP }
 
     Object.entries(cryptoChanges).forEach(([symbol, change]) => {
       if (change > topGainer.percentage) {
@@ -311,6 +312,11 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
       }, 500) // Wait for fade-in animation to complete
     }, 100)
     
+    // CRITICAL: Reset initializedRef on unmount so popup works on next mount
+    return () => {
+      console.log('🧹 ScanResult unmounting - resetting initializedRef')
+      initializedRef.current = false
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Only run once on mount
 
@@ -354,15 +360,24 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
 
   if (!currentScenario) return null
 
+  // Normalize legacy data from server/client: ORLO -> GLX, Orlo -> Glooma
+  const normalizedSymbol = (currentScenario.cryptoSymbol === 'ORLO' ? 'GLX' : currentScenario.cryptoSymbol)
+  const normalizedHeadline = typeof (currentScenario as any).headline === 'string'
+    ? (currentScenario as any).headline.replace(/\bOrlo\b/g, 'Glooma').replace(/\bORLO\b/g, 'GLX')
+    : (currentScenario as any).headline
+  const normalizedMessage = typeof currentScenario.message === 'string'
+    ? currentScenario.message.replace(/\bOrlo\b/g, 'Glooma').replace(/\bORLO\b/g, 'GLX')
+    : currentScenario.message
+
   const getCryptoImagePath = (symbol?: string) => {
     if (!symbol) return null
     switch (symbol) {
-      case 'DSHEEP': return '/dsheep.png'
+      case 'DSHP': return '/dsheep.png'
       case 'LNTR': return '/lentra.png'
-      case 'OMLT': return '/omlt.png'
-      case 'ORLO': return '/orlo.png'
+      case 'SIL': return '/silica.png'
+      case 'GLX': return '/glooma.png'
       case 'REX': return '/rex.png'
-      case 'NGT': return '/Nugget.png'
+      case 'ORX': return '/orex.png'
       default: return null
     }
   }
@@ -441,7 +456,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
       <div className={`transform transition-all duration-500 ease-out ${
         isVisible ? 'scale-100 opacity-100' : 'scale-90 opacity-0'
       }`}>
-        <div className={`crypto-card ${getBorderColor()} bg-gradient-to-br ${getBackgroundColor()} max-w-md w-full text-center p-8`}>
+        <div className={`crypto-card ${getBorderColor()} bg-gradient-to-br ${getBackgroundColor()} w-96 text-center p-8`}>
 
           {/* Crypto Icon */}
           <div className="mb-6">
@@ -469,12 +484,12 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                 }
 
                 // Anders: normale crypto image op basis van symbool
-                const imagePath = getCryptoImagePath(currentScenario.cryptoSymbol)
+                const imagePath = getCryptoImagePath(normalizedSymbol)
                 if (imagePath) {
                   return (
                     <Image
                       src={imagePath}
-                      alt={currentScenario.cryptoSymbol || 'Crypto'}
+                      alt={normalizedSymbol || 'Crypto'}
                       width={180}
                       height={180}
                       className="object-contain"
@@ -488,8 +503,8 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                 return <span>{currentScenario.icon}</span>
               })()}
             </div>
-            {currentScenario.cryptoSymbol && currentScenario.type !== 'forecast' && (
-              <div className="text-lg text-gray-400 mb-2">{currentScenario.cryptoSymbol}</div>
+            {normalizedSymbol && currentScenario.type !== 'forecast' && (
+              <div className="text-lg text-gray-400 mb-2">{normalizedSymbol}</div>
             )}
           </div>
 
@@ -498,7 +513,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
             {/* Show message for forecast AND market-wide events (Bull Run, Market Crash, Whale Alert) */}
             {(currentScenario.type === 'forecast' || currentScenario.type === 'event') && (
               <h3 className={`text-3xl font-bold ${getTextColor()} mb-2`}>
-                {currentScenario.message}
+                {normalizedMessage}
               </h3>
             )}
             
@@ -510,7 +525,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       {(() => {
-                        const imagePath = getCryptoImagePath(currentScenario.topGainer!.symbol)
+                        const imagePath = getCryptoImagePath(currentScenario.topGainer!.symbol === 'ORLO' ? 'GLX' : currentScenario.topGainer!.symbol)
                         return imagePath ? (
                           <Image
                             src={imagePath}
@@ -544,7 +559,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       {(() => {
-                        const imagePath = getCryptoImagePath(currentScenario.topLoser!.symbol)
+                        const imagePath = getCryptoImagePath(currentScenario.topLoser!.symbol === 'ORLO' ? 'GLX' : currentScenario.topLoser!.symbol)
                         return imagePath ? (
                           <Image
                             src={imagePath}
@@ -605,7 +620,7 @@ export default function ScanResult({ onClose, onApplyEffect, externalScenario }:
                 }}
               ></div>
             </div>
-            {t('events.autoApplied')}
+            {(normalizedHeadline as any) === 'Beurs update' ? '' : t('events.autoApplied')}
           </div>
         </div>
       </div>

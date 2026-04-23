@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useId } from 'react'
 
 interface PriceChange {
   percentage: number
@@ -69,7 +69,7 @@ export default function CandlestickChart({ priceHistory, maxBars = 6, currentPer
   
   // Add buffer for better visualization
   const dataRange = dataMax - dataMin
-  const buffer = Math.max(dataRange * 0.15, 2) // 15% buffer of minimaal ⚘2
+  const buffer = Math.max(dataRange * 0.15, 2) // 15% buffer of minimaal Bloom 2
   
   const fixedMin = dataMin - buffer
   const fixedMax = dataMax + buffer
@@ -152,7 +152,8 @@ export default function CandlestickChart({ priceHistory, maxBars = 6, currentPer
   // Bolero-style: consistent brand color (neon-gold) regardless of trend
   const lineColor = 'rgb(251, 191, 36)' // neon-gold - matches project theme
   
-  const gradientId = `gradient-${Math.random().toString(36).substr(2, 9)}`
+  const reactId = useId()
+  const gradientId = `gradient-${reactId.replace(/:/g, '')}`
 
   return (
     <div className="h-16 mt-1.5 px-0 relative w-full">
@@ -224,7 +225,7 @@ export default function CandlestickChart({ priceHistory, maxBars = 6, currentPer
                 r="1.5"
                 fill={pointColor}
               >
-                <title>{point.price != null ? (isFirstPoint ? `Start: ⚘${point.price.toFixed(2)}` : `⚘${point.price.toFixed(2)} (${point.percentage >= 0 ? '+' : ''}${point.percentage.toFixed(1)}%)`) : 'Geen data'}</title>
+                <title>{point.price != null ? (isFirstPoint ? `Start: Bloom ${point.price.toFixed(2)}` : `Bloom ${point.price.toFixed(2)} (${point.percentage >= 0 ? '+' : ''}${point.percentage.toFixed(1)}%)`) : 'Geen data'}</title>
               </circle>
             </g>
           )

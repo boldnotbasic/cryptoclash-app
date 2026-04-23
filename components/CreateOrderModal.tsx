@@ -25,12 +25,13 @@ interface CreateOrderModalProps {
 
 const getCryptoImagePath = (symbol: string): string | null => {
   switch (symbol) {
-    case 'DSHEEP': return '/dsheep.png'
+    case 'DSHP':
+      case 'DSHEEP': return '/dsheep.png'
     case 'LNTR': return '/lentra.png'
-    case 'OMLT': return '/omlt.png'
-    case 'ORLO': return '/orlo.png'
+    case 'SIL': return '/silica.png'
+    case 'GLX': return '/glooma.png'
     case 'REX': return '/rex.png'
-    case 'NGT': return '/Nugget.png'
+    case 'ORX': return '/orex.png'
     default: return null
   }
 }

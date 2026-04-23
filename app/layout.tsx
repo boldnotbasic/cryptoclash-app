@@ -6,7 +6,7 @@ import { IconProvider } from '@/contexts/IconContext'
 import { CurrencyProvider } from '@/contexts/CurrencyContext'
 
 export const metadata: Metadata = {
-  title: 'CryptoClash - Bordspel met Digitale Interactie',
+  title: 'Battle For Bloom - Crypto boardgame',
   description: 'Innovatief bordspel gecombineerd met een webgame waarin spelers strijden om de grootste cryptovermogens.',
   manifest: '/manifest.json',
   icons: {

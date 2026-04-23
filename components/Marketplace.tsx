@@ -70,11 +70,11 @@ export default function Marketplace({
   const getCryptoName = (symbol: string) => {
     const names: { [key: string]: string } = {
       DSHEEP: 'DigiSheep',
-      NGT: 'Nugget',
+      ORX: 'Orex',
       LNTR: 'Lentra',
-      OMLT: 'Omelet',
+      SIL: 'Silica',
       REX: 'Rex',
-      ORLO: 'Orlo'
+      GLX: 'Glooma'
     }
     return names[symbol] || symbol
   }
@@ -82,11 +82,11 @@ export default function Marketplace({
   const getCryptoImage = (symbol: string) => {
     const images: { [key: string]: string } = {
       DSHEEP: '/dsheep.png',
-      NGT: '/Nugget.png',
+      ORX: '/orex.png',
       LNTR: '/lentra.png',
-      OMLT: '/omlt.png',
+      SIL: '/silica.png',
       REX: '/rex.png',
-      ORLO: '/orlo.png'
+      GLX: '/glooma.png'
     }
     return images[symbol]
   }
@@ -97,7 +97,7 @@ export default function Marketplace({
   }
 
   // Group orders by crypto
-  const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+  const cryptoSymbols = ['DSHEEP', 'ORX', 'LNTR', 'SIL', 'REX', 'GLX']
   const ordersByCrypto = cryptoSymbols.reduce((acc, symbol) => {
     acc[symbol] = orders.filter(o => o.crypto === symbol && o.type === 'sell')
     return acc
@@ -227,7 +227,7 @@ export default function Marketplace({
                           }`}
                         >
                           {Math.abs(crypto.change24h) > 15 ? (
-                            crypto.change24h > 0 ? <>↗️ Sterk stijgend</> : <>↘️ Sterk dalend</>
+                            crypto.change24h > 0 ? <>Sterk stijgend</> : <>Sterk dalend</>
                           ) : (
                             <>-</>
                           )}

@@ -121,12 +121,13 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
 
   const getCryptoImagePath = (symbol: string) => {
     switch (symbol) {
+      case 'DSHP':
       case 'DSHEEP': return '/dsheep.png'
       case 'LNTR': return '/lentra.png'
-      case 'OMLT': return '/omlt.png'
-      case 'ORLO': return '/orlo.png'
+      case 'SIL': return '/silica.png'
+      case 'GLX': return '/glooma.png'
       case 'REX': return '/rex.png'
-      case 'NGT': return '/Nugget.png'
+      case 'ORX': return '/orex.png'
       default: return null
     }
   }
@@ -249,10 +250,10 @@ export default function MarketOverview({ cryptos, currentPlayer, playerAvatar, o
             const isTopValueTile = topValueCoin && crypto.id === topValueCoin.id
             const isBothHighlight = isTopGainerTile && isTopValueTile
 
-            const isNugget = crypto.symbol === 'NGT'
+            const isOrex = crypto.symbol === 'ORX'
             const isLentra = crypto.symbol === 'LNTR'
             const isRex = crypto.symbol === 'REX'
-            const isOrlo = crypto.symbol === 'ORLO'
+            const isGlooma = crypto.symbol === 'GLX'
 
             return (
               <div

@@ -92,6 +92,7 @@ export default function Home() {
   const [otherPlayerEventData, setOtherPlayerEventData] = useState<ScanEffect | null>(null)
   const [currentEventId, setCurrentEventId] = useState<string>('') // Stable key for EventPopup
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null) // Track auto-close timer
+  const showPopupTimerRef = useRef<NodeJS.Timeout | null>(null) // Track pending popup show timer
   const currentScreenRef = useRef<Screen>('start-screen') // Always latest currentScreen for socket handlers
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear())
   const [isGameFinishedForPlayer, setIsGameFinishedForPlayer] = useState<boolean>(false)
@@ -107,11 +108,16 @@ export default function Home() {
   const [buySource, setBuySource] = useState<'selection' | 'bank' | 'players'>('selection')
   const [sellFlowMode, setSellFlowMode] = useState<'selection' | 'bank' | 'players'>('selection')
   const [marketplaceOrders, setMarketplaceOrders] = useState<any[]>([])
+  const [marketState, setMarketState] = useState<'normal' | 'war' | 'peace' | 'bull_market' | 'bear_market' | 'recovery'>('normal')
+  const [marketStateEventsRemaining, setMarketStateEventsRemaining] = useState<number>(0)
   const [showBiddingPopup, setShowBiddingPopup] = useState(false)
   const [currentBiddingOrder, setCurrentBiddingOrder] = useState<any>(null)
   const [showBidAcceptance, setShowBidAcceptance] = useState(false)
   const [receivedBids, setReceivedBids] = useState<any[]>([])
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null)
+  const [showBidAcceptedNotification, setShowBidAcceptedNotification] = useState(false)
+  const [acceptedBidData, setAcceptedBidData] = useState<{ playerName: string; amount: number; crypto: string } | null>(null)
+  const [insiderUsageNotification, setInsiderUsageNotification] = useState<{ playerName: string; playerAvatar: string } | null>(null)
   const [showSellerBidView, setShowSellerBidView] = useState(false)
   const [sellerOrderData, setSellerOrderData] = useState<{ crypto: string; quantity: number; marketPrice: number } | null>(null)
   const [turnTimerResetKey, setTurnTimerResetKey] = useState(0)
@@ -230,10 +236,18 @@ export default function Home() {
       setShowInsiderForecast(true)
     }
 
+    const handleInsiderUsed = (data: { playerName: string; playerAvatar: string }) => {
+      console.log('👁️ Player used insider info:', data)
+      setInsiderUsageNotification(data)
+      setTimeout(() => setInsiderUsageNotification(null), 3000)
+    }
+
     socket.on('player:insiderInfo', handleInsiderInfo)
+    socket.on('player:insiderUsed', handleInsiderUsed)
 
     return () => {
       socket.off('player:insiderInfo', handleInsiderInfo)
+      socket.off('player:insiderUsed', handleInsiderUsed)
     }
   }, [socket])
 
@@ -585,7 +599,7 @@ export default function Home() {
     {
       id: '1',
       name: 'DigiSheep',
-      symbol: 'DSHEEP',
+      symbol: 'DSHP',
       price: 42.30,
       change24h: 0,
       amount: 0,
@@ -596,8 +610,8 @@ export default function Home() {
     },
     {
       id: '2',
-      name: 'Nugget',
-      symbol: 'NGT',
+      name: 'Orex',
+      symbol: 'ORX',
       price: 1250.75,
       change24h: 0,
       amount: 0,
@@ -620,8 +634,8 @@ export default function Home() {
     },
     {
       id: '4',
-      name: 'Omlet',
-      symbol: 'OMLT',
+      name: 'Silica',
+      symbol: 'SIL',
       price: 156.40,
       change24h: 0,
       amount: 0,
@@ -644,8 +658,8 @@ export default function Home() {
     },
     {
       id: '6',
-      name: 'Orlo',
-      symbol: 'ORLO',
+      name: 'Glooma',
+      symbol: 'GLX',
       price: 2340.80,
       change24h: 0,
       amount: 0,
@@ -1594,10 +1608,20 @@ export default function Home() {
       })
       
       // Authoritative market state (percentages) from server
-      socket.on('market:stateUpdate', ({ change24h }: any) => {
+      socket.on('market:stateUpdate', ({ change24h, marketState: state, stateEventsRemaining }: any) => {
         try {
           if (!change24h) return
-          console.log('📡 market:stateUpdate received:', change24h)
+          console.log('📡 market:stateUpdate received:', { change24h, marketState: state, stateEventsRemaining })
+          
+          // Update market state
+          if (state) {
+            setMarketState(state)
+          }
+          if (typeof stateEventsRemaining === 'number') {
+            setMarketStateEventsRemaining(stateEventsRemaining)
+          }
+          
+          // Update crypto percentages
           setCryptos(prev => prev.map(c => {
             const v = change24h[c.symbol]
             if (typeof v === 'number') {
@@ -2233,47 +2257,34 @@ export default function Home() {
       setPlayerScanActions(normPlayer)
 
       // Show event ONLY if it's NEW (not already shown)
-      // CRITICAL: Find the ABSOLUTE NEWEST event across ALL scans
-      // For Market Dashboard (host): show both player AND auto events
-      // For Player screens: show ONLY player events (filter out auto beurs events)
+      // For Market Dashboard (host): consider both player AND auto scans; for Player screens: only player scans
       const allScansForPopup = isHost 
-        ? [...normPlayer, ...normAuto]  // Market Dashboard: both
-        : [...normPlayer]  // Player screens: only player events
-      
-      const newestEvent = allScansForPopup.sort((a, b) => b.timestamp - a.timestamp)[0]
-      
+        ? [...normPlayer, ...normAuto]
+        : [...normPlayer]
+
+      // Sort newest-first and then pick the first scan that qualifies as an event popup.
+      const newestEvent = allScansForPopup
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .find(ev => {
+          if (!ev || !ev.player || !ev.effect) return false
+          // Skip buy/sell/win actions - they should NOT trigger pop-ups
+          if (ev.action && (
+            ev.action.includes('Koop') ||
+            ev.action.includes('Verkoop') ||
+            ev.action.includes('Buy') ||
+            ev.action.includes('Sell') ||
+            ev.action.includes('Win') ||
+            (ev as any).isWinAction === true
+          )) return false
+          // ONLY block Bot automatic market events on player screens
+          if (!isHost && ev.player === 'Bot') return false
+          // Only show pop-ups for actual game events (Test Scan, Kans, Event, Forecast)
+          const action = ev.action || ''
+          const isEventAction = action.includes('Test Scan') || action.includes('Kans') || action.includes('Event') || action.includes('Forecast')
+          return isEventAction
+        })
+
       if (newestEvent && newestEvent.player && newestEvent.effect) {
-        // Skip buy/sell/win actions - they should NOT trigger pop-ups
-        if (newestEvent.action && (
-          newestEvent.action.includes('Koop') || 
-          newestEvent.action.includes('Verkoop') ||
-          newestEvent.action.includes('Buy') ||
-          newestEvent.action.includes('Sell') ||
-          newestEvent.action.includes('Win') ||
-          (newestEvent as any).isWinAction === true
-        )) {
-          console.log('⏭️ Skipping buy/sell/win action, no pop-up:', newestEvent.action)
-          return
-        }
-        
-        // ONLY block Bot automatic market events on player screens
-        if (!isHost && newestEvent.player === 'Bot') {
-          console.log('🚫 BLOCKED Bot auto event on Player Screen:', newestEvent.effect)
-          return
-        }
-        
-        // Only show pop-ups for actual game events (Test Scan, Kans, Event, Forecast)
-        const isEventAction = newestEvent.action && (
-          newestEvent.action.includes('Test Scan') || 
-          newestEvent.action.includes('Kans') ||
-          newestEvent.action.includes('Event') ||
-          newestEvent.action.includes('Forecast')
-        )
-        
-        if (!isEventAction) {
-          console.log('⏭️ Not an event action, skipping popup:', newestEvent.action)
-          return
-        }
         
         // Check if we've already shown this event
         const eventId = newestEvent.id || `${newestEvent.timestamp}-${newestEvent.effect}`
@@ -2348,9 +2359,22 @@ export default function Home() {
               autoCloseTimerRef.current = null
             }
             
-            setCurrentEventId(eventId)
-            setOtherPlayerEventData(scanEffect)
-            setShowOtherPlayerEvent(true)
+            // CRITICAL: Cancel any pending popup show timer, force close existing popup
+            if (showPopupTimerRef.current) {
+              clearTimeout(showPopupTimerRef.current)
+              showPopupTimerRef.current = null
+            }
+            setShowOtherPlayerEvent(false)
+            setOtherPlayerEventData(null)
+            setCurrentEventId('')
+            
+            // Small delay to ensure clean unmount before showing new popup
+            showPopupTimerRef.current = setTimeout(() => {
+              showPopupTimerRef.current = null
+              setCurrentEventId(eventId)
+              setOtherPlayerEventData(scanEffect)
+              setShowOtherPlayerEvent(true)
+            }, 150)
             
             // Short auto-close for forecast eye icon (3 seconds)
             autoCloseTimerRef.current = setTimeout(() => {
@@ -2404,7 +2428,9 @@ export default function Home() {
           // CRITICAL: Only pass forecast data if this is MY forecast
           // Server filters it, but we add extra client-side validation for safety
           topGainer: (isForecast && isMyForecast) ? (newestEvent as any).forecastData?.topGainer : undefined,
-          topLoser: (isForecast && isMyForecast) ? (newestEvent as any).forecastData?.topLoser : undefined
+          topLoser: (isForecast && isMyForecast) ? (newestEvent as any).forecastData?.topLoser : undefined,
+          // Pass headline from server (for "Beurs update" header on automatic Bot events)
+          headline: (newestEvent as any).headline
         }
         
         console.log('✅ Created ScanEffect:', scanEffect)
@@ -2425,9 +2451,22 @@ export default function Home() {
           autoCloseTimerRef.current = null
         }
         
-        setCurrentEventId(eventId)
-        setOtherPlayerEventData(scanEffect)
-        setShowOtherPlayerEvent(true)
+        // CRITICAL: Cancel any pending popup show timer, force close existing popup
+        if (showPopupTimerRef.current) {
+          clearTimeout(showPopupTimerRef.current)
+          showPopupTimerRef.current = null
+        }
+        setShowOtherPlayerEvent(false)
+        setOtherPlayerEventData(null)
+        setCurrentEventId('')
+        
+        // Small delay to ensure clean unmount before showing new popup
+        showPopupTimerRef.current = setTimeout(() => {
+          showPopupTimerRef.current = null
+          setCurrentEventId(eventId)
+          setOtherPlayerEventData(scanEffect)
+          setShowOtherPlayerEvent(true)
+        }, 150)
         
         // Play sound based on event type
         console.log('🔊 Playing sound for event:', scanEffect.type, scanEffect.message)
@@ -2470,9 +2509,23 @@ export default function Home() {
       }
       
       const undoEventId = `undo-${action.id}-${Date.now()}`
-      setCurrentEventId(undoEventId)
-      setOtherPlayerEventData(undoScenario)
-      setShowOtherPlayerEvent(true)
+      
+      // CRITICAL: Cancel any pending popup show timer, force close existing popup
+      if (showPopupTimerRef.current) {
+        clearTimeout(showPopupTimerRef.current)
+        showPopupTimerRef.current = null
+      }
+      setShowOtherPlayerEvent(false)
+      setOtherPlayerEventData(null)
+      setCurrentEventId('')
+      
+      // Small delay to ensure clean unmount before showing new popup
+      showPopupTimerRef.current = setTimeout(() => {
+        showPopupTimerRef.current = null
+        setCurrentEventId(undoEventId)
+        setOtherPlayerEventData(undoScenario)
+        setShowOtherPlayerEvent(true)
+      }, 150)
     }
 
     // 📊 Core event listeners (clean architecture)
@@ -2531,7 +2584,7 @@ export default function Home() {
         // Don't generate activities when game is paused
         if (isGamePaused) return
         
-        const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+        const cryptoSymbols = ['DSHEEP', 'ORX', 'LNTR', 'SIL', 'REX', 'GLX']
         const randomCrypto = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
         
         // Generate random percentage within selected volatility bound
@@ -2837,6 +2890,10 @@ export default function Home() {
   const handleQRScan = (effect: ScanEffect) => {
     console.log('\n🎯 === QR SCAN EFFECT APPLIED ===')
     console.log('📊 Effect:', effect)
+    console.log('📊 Effect.message:', effect.message)
+    console.log('📊 Effect.type:', effect.type)
+    console.log('📊 Effect.cryptoSymbol:', effect.cryptoSymbol)
+    console.log('📊 Effect.percentage:', effect.percentage)
     
     // Whale Alert wordt nu behandeld binnen de EventPopup component
     // Geen navigatie naar apart scherm meer
@@ -2857,17 +2914,29 @@ export default function Home() {
     // STEP 2: Build effect text for display - USE ORIGINAL MESSAGE FROM EVENTPOPUP
     // This ensures consistency with server-generated events
     let effectText = effect.message || ''
+    console.log('📝 effectText after message check:', effectText)
     
-    // Fallback: if no message, build one (should not happen with EventPopup)
+    // Fallback: if no message, build one from effect properties
     if (!effectText) {
+      console.warn('⚠️ No effect.message provided, building fallback effectText')
       if (effect.type === 'boost' || effect.type === 'crash') {
-        if (effect.cryptoSymbol && effect.percentage) {
+        if (effect.cryptoSymbol && effect.percentage !== undefined) {
           const sign = effect.percentage > 0 ? '+' : ''
           effectText = `${effect.cryptoSymbol} ${sign}${effect.percentage}%`
         }
       } else if (effect.type === 'event') {
-        effectText = effect.message
+        effectText = 'Market Event'
+      } else if (effect.type === 'forecast') {
+        effectText = 'Market Forecast'
       }
+      
+      // Last resort: use any available info
+      if (!effectText && effect.cryptoSymbol) {
+        effectText = `${effect.cryptoSymbol} event`
+      } else if (!effectText) {
+        effectText = 'Kans event'
+      }
+      console.log('📝 Fallback effectText:', effectText)
     }
     
     setLastScanEffect(effectText)
@@ -2940,15 +3009,27 @@ export default function Home() {
       }
       
       // STEP 4: Broadcast to room
+      console.log('🔍 Checking socket broadcast conditions:')
+      console.log('  - socket exists:', !!socket)
+      console.log('  - socket.connected:', socket?.connected)
+      console.log('  - roomId:', roomId)
+      console.log('  - roomId !== solo-mode:', roomId !== 'solo-mode')
+      
       if (socket && roomId && roomId !== 'solo-mode') {
         console.log('\n📡 Broadcasting scan action to room')
+        console.log('📤 Scan action to broadcast:', newScanAction)
         socket.emit('player:scanAction', {
           roomCode: roomId,
           scanAction: newScanAction
         })
         lastEmittedScanId.current = newScanAction.id
         console.log('✅ Broadcast complete\n')
+      } else {
+        console.warn('⚠️ Socket broadcast SKIPPED - conditions not met')
       }
+    } else {
+      console.warn('⚠️ effectText is empty - entire scan action block SKIPPED')
+      console.warn('   effect.message was:', effect.message)
     }
     
     // STEP 5: Navigate to main menu AFTER all effects are applied
@@ -3008,7 +3089,7 @@ export default function Home() {
       timestamp: Date.now(),
       player: 'Test Player',
       action: 'Direct Test',
-      effect: 'NGT +10.0%',
+      effect: 'ORX +10.0%',
       avatar: '🧪'
     }
     console.log('📊 Adding direct scan:', directScan)
@@ -3438,6 +3519,8 @@ export default function Home() {
                 isMarketDashboard={isHost}
                 externalPriceHistory={priceHistory}
                 isGamePaused={isGamePaused}
+                marketState={marketState}
+                marketStateEventsRemaining={marketStateEventsRemaining}
               />
             )
           
@@ -4274,19 +4357,63 @@ export default function Home() {
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-md">
           <div className="relative w-full max-w-xl mx-4 rounded-2xl bg-dark-bg/95 border border-neon-purple/50 shadow-[0_0_40px_rgba(168,85,247,0.35)] overflow-hidden">
             {/* Top accent bar */}
-            <div className="h-1.5 w-full bg-gradient-to-r from-neon-purple via-neon-gold to-neon-purple" />
+            <div className="h-1 bg-gradient-to-r from-neon-purple via-neon-pink to-neon-purple"></div>
 
-            <div className="px-6 pt-5 pb-6 flex items-start space-x-4">
-              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-neon-purple/15 border border-neon-purple/60 shadow-inner">
-                <span className="text-2xl">🔄</span>
+            <div className="px-6 pt-5 pb-6 flex items-center space-x-4">
+              <div className="flex items-center justify-center w-16 h-16 rounded-full bg-neon-purple/15 border border-neon-purple/60 shadow-inner">
+                <span className="text-4xl">🔄</span>
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-neon-purple tracking-wide uppercase mb-1">Swap ontvangen</p>
                 <p className="text-xl font-extrabold text-white mb-2">
                   Ruil met <span className="text-neon-gold">{swapNotification.fromPlayerName}</span> {swapNotification.fromPlayerAvatar}
                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bid accepted success notification */}
+      {showBidAcceptedNotification && acceptedBidData && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-md">
+          <div className="relative w-full max-w-xl mx-4 rounded-2xl bg-dark-bg/95 border border-green-500/50 shadow-[0_0_40px_rgba(34,197,94,0.35)] overflow-hidden">
+            {/* Top accent bar */}
+            <div className="h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-green-500"></div>
+
+            <div className="px-6 pt-5 pb-6 flex items-center space-x-4">
+              <div className="flex items-center justify-center w-16 h-16 rounded-full bg-green-500/15 border border-green-500/60 shadow-inner">
+                <span className="text-4xl">✅</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-green-400 tracking-wide uppercase mb-1">Bod Geaccepteerd</p>
+                <p className="text-xl font-extrabold text-white mb-2">
+                  Verkocht aan <span className="text-neon-gold">{acceptedBidData.playerName}</span>
+                </p>
                 <p className="text-sm text-gray-300">
-                  Je hebt <span className="text-neon-gold font-semibold">1x {swapNotification.receivedCrypto}</span> ontvangen en <span className="text-red-400 font-semibold">1x {swapNotification.lostCrypto}</span> weggegeven.
+                  Je hebt <span className="text-neon-gold font-semibold">{acceptedBidData.crypto}</span> verkocht voor <span className="text-green-400 font-semibold">⚘{acceptedBidData.amount.toFixed(2)}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Insider usage notification - show when another player uses insider info */}
+      {insiderUsageNotification && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-md pointer-events-none">
+          <div className="relative w-full max-w-xl mx-4 rounded-2xl bg-dark-bg/95 border border-purple-500/50 shadow-[0_0_40px_rgba(168,85,247,0.35)] overflow-hidden">
+            {/* Top accent bar */}
+            <div className="h-1 bg-gradient-to-r from-purple-500 via-violet-500 to-purple-500"></div>
+
+            <div className="px-6 pt-5 pb-6 flex items-center space-x-4">
+              <div className="flex items-center justify-center w-16 h-16 rounded-full bg-purple-500/15 border border-purple-500/60 shadow-inner">
+                <span className="text-4xl">👁️</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-purple-400 tracking-wide uppercase mb-1">Insider Info Gebruikt</p>
+                <p className="text-xl font-extrabold text-white">
+                  <span className="text-neon-gold">{insiderUsageNotification.playerName}</span> {insiderUsageNotification.playerAvatar} bekijkt insider info
                 </p>
               </div>
             </div>
@@ -4349,8 +4476,8 @@ export default function Home() {
       </div>
     )}
 
-    {/* Event from other player - NIET tonen op Market Dashboard om dubbele overlay te vermijden */}
-    {currentScreen !== 'market-dashboard' && showOtherPlayerEvent && otherPlayerEventData && (
+    {/* Event from other player - show on ALL screens including Market Dashboard */}
+    {showOtherPlayerEvent && otherPlayerEventData && (
       <EventPopup
         key={currentEventId}
         externalScenario={otherPlayerEventData}
@@ -4462,34 +4589,23 @@ export default function Home() {
       />
     )}
 
-    {/* Market Dashboard: read-only hourglass view (no input) */}
-    {showBiddingPopup && currentBiddingOrder && currentScreen === 'market-dashboard' && (
-      <OfferWatchView
-        sellerName={currentBiddingOrder.playerName}
-        sellerAvatar={currentBiddingOrder.playerAvatar}
-        crypto={currentBiddingOrder.crypto}
-        quantity={currentBiddingOrder.amount}
-        marketPrice={cryptos.find(c => c.symbol === currentBiddingOrder.crypto)?.price || 0}
-        duration={10}
-        readOnly
-      />
-    )}
-
-    {/* Buyers: bidding popup with input */}
-    {showBiddingPopup && currentBiddingOrder && currentScreen !== 'market-dashboard' && (
+    {/* Bidding popup for ALL players (not just non-market-dashboard) */}
+    {showBiddingPopup && currentBiddingOrder && (
       <BiddingPopup
         sellerName={currentBiddingOrder.playerName}
         sellerAvatar={currentBiddingOrder.playerAvatar}
         crypto={currentBiddingOrder.crypto}
         amount={currentBiddingOrder.amount}
         marketPrice={cryptos.find(c => c.symbol === currentBiddingOrder.crypto)?.price || 0}
+        playerCash={cashBalance}
         onSubmitBid={(bidAmount) => {
+          console.log('💰 Submitting bid:', bidAmount)
           if (socket && roomId) {
             socket.emit('marketplace:placeBid', {
               roomCode: roomId,
               orderId: currentBiddingOrder.id,
               bid: {
-                playerId: mySocketId || playerName,
+                playerId: socket.id,
                 playerName: playerName,
                 playerAvatar: playerAvatar,
                 amount: bidAmount,
@@ -4521,6 +4637,15 @@ export default function Home() {
               winningBid: bid
             })
           }
+          // Show success notification
+          setAcceptedBidData({
+            playerName: bid.playerName,
+            amount: bid.amount,
+            crypto: sellerOrderData?.crypto || currentBiddingOrder?.crypto || ''
+          })
+          setShowBidAcceptedNotification(true)
+          setTimeout(() => setShowBidAcceptedNotification(false), 5000)
+          
           setShowBidAcceptance(false)
           setPendingOrderId(null)
           setReceivedBids([])
@@ -4530,7 +4655,6 @@ export default function Home() {
           setShowBidAcceptance(false)
           setPendingOrderId(null)
           setReceivedBids([])
-          alert('Je hebt alle biedingen afgewezen.')
         }}
       />
     )}

@@ -7,6 +7,7 @@ import Header from './Header'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { formatCurrency } from '@/utils/currency'
+import { CurrencyAmount } from '@/components/CurrencyIcon'
 import SellConfirmModal from './SellConfirmModal'
 import SellSuccessModal from './SellSuccessModal'
 import CandlestickChart from './CandlestickChart'
@@ -86,13 +87,13 @@ export default function GameDashboard({
 
   const getCryptoImagePath = (symbol: string) => {
     switch (symbol) {
+      case 'DSHP':
       case 'DSHEEP': return '/dsheep.png'
       case 'LNTR': return '/lentra.png'
-      case 'OMLT': return '/omlt.png'
-      case 'ORLO': return '/orlo.png'
+      case 'SIL': return '/silica.png'
+      case 'GLX': return '/glooma.png'
       case 'REX': return '/rex.png'
-      case 'NGT': return '/Nugget.png'
-      case 'NUGGET': return '/Nugget.png'
+      case 'ORX': return '/orex.png'
       default: return null
     }
   }
@@ -173,7 +174,7 @@ export default function GameDashboard({
         <div className="crypto-card text-center mb-8">
           <h2 className="text-lg font-semibold text-gray-400 mb-2">{t('gameDashboard.totalPortfolioValue')}</h2>
           <p className="text-4xl font-bold text-neon-gold">
-            {formatCurrency(totalValue, currency.symbol)}
+            <CurrencyAmount value={totalValue} iconSize={32} />
           </p>
         </div>
 
@@ -234,7 +235,7 @@ export default function GameDashboard({
                     <div className="flex items-center justify-between">
                       <div className="text-white font-semibold truncate mr-2">{crypto.name}</div>
                       <div className="text-neon-turquoise font-bold whitespace-nowrap">
-                        {formatCurrency(crypto.price, currency.symbol)}
+                        <CurrencyAmount value={crypto.price} iconSize={14} />
                       </div>
                     </div>
 
@@ -407,7 +408,7 @@ export default function GameDashboard({
               </div>
               <div className="text-right">
                 <div className="text-gray-400 text-sm">{t('gameDashboard.total')}</div>
-                <div className="text-white font-bold text-xl">{formatCurrency(saleValue, currency.symbol)}</div>
+                <div className="text-white font-bold text-xl"><CurrencyAmount value={saleValue} iconSize={16} /></div>
               </div>
             </div>
 

@@ -25,12 +25,12 @@ const DEFAULT_ICONS: IconConfig = {
     crash: '📉'
   },
   cryptos: {
-    DSHEEP: '🐑',
-    NGT: '🪙',
+    DSHEEP: '/dsheep.png',
+    ORX: '🪙',
     LNTR: '💡',
-    OMLT: '🍳',
+    SIL: '🤖',
     REX: '🦖',
-    ORLO: '🔵'
+    GLX: '�'
   },
   ui: {
     host: '👑',

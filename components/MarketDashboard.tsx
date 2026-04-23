@@ -6,6 +6,8 @@ import { TrendingUp, TrendingDown, BarChart3, Users, Zap, Crown, Medal, Trophy, 
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { formatCurrency } from '@/utils/currency'
+import { CurrencyIcon } from './CurrencyIcon'
+import { CurrencyAmount } from './CurrencyIcon'
 import EventPopup, { ScanEffect } from './EventPopup'
 import CryptoDetail from './CryptoDetail'
 import CandlestickChart from './CandlestickChart'
@@ -62,6 +64,8 @@ interface MarketDashboardProps {
   isMarketDashboard?: boolean
   externalPriceHistory?: Record<string, Array<{percentage: number, timestamp: number}>>
   isGamePaused?: boolean
+  marketState?: 'normal' | 'war' | 'peace' | 'bull_market' | 'bear_market' | 'recovery'
+  marketStateEventsRemaining?: number
 }
 
 export default function MarketDashboard({ 
@@ -80,7 +84,9 @@ export default function MarketDashboard({
   onEndGame,
   isMarketDashboard = false,
   externalPriceHistory = {},
-  isGamePaused: externalGamePaused = false
+  isGamePaused: externalGamePaused = false,
+  marketState = 'normal',
+  marketStateEventsRemaining = 0
 }: MarketDashboardProps) {
   const { t } = useLanguage()
   const { currency } = useCurrency()
@@ -129,22 +135,27 @@ export default function MarketDashboard({
   const [isMusicPlaying, setIsMusicPlaying] = useState(false)
   const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(true)
   const [priceHistory, setPriceHistory] = useState<{[key: string]: Array<{percentage: number, timestamp: number}>}>({
-    DSHEEP: [],
-    NGT: [],
+    DSHP: [],
+    ORX: [],
     LNTR: [],
-    OMLT: [],
+    SIL: [],
     REX: [],
-    ORLO: []
+    GLX: []
   })
   const [showUndoModal, setShowUndoModal] = useState<'beurs' | 'acties' | null>(null)
   const [chartPeriod, setChartPeriod] = useState<'all' | 'last20' | 'last10' | 'last5'>('all')
   const [selectedCrypto, setSelectedCrypto] = useState<CryptoCurrency | null>(null)
-  const [currentTime, setCurrentTime] = useState(Date.now())
+  const [currentTime, setCurrentTime] = useState(0)
 
   // Sync local pause state with external prop
   useEffect(() => {
     setIsGamePaused(externalGamePaused)
   }, [externalGamePaused])
+
+  // Initialize currentTime on client only (avoids SSR/client hydration mismatch)
+  useEffect(() => {
+    setCurrentTime(Date.now())
+  }, [])
 
   // Update timer every second for live timestamps - pause when game is paused
   useEffect(() => {
@@ -153,17 +164,18 @@ export default function MarketDashboard({
     const interval = setInterval(() => {
       setCurrentTime(Date.now())
     }, 1000)
+    
     return () => clearInterval(interval)
   }, [isGamePaused])
 
   const getCryptoImagePath = (symbol: string) => {
     switch (symbol) {
-      case 'DSHEEP': return '/dsheep.png'
+      case 'DSHP': return '/dsheep.png'
       case 'LNTR': return '/lentra.png'
-      case 'OMLT': return '/omlt.png'
-      case 'ORLO': return '/orlo.png'
+      case 'SIL': return '/silica.png'
+      case 'GLX': return '/glooma.png'
       case 'REX': return '/rex.png'
-      case 'NGT': return '/Nugget.png'
+      case 'ORX': return '/orex.png'
       default: return null
     }
   }
@@ -310,7 +322,27 @@ export default function MarketDashboard({
     const handleScanDataUpdate = ({ upcomingEvents: events, scanCount: count }: any) => {
       if (events) {
         console.log(`📋 Received ${events.length} upcoming events from server`)
-        setUpcomingEvents(events)
+        
+        // DEBUG: Log all events with their headlines
+        events.forEach((evt: any, idx: number) => {
+          console.log(`Event ${idx + 1}:`, {
+            symbol: evt.symbol,
+            type: evt.type,
+            percentage: evt.percentage,
+            hasHeadline: !!evt.headline,
+            headline: evt.headline
+          })
+        })
+        
+        // Normalize legacy symbols/headlines (ORLO -> GLX / Glooma)
+        const normalized = events.map((evt: any) => {
+          const sym = evt.symbol === 'ORLO' ? 'GLX' : evt.symbol
+          const headline = typeof evt.headline === 'string'
+            ? evt.headline.replace(/\bOrlo\b/g, 'Glooma').replace(/\bORLO\b/g, 'GLX')
+            : evt.headline
+          return { ...evt, symbol: sym, headline }
+        })
+        setUpcomingEvents(normalized)
       }
       if (typeof count === 'number') {
         console.log(`📊 Scan count: ${count}`)
@@ -332,8 +364,8 @@ export default function MarketDashboard({
     const handlePriceHistory = (history: {[key: string]: Array<{percentage: number, timestamp: number}>}) => {
       console.log(`📊 ===== PRICE HISTORY UPDATE =====`)
       console.log(`📊 Received price history:`, history)
-      console.log(`📊 DSHEEP history:`, history.DSHEEP || [])
-      console.log(`📊 NGT history:`, history.NGT || [])
+      console.log(`📊 DSHP history:`, history.DSHP || [])
+      console.log(`📊 ORX history:`, history.ORX || [])
       console.log(`📊 Total symbols:`, Object.keys(history).length)
       setPriceHistory(history)
       console.log(`📊 ===== PRICE HISTORY SET =====`)
@@ -351,7 +383,7 @@ export default function MarketDashboard({
     try {
       if (typeof effect !== 'string') return effect
       return effect
-        .replace(/\bRIZZ\b/g, 'NGT')
+        .replace(/\bRIZZ\b/g, 'ORX')
         .replace(/\bWHALE\b/g, 'REX')
     } catch {
       return effect
@@ -406,8 +438,10 @@ export default function MarketDashboard({
     console.log('🆔 Latest event ID:', latestEvent.id)
     console.log('⏰ Latest event timestamp:', new Date(latestEvent.timestamp).toLocaleTimeString())
     
-    // Check if this is a forecast, market-wide event or individual crypto event
+    // Check if this is a forecast, market-wide event, macro event or individual crypto event
     const isForecast = effect.includes('Market Forecast') || (latestEvent as any).isForecast
+    const isMacroEvent = effect.includes('Conflict uitgebroken') || effect.includes('Vredesakkoord gesloten') ||
+                           effect.includes('Oorlog uitgebroken') || effect.includes('Vredesakkoord getekend')
     const isMarketEvent = effect.includes('Bull Run') || effect.includes('Bear Market') || effect.includes('Market Crash') || effect.includes('Whale Alert')
     
     // Expanded detection for individual crypto events - check for various formats
@@ -416,24 +450,25 @@ export default function MarketDashboard({
       effect.includes('beweegt') ||                            // Dutch: "beweegt" 
       effect.includes('move') ||                               // English: "move"
       effect.includes('dip') ||                                // English: "dip"
-      effect.includes('rally') ||                              // English: "rally" (Nugget!)
+      effect.includes('rally') ||                              // English: "rally" (Orex!)
       effect.includes('crash') && !effect.includes('Market Crash') ||  // English: "crash" (but not Market Crash)
-      /\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/.test(effect)      // Any crypto symbol in effect
+      /\b(DSHP|ORX|LNTR|SIL|REX|GLX|ORLO)\b/.test(effect)      // Any crypto symbol in effect (support legacy ORLO)
     
     console.log('🔍 Event detection:')
     console.log('  🔮 Is forecast:', isForecast)
+    console.log('  ⚔️ Is macro event:', isMacroEvent)
     console.log('  📈 Is market event:', isMarketEvent)
     console.log('  💰 Is individual event:', isIndividualEvent)
-    console.log('  🎯 Should show event:', isForecast || isMarketEvent || isIndividualEvent)
+    console.log('  🎯 Should show event:', isForecast || isMacroEvent || isMarketEvent || isIndividualEvent)
     
-    if (isForecast || isMarketEvent || isIndividualEvent) {
+    if (isForecast || isMacroEvent || isMarketEvent || isIndividualEvent) {
       // Check if we already showed this event (prevent duplicate cards)
       if (lastShownEventId.current === latestEvent.id) return
       
       // Mark this event as shown
       lastShownEventId.current = latestEvent.id
 
-      let eventType: 'boost' | 'crash' | 'event' | 'forecast' = 'event'
+      let eventType: 'boost' | 'crash' | 'event' | 'forecast' | 'war' | 'peace' = 'event'
       let cryptoSymbol: string | undefined = undefined
       let percentage: number | undefined = undefined
       let message = ''
@@ -445,6 +480,30 @@ export default function MarketDashboard({
         icon = '🔮'
         color = 'neon-purple'
         eventType = 'forecast'
+      } else if (effect.includes('Oorlog uitgebroken')) {
+        message = 'Oorlog uitgebroken'
+        icon = '/oorlog.png'
+        color = 'red-500'
+        eventType = 'war'
+        percentage = 0
+      } else if (effect.includes('Vredesakkoord getekend')) {
+        message = 'Vredesakkoord getekend'
+        icon = '/vrede.png'
+        color = 'green-500'
+        eventType = 'peace'
+        percentage = 0
+      } else if (effect.includes('Conflict uitgebroken')) {
+        message = 'Conflict uitgebroken!'
+        icon = '⚔️'
+        color = 'red-500'
+        eventType = 'event'
+        percentage = 0
+      } else if (effect.includes('Vredesakkoord gesloten')) {
+        message = 'Vredesakkoord gesloten!'
+        icon = '🕊️'
+        color = 'green-500'
+        eventType = 'event'
+        percentage = 0
       } else if (effect.includes('Bull Run')) {
         message = effect  // Use original effect: "Bull Run!"
         icon = '🚀'
@@ -457,7 +516,8 @@ export default function MarketDashboard({
         icon = '🐻'
         color = 'red-500'  // Negative event = RED
         eventType = 'event'
-        percentage = -10
+        const bearMatch = effect.match(/-(\d+(?:\.\d+)?)%/)
+        percentage = bearMatch ? -parseFloat(bearMatch[1]) : -10
       } else if (effect.includes('Whale Alert')) {
         message = effect  // Use original effect
         icon = '🐋'
@@ -465,9 +525,9 @@ export default function MarketDashboard({
         eventType = 'event'
         percentage = 50
         // Extract crypto symbol from effect if available
-        const symbolMatch = effect.match(/\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/)
+        const symbolMatch = effect.match(/\b(DSHP|ORX|LNTR|SIL|REX|GLX|ORLO)\b/)
         if (symbolMatch) {
-          cryptoSymbol = symbolMatch[0]
+          cryptoSymbol = symbolMatch[0] === 'ORLO' ? 'GLX' : symbolMatch[0]
         }
       } else if (isIndividualEvent) {
         // Parse individual crypto events - support multiple formats
@@ -490,28 +550,30 @@ export default function MarketDashboard({
         
         // Map crypto names to symbols
         const nameToSymbol: { [key: string]: string } = {
-          'DigiSheep': 'DSHEEP',
-          'Nugget': 'NGT', 
+          'DigiSheep': 'DSHP',
+          'Orex': 'ORX', 
           'Lentra': 'LNTR',
-          'Omlet': 'OMLT',
+          'Silica': 'SIL',
           'Rex': 'REX',
-          'Orlo': 'ORLO'
+          'Glooma': 'GLX',
+          'Orlo': 'GLX'
         }
         
         // Try to extract symbol directly from effect first
-        const symbolMatch = effect.match(/\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/)
-        cryptoSymbol = symbolMatch ? symbolMatch[0] : (nameToSymbol[cryptoName] || cryptoName)
+        const symbolMatch = effect.match(/\b(DSHP|ORX|LNTR|SIL|REX|GLX|ORLO)\b/)
+        cryptoSymbol = symbolMatch ? (symbolMatch[0] === 'ORLO' ? 'GLX' : symbolMatch[0]) : (nameToSymbol[cryptoName] || cryptoName)
         
         // Use the ORIGINAL effect as message for consistency with player screens
         message = effect
         
         // Use percentage-based colors: GREEN for positive, RED for negative (consistent with ScanResult)
         const cryptoIcons: { [key: string]: string } = {
-          'DSHEEP': '🐑',
-          'NGT': '🐔',
+          'DSHP': '🐑',
+          'ORX': '🐔',
           'LNTR': '🌟',
-          'OMLT': '🥚',
+          'SIL': '🥚',
           'REX': '💫',
+          'GLX': '🎵',
           'ORLO': '🎵'
         }
         
@@ -532,9 +594,22 @@ export default function MarketDashboard({
       const isForecastEvent = effect.includes('Market Forecast')
       const fd = (latestEvent as any).forecastData
       
+      // CRITICAL: Pass headline from server to EventPopup for storytelling
+      const serverHeadline = (latestEvent as any).headline
+      const normalizedHeadline = typeof serverHeadline === 'string'
+        ? serverHeadline.replace(/\bOrlo\b/g, 'Glooma').replace(/\bORLO\b/g, 'GLX')
+        : serverHeadline
+      
+      console.log('📰 SERVER HEADLINE DEBUG:', {
+        hasHeadline: !!serverHeadline,
+        headline: serverHeadline,
+        effect: effect,
+        eventType: eventType
+      })
+      
       setCurrentKansEvent({
         type: isForecastEvent ? 'forecast' : eventType,
-        cryptoSymbol: isForecastEvent ? undefined : cryptoSymbol,
+        cryptoSymbol: isForecastEvent ? undefined : (cryptoSymbol === 'ORLO' ? 'GLX' : cryptoSymbol),
         percentage: isForecastEvent ? 0 : percentage,
         message: isForecastEvent
           ? (fd ? 'Market Forecast' : `${latestEvent.player} bekijkt Market Forecast`)
@@ -542,8 +617,9 @@ export default function MarketDashboard({
         icon: isForecastEvent ? '🔮' : icon,
         color: isForecastEvent ? 'neon-purple' : color,
         topGainer: fd?.topGainer ?? undefined,
-        topLoser: fd?.topLoser ?? undefined
-      })
+        topLoser: fd?.topLoser ?? undefined,
+        headline: normalizedHeadline // Pass headline from server (normalized) for storytelling in popup
+      } as any)
       
       setShowKansEvent(true)
       
@@ -637,12 +713,12 @@ export default function MarketDashboard({
             <div className="flex flex-col gap-2">
               {/* Row 1: logo + title */}
               <div className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-28 md:w-36 relative">
+                <div className="flex-shrink-0 w-48 md:w-52 relative">
                   <Image
                     src="/cryptoclash-logo-horizontal.png"
                     alt="CryptoClash"
-                    width={144}
-                    height={32}
+                    width={208}
+                    height={46}
                     className="object-contain"
                   />
                 </div>
@@ -785,10 +861,11 @@ export default function MarketDashboard({
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-neon-gold font-bold text-sm">
+                        <p className="text-neon-gold font-bold text-sm flex items-center gap-1">
+                          <CurrencyIcon className="w-3.5 h-3.5" />
                           <AnimatedNumber 
                             value={player.liveTotalValue}
-                            prefix="⚘"
+                            prefix=""
                             decimals={2}
                             locale="nl-NL"
                           />
@@ -860,16 +937,41 @@ export default function MarketDashboard({
                       <div className="w-full mt-2.5 flex-1">
                         <div className="rounded-lg bg-dark-bg/80 px-2 py-1 h-full flex flex-col">
                           <div className="flex items-center justify-between">
-                            <div className="text-white font-semibold truncate mr-2 text-xs sm:text-sm">
+                            <div className="flex items-center">
+                            <div className="text-white font-semibold truncate mr-2 text-[14px]">
                               {crypto.name}
                             </div>
-                            <div className="text-neon-turquoise font-bold whitespace-nowrap text-[11px] sm:text-xs">
-                              {formatCurrency(crypto.price, currency.symbol)}
+                            </div>
+                            <div className="text-neon-turquoise font-bold whitespace-nowrap text-[14px]">
+                              <CurrencyAmount value={crypto.price} iconSize={15} />
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between mt-0">
-                            <div className="text-gray-400 text-[10px] sm:text-xs">{crypto.symbol}</div>
+                          {/* Status row: momentum text (left) + percentage badge (right) */}
+                          <div className="flex items-center justify-between mt-1">
+                            {/* Momentum text */}
+                            {typeof crypto.change24h === 'number' && (() => {
+                              const periodPercentage = getPercentageForPeriod(crypto.symbol, crypto.change24h)
+                              return (
+                                <div className={`text-[9px] font-semibold flex items-center space-x-1 ${
+                                  Math.abs(periodPercentage) > 15 
+                                    ? periodPercentage > 0 ? 'text-green-400' : 'text-red-400'
+                                    : 'text-gray-500'
+                                }`}>
+                                  {Math.abs(periodPercentage) > 15 ? (
+                                    periodPercentage > 0 ? (
+                                      <>Sterk stijgend</>
+                                    ) : (
+                                      <>Sterk dalend</>
+                                    )
+                                  ) : (
+                                    <>-</>
+                                  )}
+                                </div>
+                              )
+                            })()}
+
+                            {/* Percentage badge */}
                             {typeof crypto.change24h === 'number' && (() => {
                               const periodPercentage = getPercentageForPeriod(crypto.symbol, crypto.change24h)
                               return (
@@ -893,32 +995,29 @@ export default function MarketDashboard({
                               )
                             })()}
                           </div>
+
+                          {/* Sector - below status row */}
+                          <div className="mt-1 flex">
+                            <div className="text-gray-400 text-[10px] gap">{crypto.symbol} |  </div>
+                            <div className="text-gray-400 text-[10px] sm:text-xs ml-1">
+                              {crypto.symbol === 'DSHP' ? 'Agrifood' :
+                               crypto.symbol === 'ORX' ? 'Goud & mineralen' :
+                               crypto.symbol === 'LNTR' ? 'Ruimtevaart' :
+                               crypto.symbol === 'SIL' ? 'Chips & AI' :
+                               crypto.symbol === 'REX' ? 'Fossiele brandstof' :
+                               crypto.symbol === 'GLX' ? 'Mutations' : '-'}
+                            </div>
+                          </div>
                           
-                          {/* Momentum Indicator */}
-                          {typeof crypto.change24h === 'number' && (() => {
-                            const periodPercentage = getPercentageForPeriod(crypto.symbol, crypto.change24h)
-                            return (
-                              <div className={`text-[9px] font-semibold mb-0.5 flex items-center space-x-1 ${
-                                Math.abs(periodPercentage) > 15 
-                                  ? periodPercentage > 0 ? 'text-green-400' : 'text-red-400'
-                                  : 'text-gray-500'
-                              }`}>
-                                {Math.abs(periodPercentage) > 15 ? (
-                                  periodPercentage > 0 ? (
-                                    <>↗️ Sterk stijgend</>
-                                  ) : (
-                                    <>↘️ Sterk dalend</>
-                                  )
-                                ) : (
-                                  <>-</>
-                                )}
-                              </div>
-                            )
-                          })()}
+                          
                           
                           {/* Candlestick Chart */}
                           <CandlestickChart 
-                            priceHistory={getFilteredPriceHistory(externalPriceHistory[crypto.symbol] || priceHistory[crypto.symbol] || [])} 
+                            priceHistory={getFilteredPriceHistory(
+                              (externalPriceHistory[crypto.symbol]?.length ? externalPriceHistory[crypto.symbol] : null) ||
+                              (priceHistory[crypto.symbol]?.length ? priceHistory[crypto.symbol] : null) ||
+                              []
+                            )} 
                             maxBars={6}
                             currentPercentage={getPercentageForPeriod(crypto.symbol, crypto.change24h || 0)}
                             currentPrice={crypto.price}
@@ -938,11 +1037,40 @@ export default function MarketDashboard({
               {(topGainer || topValueCoin) && (
                 <div className="crypto-card border border-neon-purple/40 shadow-[0_0_18px_rgba(192,132,252,0.45)] bg-gradient-to-br from-dark-bg/95 via-dark-bg/92 to-purple-900/20 p-3 flex flex-col h-full">
                   <div className="mb-3 pb-3 border-b border-white/10">
-                    <h3 className="text-base font-bold text-white flex items-center space-x-2">
+                    <h3 className="text-base font-bold text-white flex items-center space-x-2 mb-3">
                       <TrendingUp className="w-4 h-4 text-neon-turquoise" />
                       <span>Markt</span>
                       <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-1"></div>
                     </h3>
+                    {/* Market State Pill - in sidebar */}
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                      marketState === 'war'
+                        ? 'bg-red-500/10 border-red-500/60'
+                        : marketState === 'peace'
+                          ? 'bg-green-500/10 border-green-500/60'
+                          : 'bg-orange-500/10 border-orange-500/50'
+                    }`}>
+                      {marketState === 'war' ? (
+                        <Image src="/oorlog.png" alt="Oorlog" width={20} height={20} className="object-contain" />
+                      ) : marketState === 'peace' ? (
+                        <Image src="/vrede.png" alt="Vrede" width={20} height={20} className="object-contain" />
+                      ) : (
+                        <Image src="/stabiel.png" alt="Stabiel" width={20} height={20} className="object-contain" />
+                      )}
+                      <span className={`text-xs font-bold uppercase tracking-wide ${
+                        marketState === 'war'
+                          ? 'text-red-400'
+                          : marketState === 'peace'
+                            ? 'text-green-400'
+                            : 'text-orange-400'
+                      }`}>
+                        {marketState === 'war'
+                          ? 'Oorlog'
+                          : marketState === 'peace'
+                            ? 'Vrede'
+                            : 'Stabiel'}
+                      </span>
+                    </div>
                   </div>
                   {/* Periode Selector - boven Statistieken */}
                   <div className="mb-3 pb-3 border-b border-white/10">
@@ -1094,7 +1222,7 @@ export default function MarketDashboard({
                                   +{getPercentageForPeriod(topGainer.symbol, topGainer.change24h || 0).toFixed(1)}%
                                 </p>
                                 <p className="text-neon-purple text-[8px]">
-                                  {formatCurrency(topGainer.price, currency.symbol)}
+                                  <CurrencyAmount value={topGainer.price} iconSize={8} />
                                 </p>
                               </div>
                             </div>
@@ -1139,7 +1267,7 @@ export default function MarketDashboard({
                                     {t('marketDashboard.highestValue')}
                                   </p>
                                   <p className="text-neon-purple text-[8px]">
-                                    {formatCurrency(topValueCoin.price, currency.symbol)}
+                                    <CurrencyAmount value={topValueCoin.price} iconSize={8} />
                                   </p>
                                 </div>
                               </div>
@@ -1215,7 +1343,29 @@ export default function MarketDashboard({
                 const seconds = timeAgo % 60
                 
                 return (
-                  <div key={action.id} className="flex items-center justify-between p-2 bg-dark-bg/30 rounded-lg">
+                  <div 
+                    key={action.id} 
+                    onClick={() => {
+                      console.log('🖱️ === EVENT CLICKED IN BEURS ===')
+                      console.log('📊 Action:', action)
+                      const sym = (action as any).cryptoSymbol
+                      const pct = (action as any).percentageValue
+                      const event = {
+                        type: 'event' as const,
+                        cryptoSymbol: sym || '',
+                        percentage: pct || 0,
+                        message: action.effect,
+                        icon: pct > 0 ? '📈' : pct < 0 ? '📉' : '📊',
+                        color: pct > 0 ? 'green' : pct < 0 ? 'red' : 'gray',
+                        headline: (action as any).headline || action.effect
+                      }
+                      console.log('🎯 Setting currentKansEvent:', event)
+                      setCurrentKansEvent(event)
+                      console.log('👁️ Setting showKansEvent to true')
+                      setShowKansEvent(true)
+                    }}
+                    className="flex items-center justify-between p-2 bg-dark-bg/30 rounded-lg cursor-pointer hover:bg-dark-bg/50 transition-colors"
+                  >
                     <div className="flex items-center space-x-2">
                       <span className="text-sm">
                         {action.avatar || (
@@ -1231,9 +1381,21 @@ export default function MarketDashboard({
                     
                     <div className="flex items-center space-x-2">
                       <span className={`text-sm font-bold ${
-                        isPositiveEvent(action.effect) ? 'text-green-400' : 'text-red-400'
+                        (action as any).percentageValue > 0 ? 'text-green-400' : 
+                        (action as any).percentageValue < 0 ? 'text-red-400' : 'text-gray-400'
                       }`}>
-                        {sanitizeEffect(action.effect)}
+                        {(() => {
+                          const sym = (action as any).cryptoSymbol
+                          const pct = (action as any).percentageValue
+                          const cryptoNames: Record<string, string> = { DSHP: 'DigiSheep', ORX: 'Orex', LNTR: 'Lentra', SIL: 'Silica', REX: 'Rex', GLX: 'Glooma' }
+                          if (action.effect === 'Oorlog uitgebroken') return '⚔️ Oorlog'
+                          if (action.effect === 'Vredesakkoord getekend') return '🕊️ Vrede'
+                          if (action.effect?.includes('Bull Run')) return '🐂 Bull Run'
+                          if (action.effect?.includes('Bear Market')) return '🐻 Bear Market'
+                          if (action.effect?.includes('Whale Alert') && sym) return `🐋 ${cryptoNames[sym] || sym} +50%`
+                          if (sym && pct !== undefined && pct !== null) return `${cryptoNames[sym] || sym} ${pct > 0 ? '+' : ''}${pct}%`
+                          return sanitizeEffect(action.effect)
+                        })()}
                       </span>
                       <span className="text-xs text-gray-500">
                         {minutes > 0 ? `${minutes}m` : `${seconds}s`}
@@ -1313,11 +1475,51 @@ export default function MarketDashboard({
                   const timeAgo = Math.floor((currentTime - action.timestamp) / 1000)
                   const minutes = Math.floor(timeAgo / 60)
                   const seconds = timeAgo % 60
+                  
+                  // Direct crypto info from action properties
+                  const nameMap: Record<string, string> = { DSHP: 'DigiSheep', ORX: 'Orex', LNTR: 'Lentra', SIL: 'Silica', REX: 'Rex', GLX: 'Glooma' }
+                  const sym = (action as any).cryptoSymbol
+                  const pct = (action as any).percentageValue
+                  
+                  const getCryptoDisplay = () => {
+                    if (action.effect === 'Oorlog uitgebroken') return { display: '⚔️ Oorlog', isSpecial: true }
+                    if (action.effect === 'Vredesakkoord getekend') return { display: '🕊️ Vrede', isSpecial: true }
+                    if (action.effect?.includes('Bull Run')) return { display: '🐂 Bull Run', isSpecial: true }
+                    if (action.effect?.includes('Bear Market')) return { display: '🐻 Bear Market', isSpecial: true }
+                    if (action.effect?.includes('Whale Alert') && sym) return { display: `🐋 ${nameMap[sym] || sym} +50%`, isSpecial: true }
+                    if (sym && pct !== undefined && pct !== null) {
+                      const name = nameMap[sym] || sym
+                      return { display: `${name} ${pct > 0 ? '+' : ''}${pct}%`, isSpecial: false }
+                    }
+                    return { display: sanitizeEffect(action.effect), isSpecial: false }
+                  }
+                  
+                  const cryptoInfo = getCryptoDisplay()
 
                   return (
-                    <div key={action.id} className={`flex items-center justify-between p-3 rounded-lg ${
-                      index === 0 ? 'bg-neon-purple/10 border border-neon-purple/30' : 'bg-dark-bg/30'
-                    }`}>
+                    <div 
+                      key={action.id} 
+                      onClick={() => {
+                        console.log('🖱️ === EVENT CLICKED IN ACTIES ===')
+                        console.log('📊 Action:', action)
+                        const event = {
+                          type: 'event' as const,
+                          cryptoSymbol: sym || '',
+                          percentage: pct || 0,
+                          message: action.effect,
+                          icon: pct > 0 ? '📈' : pct < 0 ? '📉' : '📊',
+                          color: pct > 0 ? 'green' : pct < 0 ? 'red' : 'gray',
+                          headline: (action as any).headline || action.effect
+                        }
+                        console.log('🎯 Setting currentKansEvent:', event)
+                        setCurrentKansEvent(event)
+                        console.log('👁️ Setting showKansEvent to true')
+                        setShowKansEvent(true)
+                      }}
+                      className={`flex items-center justify-between p-3 rounded-lg cursor-pointer hover:opacity-80 transition-opacity ${
+                        index === 0 ? 'bg-neon-purple/10 border border-neon-purple/30' : 'bg-dark-bg/30'
+                      }`}
+                    >
                       <div className="flex items-center space-x-3">
                         <div className="flex items-center space-x-2">
                           <span className="text-lg">
@@ -1332,9 +1534,9 @@ export default function MarketDashboard({
                       
                       <div className="text-right">
                         <p className={`text-sm font-bold ${
-                          isPositiveEvent(action.effect) ? 'text-green-400' : 'text-red-400'
+                          pct > 0 ? 'text-green-400' : pct < 0 ? 'text-red-400' : 'text-gray-400'
                         }`}>
-                          {action.effect}
+                          {cryptoInfo.display}
                         </p>
                         <p className="text-xs text-gray-500">
                           {minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`} geleden
@@ -1576,17 +1778,33 @@ export default function MarketDashboard({
                 const isMarketEvent = event.type === 'event'
                 const isWhaleAlert = event.type === 'whale'
                 const isForecast = event.type === 'forecast'
+                const isWar = event.type === 'war'
+                const isPeace = event.type === 'peace'
+                
+                // DEBUG: Log event data om te zien of headlines aankomen
+                if (index === 0 && event.headline) {
+                  console.log('📋 Upcoming event with headline:', {
+                    symbol: event.symbol,
+                    headline: event.headline,
+                    percentage: event.percentage,
+                    type: event.type
+                  })
+                }
                 
                 // Voor whale alert: gebruik het symbol dat server heeft toegewezen
                 const displaySymbol = isWhaleAlert ? event.symbol : event.symbol
                 
                 const eventName = isMarketEvent 
                   ? (event.percentage > 0 ? `Bull Run (+${event.percentage}%)` : 'Market Crash (-10%)')
-                  : isWhaleAlert
-                    ? displaySymbol // Toon crypto symbol in plaats van "Whale Alert"
-                    : isForecast
-                      ? 'Market Forecast'
-                      : event.symbol
+                  : isWar
+                    ? 'Oorlog uitgebroken'
+                    : isPeace
+                      ? 'Vredesakkoord getekend'
+                      : isWhaleAlert
+                        ? displaySymbol // Toon crypto symbol in plaats van "Whale Alert"
+                        : isForecast
+                          ? 'Market Forecast'
+                          : event.symbol
                 const eventPercentage = event.percentage
                 const isPositive = eventPercentage > 0
                 
@@ -1596,9 +1814,13 @@ export default function MarketDashboard({
                     className={`flex items-center justify-between p-3 rounded-lg border ${
                         isForecast
                           ? 'border-neon-purple/50 bg-purple-500/10'
-                          : isPositive 
-                            ? 'border-green-500/30 bg-green-500/10' 
-                            : 'border-red-500/30 bg-red-500/10'
+                          : isWar
+                            ? 'border-orange-500/50 bg-orange-500/10'
+                            : isPeace
+                              ? 'border-blue-500/50 bg-blue-500/10'
+                              : isPositive 
+                                ? 'border-green-500/30 bg-green-500/10' 
+                                : 'border-red-500/30 bg-red-500/10'
                       }`}
                     >
                     <div className="flex items-center space-x-3">
@@ -1611,6 +1833,28 @@ export default function MarketDashboard({
                               <Image
                                 src={marketEventImage}
                                 alt={isPositive ? 'Bull Run' : 'Market Crash'}
+                                width={32}
+                                height={32}
+                                className="object-contain"
+                              />
+                            )
+                          } else if (isWar) {
+                            // Toon oorlog.png
+                            return (
+                              <Image
+                                src="/oorlog.png"
+                                alt="Oorlog"
+                                width={32}
+                                height={32}
+                                className="object-contain"
+                              />
+                            )
+                          } else if (isPeace) {
+                            // Toon vrede.png
+                            return (
+                              <Image
+                                src="/vrede.png"
+                                alt="Vrede"
                                 width={32}
                                 height={32}
                                 className="object-contain"
@@ -1643,13 +1887,41 @@ export default function MarketDashboard({
                         })()}
                       </div>
                       
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <p className="text-white font-semibold text-sm">
                           {eventName}
                         </p>
-                        <p className="text-xs text-gray-400">
-                          {isMarketEvent ? 'Alle munten' : isForecast ? 'Voorspelling beschikbaar' : 'Individueel'}
-                        </p>
+                        {/* Show news headline for individual crypto events - TUSSEN crypto en percentage */}
+                        {!isMarketEvent && !isForecast && !isWar && !isPeace && event.headline && (
+                          <p className="text-xs text-gray-300 mt-1 line-clamp-2 leading-relaxed">
+                            {event.headline}
+                          </p>
+                        )}
+                        {!isMarketEvent && !isForecast && !isWar && !isPeace && !event.headline && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            Individueel
+                          </p>
+                        )}
+                        {isMarketEvent && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            Alle munten
+                          </p>
+                        )}
+                        {isWar && (
+                          <p className="text-xs text-orange-400 mt-1">
+                            Markt wordt zeer negatief (85% daling)
+                          </p>
+                        )}
+                        {isPeace && (
+                          <p className="text-xs text-blue-400 mt-1">
+                            Markt herstelt (75% stijging)
+                          </p>
+                        )}
+                        {isForecast && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            Voorspelling beschikbaar
+                          </p>
+                        )}
                       </div>
                     </div>
                     
@@ -1657,6 +1929,12 @@ export default function MarketDashboard({
                       {isForecast ? (
                         <span className="text-neon-purple font-bold text-sm">
                           {index === 0 ? 'Nu!' : `Over ${index} scan${index === 1 ? '' : 's'}`}
+                        </span>
+                      ) : isWar || isPeace ? (
+                        <span className={`font-bold text-sm ${
+                          isWar ? 'text-orange-400' : 'text-blue-400'
+                        }`}>
+                          {isWar ? 'State Event' : 'State Event'}
                         </span>
                       ) : (
                         <>
@@ -1679,7 +1957,7 @@ export default function MarketDashboard({
               
               {/* Market Forecast Preview - na 10 events */}
               {(() => {
-                const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+                const cryptoSymbols = ['DSHP', 'ORX', 'LNTR', 'SIL', 'REX', 'GLX']
                 
                 // Bereken forecast op basis van simpele optelling van percentages
                 const cryptoTotals: {[key: string]: number} = {}
@@ -1708,6 +1986,10 @@ export default function MarketDashboard({
                     })
                   } else if (evt.symbol && evt.type !== 'whale') {
                     // Individuele crypto events
+                    if (!(evt.symbol in cryptoTotals)) {
+                      cryptoTotals[evt.symbol] = 0
+                      cryptoCalculations[evt.symbol] = []
+                    }
                     cryptoTotals[evt.symbol] += evt.percentage
                     cryptoCalculations[evt.symbol].push(`${evt.symbol} ${evt.percentage > 0 ? '+' : ''}${evt.percentage}%`)
                   }
@@ -1961,8 +2243,8 @@ export default function MarketDashboard({
         key={`dashboard-event-${lastShownEventId.current}`}
         externalScenario={currentKansEvent}
         onClose={() => {
-          // DISABLED: Manual close not allowed - popup must complete full timer
-          console.log('⚠️ Manual close disabled on dashboard - popup will complete full timer')
+          setShowKansEvent(false)
+          setCurrentKansEvent(null)
         }}
         onApplyEffect={(effect) => {
           console.log('✅ Event auto-applied on dashboard after timer completion')

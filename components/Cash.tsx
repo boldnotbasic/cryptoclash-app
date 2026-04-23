@@ -5,6 +5,7 @@ import Header from './Header'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { formatCurrency } from '@/utils/currency'
+import { CurrencyAmount } from '@/components/CurrencyIcon'
 
 interface Transaction {
   id: string
@@ -82,7 +83,7 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
               <div className="mb-6">
                 <p className="text-gray-400 text-sm mb-1">{t('cash.availableBalance')}</p>
                 <p className="text-white text-4xl font-bold">
-                  {formatCurrency(cashBalance, currency.symbol)}
+                  <CurrencyAmount value={cashBalance} iconSize={32} />
                 </p>
               </div>
 
@@ -175,7 +176,7 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
             <TrendingUp className="w-8 h-8 text-green-500 mx-auto mb-3" />
             <h3 className="text-lg font-bold text-white mb-2">{t('cash.totalSales')}</h3>
             <p className="text-2xl font-bold text-green-500">
-              {formatCurrency(totalSales, currency.symbol)}
+              <CurrencyAmount value={totalSales} iconSize={20} />
             </p>
             <p className="text-gray-400 text-sm">{t('cash.thisSession')}</p>
           </div>
@@ -184,7 +185,7 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
             <Euro className="w-8 h-8 text-neon-gold mx-auto mb-3" />
             <h3 className="text-lg font-bold text-white mb-2">{t('cash.available')}</h3>
             <p className="text-2xl font-bold text-neon-gold">
-              {formatCurrency(cashBalance, currency.symbol)}
+              <CurrencyAmount value={cashBalance} iconSize={20} />
             </p>
             <p className="text-gray-400 text-sm">{t('cash.cashBalance')}</p>
           </div>

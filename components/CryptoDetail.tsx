@@ -6,6 +6,7 @@ import DetailChart from './DetailChart'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { formatCurrency } from '@/utils/currency'
+import { CurrencyAmount } from '@/components/CurrencyIcon'
 
 interface PriceChange {
   percentage: number
@@ -69,12 +70,13 @@ export default function CryptoDetail({
 
   const getCryptoImagePath = (symbol: string) => {
     switch (symbol) {
+      case 'DSHP':
       case 'DSHEEP': return '/dsheep.png'
       case 'LNTR': return '/lentra.png'
-      case 'OMLT': return '/omlt.png'
-      case 'ORLO': return '/orlo.png'
+      case 'SIL': return '/silica.png'
+      case 'GLX': return '/glooma.png'
       case 'REX': return '/rex.png'
-      case 'NGT': return '/Nugget.png'
+      case 'ORX': return '/orex.png'
       default: return null
     }
   }
@@ -129,7 +131,7 @@ export default function CryptoDetail({
           
           <div className="flex items-baseline space-x-2 ml-auto">
             <div className="text-3xl font-bold text-white">
-              {formatCurrency(crypto.price, currency.symbol)}
+              <CurrencyAmount value={crypto.price} iconSize={24} />
             </div>
             <div className={`flex items-center space-x-1 px-2 py-1 rounded-md border ${
               isPositive ? 'bg-green-400/10 border-green-400/30 text-green-400' : 'bg-red-400/10 border-red-400/30 text-red-400'

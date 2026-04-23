@@ -6,6 +6,7 @@ import { useSocket } from '@/hooks/useSocket'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { formatCurrency } from '@/utils/currency'
+import { CurrencyAmount, CurrencyIcon } from '@/components/CurrencyIcon'
 
 interface HostSetupProps {
   onStartRoom: (roomId: string, volatility: string, gameDuration: number, startingCash: number) => void
@@ -27,11 +28,11 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
   const [copied, setCopied] = useState(false)
   const [step, setStep] = useState(1) // 1: Room ID, 2: Settings
   const [isCreatingRoom, setIsCreatingRoom] = useState(false)
-
-  const currentYear = new Date().getFullYear()
+  const [currentYear, setCurrentYear] = useState(2024)
 
   // Update roomId when lobbyCode prop changes (async loading from Supabase)
   useEffect(() => {
+    setCurrentYear(new Date().getFullYear())
     if (lobbyCode && lobbyCode !== roomId) {
       console.log('🔄 Updating roomId from lobbyCode:', lobbyCode)
       setRoomId(lobbyCode)
@@ -512,7 +513,7 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                   onChange={(e) => setStartingCash(parseInt(e.target.value))}
                   className="flex-1 p-3 bg-dark-bg border-2 border-neon-gold rounded-lg text-white font-bold text-xl focus:border-neon-turquoise focus:outline-none"
                 />
-                <span className="text-neon-gold font-bold text-xl">⚘</span>
+                <CurrencyIcon className="text-neon-gold" width={20} height={20} />
               </div>
               
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -527,7 +528,7 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
                         : 'border-gray-500/50 hover:border-gray-400 text-gray-400 hover:text-gray-300 bg-gray-600/10'
                     }`}
                   >
-                    <div className="font-bold text-lg">⚘{amount.toLocaleString()}</div>
+                    <CurrencyAmount value={amount} className="font-bold text-lg" minimumFractionDigits={0} maximumFractionDigits={0} />
                     <div className="text-sm opacity-80">
                       {amount === 500 ? t('hostSetup.cashStarter') : 
                        amount === 1000 ? t('hostSetup.cashStandard') :
@@ -573,7 +574,7 @@ export default function HostSetup({ onStartRoom, onBack, playerName, playerAvata
               
               <div>
                 <p className="text-gray-400 text-sm">{t('hostSetup.startingCashLabel')}</p>
-                <p className="text-2xl font-bold text-neon-gold">⚘{startingCash.toLocaleString()}</p>
+                <CurrencyAmount value={startingCash} className="text-2xl font-bold text-neon-gold" minimumFractionDigits={0} maximumFractionDigits={0} />
               </div>
               
               <div>

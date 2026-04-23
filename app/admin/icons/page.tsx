@@ -28,6 +28,7 @@ const SECTION_META: Record<string, { label: string; description: string }> = {
   avatars:     { label: 'Speler Avatars',    description: 'De 20 emoji\'s die spelers kunnen kiezen als avatar' },
   events:      { label: 'Event Icons',        description: 'Emoji\'s voor markt-events (Bull Run, Bear Market...)' },
   cryptos:     { label: 'Crypto Icons',       description: 'Emoji\'s per crypto munt' },
+  cryptoImages: { label: 'Crypto SVG Images', description: 'Upload custom SVG/PNG bestanden voor crypto munten. Deze vervangen de standaard emoji\'s in het hele spel.' },
   ui:          { label: 'UI Emoji\'s',        description: 'Kleine emoji\'s verspreid door de interface' },
   lucideIcons: { label: 'Lucide Icon Names',  description: 'Namen van vector-iconen (bijv. Play, ArrowLeft). Zie lucide.dev voor alle namen.' },
   currency:    { label: 'Valuta',             description: 'Kies de valuta die in het spel wordt gebruikt (Bloom, Euro, Dollar, etc.)' }
@@ -41,11 +42,11 @@ const KEY_LABELS: Record<string, string> = {
   boost: 'Positief event (boost)',
   crash: 'Negatief event (crash)',
   DSHEEP: 'Dark Sheep (DSHEEP)',
-  NGT: 'Nugget (NGT)',
+  ORX: 'Orex (ORX)',
   LNTR: 'Lentra (LNTR)',
-  OMLT: 'Omlet (OMLT)',
+  SIL: 'Silica (SIL)',
   REX: 'Rex (REX)',
-  ORLO: 'Orlo (ORLO)',
+  GLX: 'Glooma (GLX)',
   host: 'Host badge',
   player: 'Speler icoon',
   start: 'Start knop',
@@ -90,7 +91,7 @@ const KEY_LABELS: Record<string, string> = {
 const DEFAULT_CONFIG: IconConfig = {
   avatars: { list: ['🤡','🚀','💎','⚡️','💀','🦊','🦄','🌝','👾','👽','👻','🦁','🐲','🦉','🦅','🦈','🐙','🤯','😎','🤠'] },
   events: { bullRun:'🐂', bearMarket:'🐻', whaleAlert:'🐋', forecast:'🔮', boost:'📈', crash:'📉' },
-  cryptos: { DSHEEP:'🐑', NGT:'🪙', LNTR:'💡', OMLT:'🍳', REX:'🦖', ORLO:'🔵' },
+  cryptos: { DSHEEP:'/dsheep.png', ORX:'🪙', LNTR:'💡', SIL:'🤖', REX:'🦖', GLX:'�' },
   ui: { host:'👑', player:'👤', start:'▶️', newRoom:'🔄', settings:'⚙️', leaderboard:'🏆', wallet:'💼', cash:'💵', buy:'🛒', sell:'💸', scan:'📷', dice:'🎲', market:'📊', timer:'⏱️', music:'🎵', ranking:'🏅', profit:'✅', loss:'❌' },
   lucideIcons: { startGame:'Play', newRoom:'RefreshCw', back:'ArrowLeft', close:'X', settings:'Settings', check:'Check', trendUp:'TrendingUp', trendDown:'TrendingDown', barChart:'BarChart3', trophy:'Trophy', wallet:'Wallet', zap:'Zap', globe:'Globe', save:'Save', edit:'Pencil', copy:'Copy', qrCode:'QrCode', music:'Music', musicOff:'VolumeX', timer:'Timer', users:'Users', chevronDown:'ChevronDown', chevronRight:'ChevronRight', alertCircle:'AlertCircle', info:'Info', star:'Star', dice:'Dices' }
 }
@@ -102,7 +103,9 @@ export default function IconsAdminPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
-  const [activeTab, setActiveTab] = useState<'avatars' | 'events' | 'cryptos' | 'ui' | 'lucideIcons' | 'currency'>('avatars')
+  const [activeTab, setActiveTab] = useState<'avatars' | 'events' | 'cryptos' | 'cryptoImages' | 'ui' | 'lucideIcons' | 'currency'>('avatars')
+  const [cryptoImages, setCryptoImages] = useState<Record<string, string>>({})
+  const [uploadingCrypto, setUploadingCrypto] = useState<string | null>(null)
   const [editingAvatar, setEditingAvatar] = useState<number | null>(null)
   const [avatarInput, setAvatarInput] = useState('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -223,9 +226,10 @@ export default function IconsAdminPage() {
     { key: 'avatars',     label: 'Avatars',       icon: '🎭' },
     { key: 'events',      label: 'Events',         icon: '📣' },
     { key: 'cryptos',     label: 'Crypto\'s',      icon: '🪙' },
+    { key: 'cryptoImages', label: 'Crypto SVG\'s',  icon: '🖼️' },
     { key: 'ui',          label: 'UI Emoji\'s',    icon: '✨' },
     { key: 'lucideIcons', label: 'Lucide Icons',   icon: '🔷' },
-    { key: 'currency',    label: 'Valuta',         icon: '⚘' },
+    { key: 'currency',    label: 'Valuta',         icon: '💰' },
   ] as const
 
   if (loading) {
@@ -289,7 +293,7 @@ export default function IconsAdminPage() {
           {tabs.map(tab => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => setActiveTab(tab.key as typeof activeTab)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
                 activeTab === tab.key
                   ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'

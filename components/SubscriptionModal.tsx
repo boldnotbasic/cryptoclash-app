@@ -76,7 +76,7 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
           <div className="flex items-center justify-between mb-4">
             <span className="text-gray-400">Jaarabonnement</span>
             <div className="text-right">
-              <span className="text-3xl font-bold text-white">⚘18</span>
+              <span className="text-3xl font-bold text-white">€18</span>
               <span className="text-gray-500">/jaar</span>
             </div>
           </div>

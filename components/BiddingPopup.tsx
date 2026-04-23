@@ -12,6 +12,7 @@ interface BiddingPopupProps {
   crypto: string
   amount: number
   marketPrice: number
+  playerCash: number
   onSubmitBid: (bidAmount: number) => void
   onClose: () => void
   duration?: number
@@ -19,12 +20,13 @@ interface BiddingPopupProps {
 
 const getCryptoImagePath = (symbol: string): string | null => {
   switch (symbol) {
-    case 'DSHEEP': return '/dsheep.png'
+    case 'DSHP':
+      case 'DSHEEP': return '/dsheep.png'
     case 'LNTR': return '/lentra.png'
-    case 'OMLT': return '/omlt.png'
-    case 'ORLO': return '/orlo.png'
+    case 'SIL': return '/silica.png'
+    case 'GLX': return '/glooma.png'
     case 'REX': return '/rex.png'
-    case 'NGT': return '/Nugget.png'
+    case 'ORX': return '/orex.png'
     default: return null
   }
 }
@@ -35,6 +37,7 @@ export default function BiddingPopup({
   crypto,
   amount,
   marketPrice,
+  playerCash,
   onSubmitBid,
   onClose,
   duration = 10
@@ -74,6 +77,7 @@ export default function BiddingPopup({
   const totalMarketValue = marketPrice * amount
   const difference = totalBid - totalMarketValue
   const differencePercentage = totalMarketValue > 0 ? (difference / totalMarketValue) * 100 : 0
+  const exceedsCash = totalBid > playerCash
 
   const imagePath = getCryptoImagePath(crypto)
 
@@ -121,25 +125,38 @@ export default function BiddingPopup({
 
               {/* Bid Input */}
               <div className="mb-4">
-                <label className="block text-white font-semibold mb-2">
-                  Jouw Bod (totaal voor {amount}x)
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-white font-semibold">
+                    Jouw Bod (totaal voor {amount}x)
+                  </label>
+                  <span className="text-sm text-gray-400">
+                    💰 Beschikbaar: {formatCurrency(playerCash, currency.symbol)}
+                  </span>
+                </div>
                 <div className="relative">
                   <input
                     type="number"
                     min="0"
+                    max={playerCash}
                     step="0.01"
                     value={bidAmount}
                     onChange={(e) => setBidAmount(e.target.value)}
                     placeholder={`Bijv. ${formatCurrency(totalMarketValue, currency.symbol)}`}
-                    className="w-full px-4 py-3 bg-dark-bg/60 border-2 border-purple-500/30 rounded-xl text-white font-bold text-lg focus:outline-none focus:border-purple-500 placeholder:text-gray-500"
+                    className={`w-full px-4 py-3 bg-dark-bg/60 border-2 rounded-xl text-white font-bold text-lg focus:outline-none placeholder:text-gray-500 ${
+                      exceedsCash ? 'border-red-500' : 'border-purple-500/30 focus:border-purple-500'
+                    }`}
                     autoFocus
                   />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
                     {currency.symbol}
                   </div>
                 </div>
-                {totalBid > 0 && (
+                {exceedsCash && (
+                  <div className="mt-2 text-xs text-red-400 flex items-center">
+                    ⚠️ Je hebt niet genoeg cash voor dit bod
+                  </div>
+                )}
+                {totalBid > 0 && !exceedsCash && (
                   <div className="mt-2 flex items-center justify-between text-xs">
                     <span className="text-gray-400">
                       Marktwaarde: {formatCurrency(totalMarketValue, currency.symbol)}
@@ -161,9 +178,9 @@ export default function BiddingPopup({
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={!bidAmount || parseFloat(bidAmount) <= 0}
+                  disabled={!bidAmount || parseFloat(bidAmount) <= 0 || exceedsCash}
                   className={`flex-1 px-4 py-3 rounded-xl font-bold transition-colors ${
-                    bidAmount && parseFloat(bidAmount) > 0
+                    bidAmount && parseFloat(bidAmount) > 0 && !exceedsCash
                       ? 'bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white'
                       : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                   }`}

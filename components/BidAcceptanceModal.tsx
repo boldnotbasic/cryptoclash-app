@@ -24,12 +24,13 @@ interface BidAcceptanceModalProps {
 
 const getCryptoImagePath = (symbol: string): string | null => {
   switch (symbol) {
-    case 'DSHEEP': return '/dsheep.png'
+    case 'DSHP':
+      case 'DSHEEP': return '/dsheep.png'
     case 'LNTR': return '/lentra.png'
-    case 'OMLT': return '/omlt.png'
-    case 'ORLO': return '/orlo.png'
+    case 'SIL': return '/silica.png'
+    case 'GLX': return '/glooma.png'
     case 'REX': return '/rex.png'
-    case 'NGT': return '/Nugget.png'
+    case 'ORX': return '/orex.png'
     default: return null
   }
 }
@@ -111,7 +112,7 @@ export default function BidAcceptanceModal({
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
-                        <span className="text-3xl">{bid.playerAvatar}</span>
+                        <span className="text-3xl">{bid.playerAvatar || '👤'}</span>
                         <div>
                           <div className="flex items-center space-x-2">
                             <span className="text-white font-bold">{bid.playerName}</span>

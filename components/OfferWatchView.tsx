@@ -24,12 +24,13 @@ interface OfferWatchViewProps {
 
 const getCryptoImage = (symbol: string): string | null => {
   switch (symbol) {
-    case 'DSHEEP': return '/dsheep.png'
+    case 'DSHP':
+      case 'DSHEEP': return '/dsheep.png'
     case 'LNTR': return '/lentra.png'
-    case 'OMLT': return '/omlt.png'
-    case 'ORLO': return '/orlo.png'
+    case 'SIL': return '/silica.png'
+    case 'GLX': return '/glooma.png'
     case 'REX': return '/rex.png'
-    case 'NGT': return '/Nugget.png'
+    case 'ORX': return '/orex.png'
     default: return null
   }
 }
@@ -75,7 +76,7 @@ export default function OfferWatchView({
           <div className="text-center mb-5">
             <h2 className="text-xl font-bold text-white mb-1">⏳ Biedingen Ontvangen</h2>
             {sellerName && (
-              <p className="text-gray-400 text-sm">{sellerName} {sellerAvatar} wil verkopen</p>
+              <p className="text-gray-400 text-sm">{sellerName} {sellerAvatar || '👤'} wil verkopen</p>
             )}
             <p className="text-gray-500 text-xs mt-1">Wachten op biedingen... ({timeLeft}s resterend)</p>
           </div>
@@ -116,7 +117,7 @@ export default function OfferWatchView({
                   className="bg-dark-bg/40 rounded-lg p-3 border border-white/10 flex justify-between items-center"
                 >
                   <span className="text-white text-sm">
-                    {bid.playerAvatar} {bid.playerName}
+                    {bid.playerAvatar || '👤'} {bid.playerName}
                   </span>
                   <span className="text-neon-green font-bold text-sm">
                     {formatCurrency(bid.amount, currency.symbol)}

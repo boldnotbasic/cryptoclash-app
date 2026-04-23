@@ -87,7 +87,7 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
                 <div className="p-3 bg-neon-purple/20 rounded-full group-hover:bg-neon-purple/30 transition-colors">
                   <Users className="w-8 h-8 text-neon-purple" />
                 </div>
-                <h2 className="text-2xl font-bold text-white">{t('startScreen.playing')}</h2>
+                <h2 className="text-2xl font-bold text-white" suppressHydrationWarning>{t('startScreen.playing')}</h2>
               </div>
             </div>
           </button>
@@ -100,7 +100,7 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
               onClick={onBypass}
               className="w-full py-4 border-2 border-orange-500 hover:border-orange-600 text-orange-500 hover:text-orange-600 font-bold rounded-xl transition-all duration-300"
             >
-              🚀 {t('startScreen.bypassStripe')}
+              <span suppressHydrationWarning>🚀 {t('startScreen.bypassStripe')}</span>
             </button>
           </div>
         )}
@@ -109,7 +109,7 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
         <div className="crypto-card mt-6">
           <div className="flex items-center justify-center space-x-3 mb-4">
             <Languages className="w-5 h-5 text-neon-blue" />
-            <h3 className="text-lg font-bold text-white">{t('common.selectLanguage')}</h3>
+            <h3 className="text-lg font-bold text-white" suppressHydrationWarning>{t('common.selectLanguage')}</h3>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <button
@@ -179,6 +179,18 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
               <p className="text-gray-300 text-sm leading-relaxed">{t('startScreen.features.leaderboard.desc')}</p>
             </div>
           </div>
+        </div>
+
+        {/* Privacy Policy Link */}
+        <div className="mt-8 text-center">
+          <a 
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-400 hover:text-neon-gold transition-colors text-sm underline"
+          >
+            Privacybeleid
+          </a>
         </div>
       </div>
     </div>

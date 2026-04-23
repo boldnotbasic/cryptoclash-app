@@ -5,6 +5,7 @@ import { Users, Play, Copy, Check, RefreshCw, Crown, UserPlus, Share, QrCode, Gr
 import { useSocket } from '@/hooks/useSocket'
 import QRCodeLib from 'qrcode'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { CurrencyIcon } from '@/components/CurrencyIcon'
 
 interface Player {
   id: string
@@ -527,7 +528,10 @@ export default function WaitingRoom({ roomId, onStartGame, onBack, isHost = fals
               </div>
               <div>
                 <div className="text-gray-400 text-sm">{t('waitingRoom.startingCash')}</div>
-                <div className="text-neon-gold font-extrabold text-2xl">⚘{room?.settings?.startingCash?.toLocaleString('nl-NL') || '1.000'}</div>
+                <div className="text-neon-gold font-extrabold text-2xl flex items-center gap-1">
+                  <CurrencyIcon className="w-6 h-6 " />
+                  {room?.settings?.startingCash?.toLocaleString('nl-NL') || '1.000'}
+                </div>
               </div>
               <div>
                 <div className="text-gray-400 text-sm">{t('waitingRoom.volatility')}</div>

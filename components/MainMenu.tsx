@@ -6,6 +6,7 @@ import { QrCode, BarChart3, Wallet, Settings, TrendingUp, TrendingDown, Crown, M
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { formatCurrency } from '@/utils/currency'
+import { CurrencyAmount } from '@/components/CurrencyIcon'
 import { playPositiveSound, playNegativeSound } from '@/utils/soundEffects'
 import { getTileClasses } from '@/utils/styleUtils'
 import Header from './Header'
@@ -112,7 +113,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
   
   // Test message state
   const [testMessage, setTestMessage] = useState('')
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(0)
   const [isYearModalOpen, setIsYearModalOpen] = useState(false)
   const [showScanModal, setShowScanModal] = useState(false)
 
@@ -120,7 +121,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
     try {
       if (typeof effect !== 'string') return effect
       return effect
-        .replace(/\bRIZZ\b/g, 'NGT')
+        .replace(/\bRIZZ\b/g, 'ORX')
         .replace(/\bWHALE\b/g, 'REX')
     } catch {
       return effect
@@ -128,18 +129,20 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
   }
 
   useEffect(() => {
+    setNow(Date.now())
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
 
   const getCryptoImagePath = (symbol: string) => {
     switch (symbol) {
+      case 'DSHP':
       case 'DSHEEP': return '/dsheep.png'
       case 'LNTR': return '/lentra.png'
-      case 'OMLT': return '/omlt.png'
-      case 'ORLO': return '/orlo.png'
+      case 'SIL': return '/silica.png'
+      case 'GLX': return '/glooma.png'
       case 'REX': return '/rex.png'
-      case 'NGT': return '/Nugget.png'
+      case 'ORX': return '/orex.png'
       default: return null
     }
   }
@@ -161,7 +164,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
     
     if (onAddScanAction) {
       // Array of fictional coins for random selection
-      const possibleCoins = ['DSHEEP', 'NUGGET', 'LNTR', 'OMLT', 'REX', 'ORLO']
+      const possibleCoins = ['DSHEEP', 'ORX', 'LNTR', 'SIL', 'REX', 'GLX']
       
       // Generate random coin
       const randomCoin = possibleCoins[Math.floor(Math.random() * possibleCoins.length)]
@@ -269,7 +272,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
         <div className="crypto-card text-center mb-4">
           <h2 className="text-lg font-semibold text-gray-400 mb-2">{t('mainMenu.totalWealth')}</h2>
           <p className="text-4xl font-bold text-neon-gold">
-            {formatCurrency(totalValue, currency.symbol)}
+            <CurrencyAmount value={totalValue} iconSize={32} />
           </p>
         </div>
 
@@ -352,7 +355,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                         )}
                       </span>
                       <span className="text-[10px] text-white font-semibold">
-                        {formatCurrency(crypto.price, currency.symbol)}
+                        <CurrencyAmount value={crypto.price} iconSize={9} />
                       </span>
                       <span className={`font-bold text-[10px] ${crypto.change24h > 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {crypto.change24h > 0 ? '+' : ''}{crypto.change24h.toFixed(1)}%
@@ -420,7 +423,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             {/* Donker vlak met waarde */}
             <div className="bg-gradient-to-t from-dark-bg/90 to-dark-bg/70 backdrop-blur-sm py-2.5 px-4 text-center border-t border-white/5 flex items-center justify-center">
               <p className="text-neon-gold font-bold text-lg tracking-wide drop-shadow-lg">
-                {formatCurrency(portfolioValue, currency.symbol)}
+                <CurrencyAmount value={portfolioValue} iconSize={14} />
               </p>
             </div>
           </button>
@@ -483,7 +486,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             {/* Donker vlak met waarde */}
             <div className="bg-gradient-to-t from-dark-bg/90 to-dark-bg/70 backdrop-blur-sm py-2.5 px-4 text-center border-t border-white/5 flex items-center justify-center">
               <p className="text-green-400 font-bold text-lg tracking-wide drop-shadow-lg">
-                {formatCurrency(cashBalance, currency.symbol)}
+                <CurrencyAmount value={cashBalance} iconSize={14} />
               </p>
             </div>
           </button>
@@ -569,7 +572,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
                           index === 2 ? 'text-amber-600' :
                           'text-gray-400'
                         }`}>
-                          {formatCurrency(player.totalValue, currency.symbol)}
+                          <CurrencyAmount value={player.totalValue} iconSize={12} />
                         </p>
                       </div>
                     </div>
@@ -834,7 +837,7 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             <p className="text-gray-400 text-sm mb-2">{t('mainMenu.totalWealth')}</p>
             <div className="bg-gradient-to-r from-neon-gold/20 to-neon-purple/20 border border-neon-gold/50 rounded-lg p-4">
               <p className="text-3xl font-bold text-neon-gold">
-                {formatCurrency(totalValue, currency.symbol)}
+                <CurrencyAmount value={totalValue} iconSize={24} />
               </p>
             </div>
           </div>
@@ -842,13 +845,13 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
             <div className="text-center">
               <p className="text-gray-400 text-sm mb-2">{t('mainMenu.portfolioValue')}</p>
               <p className="text-xl font-bold text-neon-blue">
-                {formatCurrency(portfolioValue, currency.symbol)}
+                <CurrencyAmount value={portfolioValue} iconSize={16} />
               </p>
             </div>
             <div className="text-center">
               <p className="text-gray-400 text-sm mb-2">{t('mainMenu.cashSaldo')}</p>
               <p className="text-xl font-bold text-green-400">
-                {formatCurrency(cashBalance, currency.symbol)}
+                <CurrencyAmount value={cashBalance} iconSize={16} />
               </p>
             </div>
           </div>

@@ -30,7 +30,30 @@ const roomPriceHistory = {}
 
 // 📈 MOMENTUM SYSTEM: Track recent trends per room per crypto for realistic market behavior
 // Helps coins in uptrend continue rising, and downtrends continue falling (like real markets)
-const roomMomentum = {} // { roomCode: { DSHEEP: [+5, -2, +8], NGT: [-3, -5, +2], ... } }
+const roomMomentum = {} // { roomCode: { DSHP: [+5, -2, +8], ORX: [-3, -5, +2], ... } }
+
+// 🌍 MARKET STATE SYSTEM: Track overall market mood per room for realistic event cascades
+// States: 'normal' (50/50), 'bull_market' (70% positive), 'bear_market' (70% negative), 'recovery' (60% positive)
+// 'war' (85% negative), 'peace' (75% positive)
+// Example: Bear Market event → 6-10 negative events → auto recovery → normal
+// Example: WAR → 8-12 negative events → PEACE → 6-8 positive events → normal
+const roomMarketState = {
+  // roomCode: {
+  //   state: 'normal',           // Current market state
+  //   eventsRemaining: 0,        // Events until state transition
+  //   triggeredBy: 'Bear Market' // What caused this state
+  // }
+}
+
+// ⚔️ MACRO EVENT SYSTEM: Track major world events that trigger cascades
+// Tracks when last macro event occurred to prevent too frequent triggering
+const roomMacroEventTracker = {
+  // roomCode: {
+  //   lastMacroEvent: 'WAR',
+  //   eventsSinceLastMacro: 0,
+  //   macroEventCooldown: 30  // Minimum events between macro events
+  // }
+}
 
 // Track per-player cleanup timers for disconnected players
 const playerCleanupTimers = new Map()
@@ -46,28 +69,28 @@ const roomPauseState = {}
 // orderId -> { order, roomCode }
 const globalMarketplaceOrders = new Map()
 
-// 🚨 CRITICAL: Global crypto prices - SINGLE SOURCE OF TRUTH
+// CRITICAL: Global crypto prices - SINGLE SOURCE OF TRUTH
 const globalCryptoPrices = {
-  DSHEEP: 42.30,
-  NGT: 1250.75, 
+  DSHP: 42.30,
+  ORX: 1250.75, 
   LNTR: 89.20,
-  OMLT: 156.40,
+  SIL: 156.40,
   REX: 0.85,
-  ORLO: 2340.80
+  GLX: 2340.80
 }
 
-// 🚨 CRITICAL: Default market change24h values - ALL START AT 0%
+// CRITICAL: Default market change24h values - ALL START AT 0%
 // All coins begin at 0% for a clean, fair start
 const defaultMarketChange24h = {
-  DSHEEP: 0,
-  NGT: 0,
+  DSHP: 0,
+  ORX: 0,
   LNTR: 0,
-  OMLT: 0,
+  SIL: 0,
   REX: 0,
-  ORLO: 0
+  GLX: 0
 }
 
-// 🚨 CRITICAL: Centralized scan data per room - SERVER SOURCE OF TRUTH
+// CRITICAL: Centralized scan data per room - SERVER SOURCE OF TRUTH
 const roomScanData = {
   // roomCode: {
   //   autoScanActions: [],
@@ -220,13 +243,13 @@ function startActivityInterval(roomCode, socketIo) {
   }
   
   console.log(`🚀 Creating activity interval for room ${roomCode}`)
-  const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+  const cryptoSymbols = ['DSHP', 'ORX', 'LNTR', 'SIL', 'REX', 'GLX']
   const sanitizeEffect = (effect) => {
     try {
       if (typeof effect !== 'string') return effect
       // Replace whole-word occurrences only
       return effect
-        .replace(/\bRIZZ\b/g, 'NGT')
+        .replace(/\bRIZZ\b/g, 'ORX')
         .replace(/\bWHALE\b/g, 'REX')
     } catch {
       return effect
@@ -266,24 +289,22 @@ function startActivityInterval(roomCode, socketIo) {
 
     // Create consistent message format matching player events
     const cryptoNames = {
-      'DSHEEP': 'DigiSheep',
-      'NGT': 'Nugget',
+      'DSHP': 'DigiSheep',
+      'ORX': 'Orex',
       'LNTR': 'Lentra',
-      'OMLT': 'Omlet',
+      'SIL': 'Silica',
       'REX': 'Rex',
-      'ORLO': 'Orlo'
+      'GLX': 'Glooma'
     }
     const cryptoName = cryptoNames[randomCrypto] || randomCrypto
     
-    // Use same format as player events: "Nugget rally +28%" or "Rex dip -25%"
+    // Simple format for automatic events (no news headlines): "Orex dip -0.6%"
     let effectMessage = ''
     if (percentage > 0) {
-      const actions = ['stijgt', 'rally', 'move']
-      const action = actions[Math.floor(Math.random() * actions.length)]
+      const action = 'stijgt'
       effectMessage = `${cryptoName} ${action} ${sign}${percentage}%`
     } else {
-      const actions = ['daalt', 'crash', 'dip']
-      const action = actions[Math.floor(Math.random() * actions.length)]
+      const action = 'dip'
       effectMessage = `${cryptoName} ${action} ${sign}${percentage}%`
     }
 
@@ -294,7 +315,8 @@ function startActivityInterval(roomCode, socketIo) {
       action: randomActionType,
       effect: sanitizeEffect(effectMessage),
       cryptoSymbol: randomCrypto,
-      percentageValue: percentage
+      percentageValue: percentage,
+      headline: 'Beurs update' // Header for automatic Bot events
     }
 
     if (rooms[roomCode]) {
@@ -343,12 +365,16 @@ function startActivityInterval(roomCode, socketIo) {
       }))
       socketIo.to(roomCode).emit('scanData:update', {
         autoScanActions: sanitizedAuto,
-        playerScanActions: sanitizedPlayer
+        playerScanActions: sanitizedPlayer,
+        upcomingEvents: roomUpcomingEvents[roomCode] || [],
+        scanCount: roomScanCount[roomCode] || 0
       })
 
-      // Broadcast current market change map
+      // Broadcast current market change map and market state
       socketIo.to(roomCode).emit('market:stateUpdate', {
-        change24h: roomMarketChange24h[roomCode] || {}
+        change24h: roomMarketChange24h[roomCode] || {},
+        marketState: roomMarketState[roomCode]?.state || 'normal',
+        stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
       })
       
       // Force recalculation for all players
@@ -643,22 +669,22 @@ app.prepare().then(() => {
         
         // Initialize price history for this room
         roomPriceHistory[roomCode] = {
-          DSHEEP: [],
-          NGT: [],
+          DSHP: [],
+          ORX: [],
           LNTR: [],
-          OMLT: [],
+          SIL: [],
           REX: [],
-          ORLO: []
+          GLX: []
         }
         
         // 📈 Initialize momentum tracking for realistic market trends
         roomMomentum[roomCode] = {
-          DSHEEP: [],
-          NGT: [],
+          DSHP: [],
+          ORX: [],
           LNTR: [],
-          OMLT: [],
+          SIL: [],
           REX: [],
-          ORLO: []
+          GLX: []
         }
         console.log(`📈 Initialized momentum tracking for room ${roomCode}`)
       }
@@ -688,12 +714,12 @@ app.prepare().then(() => {
         isHost: true,
         // Initialize host with empty portfolio and starting cash
         portfolio: { 
-          DSHEEP: 0,
-          NUGGET: 0,
+          DSHP: 0,
+          ORX: 0,
           LNTR: 0,
-          OMLT: 0,
+          SIL: 0,
           REX: 0,
-          ORLO: 0
+          GLX: 0
         },
         cashBalance: settings.startingCash || 1000.00
       }
@@ -712,6 +738,34 @@ app.prepare().then(() => {
       
       console.log(`✅ ${hostName} IS NOW THE ONLY HOST`)
       console.log(`💥 === NUCLEAR TAKEOVER COMPLETE ===\n`)
+
+      // 🎯 CRITICAL: Generate upcoming events IMMEDIATELY when room is created
+      // so the "Komende 10 Pop-up Events" widget is populated from the start
+      try {
+        if (!roomUpcomingEvents[roomCode] || roomUpcomingEvents[roomCode].length === 0) {
+          generateUpcomingEvents(roomCode)
+          console.log(`📋 Generated initial upcoming events for room ${roomCode}`)
+        }
+        if (typeof roomScanCount[roomCode] !== 'number') {
+          roomScanCount[roomCode] = 0
+        }
+        // Ensure scan data container exists so dashboard can render
+        if (!roomScanData[roomCode]) {
+          roomScanData[roomCode] = { autoScanActions: [], playerScanActions: [] }
+        }
+        // Broadcast initial scan data + upcoming events to all clients
+        setImmediate(() => {
+          io.to(roomCode).emit('scanData:update', {
+            autoScanActions: roomScanData[roomCode].autoScanActions,
+            playerScanActions: roomScanData[roomCode].playerScanActions,
+            upcomingEvents: roomUpcomingEvents[roomCode] || [],
+            scanCount: roomScanCount[roomCode] || 0
+          })
+          console.log(`📡 Broadcasted initial upcomingEvents (${(roomUpcomingEvents[roomCode] || []).length}) to room ${roomCode}`)
+        })
+      } catch (e) {
+        console.warn('⚠️ Failed to generate/broadcast initial upcoming events:', e)
+      }
 
       // Note: Live activities will start when game begins (not during host setup)
     })
@@ -822,12 +876,12 @@ app.prepare().then(() => {
           disconnected: false,
           // Initialize with empty portfolio and starting cash
           portfolio: { 
-            DSHEEP: 0,
-            NUGGET: 0,
+            DSHP: 0,
+            ORX: 0,
             LNTR: 0,
-            OMLT: 0,
+            SIL: 0,
             REX: 0,
-            ORLO: 0
+            GLX: 0
           },
           cashBalance: room.settings?.startingCash || 1000.00
         }
@@ -854,12 +908,12 @@ app.prepare().then(() => {
       if (!roomPriceHistory[roomCode]) {
         console.log(`📊 Initializing price history for room ${roomCode}`)
         roomPriceHistory[roomCode] = {
-          DSHEEP: [],
-          NGT: [],
+          DSHP: [],
+          ORX: [],
           LNTR: [],
-          OMLT: [],
+          SIL: [],
           REX: [],
-          ORLO: []
+          GLX: []
         }
       }
       
@@ -867,19 +921,23 @@ app.prepare().then(() => {
       if (!roomMomentum[roomCode]) {
         console.log(`📈 Initializing momentum tracking for room ${roomCode}`)
         roomMomentum[roomCode] = {
-          DSHEEP: [],
-          NGT: [],
+          DSHP: [],
+          ORX: [],
           LNTR: [],
-          OMLT: [],
+          SIL: [],
           REX: [],
-          ORLO: []
+          GLX: []
         }
       }
       
       // === INITIALIZATION: Send authoritative market state to joining player ===
       // This ensures the player sees the same percentages as dashboard
       const initialChange = roomMarketChange24h[roomCode] || {}
-      socket.emit('market:stateUpdate', { change24h: initialChange })
+      socket.emit('market:stateUpdate', { 
+        change24h: initialChange,
+        marketState: roomMarketState[roomCode]?.state || 'normal',
+        stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
+      })
       console.log(`📊 Sent initial market state to ${playerName}:`, initialChange)
       
       // === INITIALIZATION: Send price history to joining player ===
@@ -947,13 +1005,19 @@ app.prepare().then(() => {
       
       // Send market state
       const marketChange = roomMarketChange24h[roomCode] || {}
-      socket.emit('market:stateUpdate', { change24h: marketChange })
+      socket.emit('market:stateUpdate', { 
+        change24h: marketChange,
+        marketState: roomMarketState[roomCode]?.state || 'normal',
+        stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
+      })
       
       // Send scan data
       if (roomScanData[roomCode]) {
         socket.emit('scanData:update', {
           autoScanActions: roomScanData[roomCode].autoScanActions,
-          playerScanActions: roomScanData[roomCode].playerScanActions
+          playerScanActions: roomScanData[roomCode].playerScanActions,
+          upcomingEvents: roomUpcomingEvents[roomCode] || [],
+          scanCount: roomScanCount[roomCode] || 0
         })
       }
       
@@ -1042,13 +1106,19 @@ app.prepare().then(() => {
         
         // Send market state
         const marketChange = roomMarketChange24h[roomCode] || {}
-        socket.emit('market:stateUpdate', { change24h: marketChange })
+        socket.emit('market:stateUpdate', { 
+        change24h: marketChange,
+        marketState: roomMarketState[roomCode]?.state || 'normal',
+        stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
+      })
         
         // Send scan data
         if (roomScanData[roomCode]) {
           socket.emit('scanData:update', {
             autoScanActions: roomScanData[roomCode].autoScanActions,
-            playerScanActions: roomScanData[roomCode].playerScanActions
+            playerScanActions: roomScanData[roomCode].playerScanActions,
+            upcomingEvents: roomUpcomingEvents[roomCode] || [],
+            scanCount: roomScanCount[roomCode] || 0
           })
         }
         
@@ -1212,12 +1282,20 @@ app.prepare().then(() => {
             
             // Broadcast normalized prices, initial market state, and price history
             io.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
-            io.to(roomCode).emit('market:stateUpdate', { change24h: roomMarketChange24h[roomCode] })
+            io.to(roomCode).emit('market:stateUpdate', { 
+              change24h: roomMarketChange24h[roomCode],
+              marketState: roomMarketState[roomCode]?.state || 'normal',
+              stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
+            })
             io.to(roomCode).emit('crypto:priceHistory', roomPriceHistory[roomCode] || {})
             
             // Extra broadcast after short delay to ensure clients receive the data
             setTimeout(() => {
-              io.to(roomCode).emit('market:stateUpdate', { change24h: roomMarketChange24h[roomCode] })
+              io.to(roomCode).emit('market:stateUpdate', { 
+              change24h: roomMarketChange24h[roomCode],
+              marketState: roomMarketState[roomCode]?.state || 'normal',
+              stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
+            })
               io.to(roomCode).emit('crypto:priceHistory', roomPriceHistory[roomCode] || {})
               console.log(`🔄 Re-broadcast market state for ${marketStartMode} mode`)
             }, 500)
@@ -1229,6 +1307,32 @@ app.prepare().then(() => {
         // Start live market activities interval now (first event in 30 seconds)
         console.log(`⏰ Live market activities will start in 30 seconds...`)
         startActivityInterval(roomCode, io)
+        
+        // 🎯 CRITICAL: Generate upcoming events IMMEDIATELY at game start
+        // so the "Komende 10 Pop-up Events" widget is populated from the start
+        try {
+          if (!roomUpcomingEvents[roomCode] || roomUpcomingEvents[roomCode].length === 0) {
+            generateUpcomingEvents(roomCode)
+            console.log(`📋 Generated initial upcoming events for room ${roomCode}`)
+          }
+          if (typeof roomScanCount[roomCode] !== 'number') {
+            roomScanCount[roomCode] = 0
+          }
+          // Ensure scan data container exists so dashboard can render
+          if (!roomScanData[roomCode]) {
+            roomScanData[roomCode] = { autoScanActions: [], playerScanActions: [] }
+          }
+          // Broadcast initial scan data + upcoming events to all clients
+          io.to(roomCode).emit('scanData:update', {
+            autoScanActions: roomScanData[roomCode].autoScanActions,
+            playerScanActions: roomScanData[roomCode].playerScanActions,
+            upcomingEvents: roomUpcomingEvents[roomCode] || [],
+            scanCount: roomScanCount[roomCode] || 0
+          })
+          console.log(`📡 Broadcasted initial upcomingEvents (${(roomUpcomingEvents[roomCode] || []).length}) to room ${roomCode}`)
+        } catch (e) {
+          console.warn('⚠️ Failed to generate/broadcast initial upcoming events:', e)
+        }
         
         // Don't start timer for first player - they get unlimited time
         // Timer will start from second player onwards (in turn:end handler)
@@ -1764,71 +1868,412 @@ app.prepare().then(() => {
     
     // Helper function to generate a single random event with momentum/trend awareness
     // roomCode: needed for momentum tracking (optional - falls back to pure random if not provided)
-    const generateRandomEvent = (roomCode = null) => {
+    // 🌍 NOW ALSO USES MARKET STATE SYSTEM for realistic event cascades
+    function generateRandomEvent(roomCode = null) {
+      // Get current market state for this room
+      const marketState = roomCode && roomMarketState[roomCode] ? roomMarketState[roomCode].state : 'normal'
       const eventTypes = [
         // Crypto specific events (NEVER 0%) - meest voorkomend
-        { type: 'boost', symbol: 'DSHEEP', min: -30, max: 30 },
-        { type: 'boost', symbol: 'DSHEEP', min: -30, max: 30 },
-        { type: 'boost', symbol: 'DSHEEP', min: -30, max: 30 },
-        { type: 'boost', symbol: 'NGT', min: -30, max: 30 },
-        { type: 'boost', symbol: 'NGT', min: -30, max: 30 },
-        { type: 'boost', symbol: 'NGT', min: -30, max: 30 },
+        { type: 'boost', symbol: 'DSHP', min: -30, max: 30 },
+        { type: 'boost', symbol: 'DSHP', min: -30, max: 30 },
+        { type: 'boost', symbol: 'DSHP', min: -30, max: 30 },
+        { type: 'boost', symbol: 'ORX', min: -30, max: 30 },
+        { type: 'boost', symbol: 'ORX', min: -30, max: 30 },
+        { type: 'boost', symbol: 'ORX', min: -30, max: 30 },
         { type: 'boost', symbol: 'LNTR', min: -30, max: 30 },
         { type: 'boost', symbol: 'LNTR', min: -30, max: 30 },
         { type: 'boost', symbol: 'LNTR', min: -30, max: 30 },
-        { type: 'boost', symbol: 'OMLT', min: -30, max: 30 },
-        { type: 'boost', symbol: 'OMLT', min: -30, max: 30 },
-        { type: 'boost', symbol: 'OMLT', min: -30, max: 30 },
+        { type: 'boost', symbol: 'SIL', min: -30, max: 30 },
+        { type: 'boost', symbol: 'SIL', min: -30, max: 30 },
+        { type: 'boost', symbol: 'SIL', min: -30, max: 30 },
         { type: 'boost', symbol: 'REX', min: -30, max: 30 },
         { type: 'boost', symbol: 'REX', min: -30, max: 30 },
         { type: 'boost', symbol: 'REX', min: -30, max: 30 },
-        { type: 'boost', symbol: 'ORLO', min: -30, max: 30 },
-        { type: 'boost', symbol: 'ORLO', min: -30, max: 30 },
-        { type: 'boost', symbol: 'ORLO', min: -30, max: 30 },
-        // Market-wide events - zeldzamer (1x in pool)
-        { type: 'event', symbol: null, min: 5, max: 20 }, // Bull Run (variabel 5-20%)
-        { type: 'event', symbol: null, min: -10, max: -10 }, // Bear Market
+        { type: 'boost', symbol: 'GLX', min: -30, max: 30 },
+        { type: 'boost', symbol: 'GLX', min: -30, max: 30 },
+        { type: 'boost', symbol: 'GLX', min: -30, max: 30 },
+        // Market-wide events are now handled via WAR/PEACE only
+        // Bull Run and Bear Market removed - they should not be market states
+        // WAR/PEACE events zijn NIET in de pool - ze worden via speciale logica getriggerd
         // Whale Alert events - TIJDELIJK UITGESCHAKELD
         // { type: 'whale', symbol: null, min: 50, max: 50 }, // Random crypto +50%
       ]
       
-      const randomEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)]
-      let percentage
+      let randomEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)]
       
-      // 📈 MOMENTUM SYSTEM: Apply trend bias ONLY for individual crypto events
-      // Market-wide events (Bull Run, Crash) remain purely random
-      if (roomCode && randomEvent.type === 'boost' && randomEvent.symbol) {
-        const trendBias = getTrendBias(roomCode, randomEvent.symbol)
-        const shouldBePositive = Math.random() < trendBias
-        
-        // Generate percentage biased towards the trend
-        if (shouldBePositive) {
-          // Bias towards positive: range 1 to 30
-          percentage = Math.floor(Math.random() * 30) + 1
-        } else {
-          // Bias towards negative: range -30 to -1
-          percentage = Math.floor(Math.random() * 30) * -1 - 1
+      // ⚔️ SPECIAL WAR TRIGGER LOGIC - zeer zeldzaam, alleen in normale markt
+      const currentState = roomCode && roomMarketState[roomCode] ? roomMarketState[roomCode].state : 'normal'
+      
+      // Track events since game start for war trigger
+      if (!global.roomWarTracker) {
+        global.roomWarTracker = {}
+      }
+      if (roomCode && !global.roomWarTracker[roomCode]) {
+        global.roomWarTracker[roomCode] = {
+          eventsSinceStart: 0,
+          lastWarEvent: null,
+          warHappened: false,
+          eventsSinceWarStarted: 0
         }
-        
-        console.log(`📈 MOMENTUM: ${randomEvent.symbol} trend bias ${(trendBias * 100).toFixed(0)}% → ${percentage > 0 ? '+' : ''}${percentage}%`)
-      } else {
-        // No momentum (market events or no roomCode): pure random
-        do {
-          percentage = randomEvent.min === randomEvent.max ? randomEvent.min : 
-                            Math.floor(Math.random() * (randomEvent.max - randomEvent.min + 1)) + randomEvent.min
-        } while (percentage === 0)
       }
       
-      return { ...randomEvent, percentage }
+      if (roomCode) {
+        global.roomWarTracker[roomCode].eventsSinceStart++
+        
+        // Debug logging voor war trigger check
+        if (global.roomWarTracker[roomCode].eventsSinceStart % 5 === 0) {
+          console.log(`🎲 War Check - Events: ${global.roomWarTracker[roomCode].eventsSinceStart}, State: ${currentState}, War happened: ${global.roomWarTracker[roomCode].warHappened}`)
+        }
+        
+        // War can only trigger if:
+        // 1. Market is normal (not already in war/peace/bull/bear)
+        // 2. At least 8 events have passed since game start
+        // 3. At least 20 events since last war (cooldown)
+        // 4. 10% random chance (~1 op 10 events in normal state)
+        const eventsSinceLastWar = global.roomWarTracker[roomCode].lastWarEvent 
+          ? global.roomWarTracker[roomCode].eventsSinceStart - global.roomWarTracker[roomCode].lastWarEvent 
+          : 999
+        
+        if (currentState !== 'war' && 
+            global.roomWarTracker[roomCode].eventsSinceStart >= 8 && 
+            eventsSinceLastWar >= 20 &&
+            Math.random() < 0.10) {
+          // TRIGGER WAR!
+          randomEvent = { type: 'war', symbol: null, min: 0, max: 0 }
+          global.roomWarTracker[roomCode].lastWarEvent = global.roomWarTracker[roomCode].eventsSinceStart
+          global.roomWarTracker[roomCode].eventsSinceWarStarted = 0 // Reset counter for minimum events before peace
+          console.log(`⚔️ WAR EVENT QUEUED! Will activate when applied - After ${global.roomWarTracker[roomCode].eventsSinceStart} events`)
+        }
+      }
+      
+      // 🕊️ PEACE TRIGGER LOGIC - can only happen during war
+      // Requires at least 10 events in war state before peace can trigger
+      if (roomCode && currentState === 'war') {
+        global.roomWarTracker[roomCode].eventsSinceWarStarted = (global.roomWarTracker[roomCode].eventsSinceWarStarted || 0) + 1
+      }
+      if (currentState === 'war' && (global.roomWarTracker[roomCode]?.eventsSinceWarStarted || 0) >= 10 && Math.random() < 0.40) {
+        randomEvent = { type: 'peace', symbol: null, min: 0, max: 0 }
+        console.log(`🕊️ PEACE EVENT QUEUED! Will activate when applied`)
+      }
+      
+      let percentage
+      
+      // 🌍 MARKET STATE SYSTEM: Apply state-based bias for realistic event cascades
+      // Bear market = 70% negative, Bull market = 70% positive, Recovery = 60% positive
+      // WAR = 85% negative, PEACE = 75% positive
+      if (roomCode && randomEvent.type === 'boost' && randomEvent.symbol) {
+        let shouldBePositive
+        let positiveChance
+        
+        // Determine positive/negative bias based on market state
+        if (marketState === 'war') {
+          positiveChance = 0.15 // 15% positive, 85% negative during war
+          shouldBePositive = Math.random() < positiveChance
+        } else if (marketState === 'peace') {
+          positiveChance = 0.75 // 75% positive, 25% negative during peace
+          shouldBePositive = Math.random() < positiveChance
+        } else if (marketState === 'bear_market' || marketState === 'bull_market' || marketState === 'recovery') {
+          // Legacy states - treat as normal
+          const trendBias = getTrendBias(roomCode, randomEvent.symbol)
+          positiveChance = trendBias
+          shouldBePositive = Math.random() < trendBias
+        } else {
+          // Normal state: use momentum system
+          const trendBias = getTrendBias(roomCode, randomEvent.symbol)
+          positiveChance = trendBias
+          shouldBePositive = Math.random() < trendBias
+        }
+        
+        // Generate percentage biased towards the market state
+        if (shouldBePositive) {
+          // Positive event
+          if (marketState === 'war') {
+            percentage = Math.floor(Math.random() * 11) + 1 // +1% to +10% (kleine winsten tijdens oorlog)
+          } else if (marketState === 'peace') {
+            percentage = Math.floor(Math.random() * 41) + 1 // +1% to +40% (grote winsten tijdens vrede)
+          } else {
+            percentage = Math.floor(Math.random() * 30) + 1 // +1% to +30% (normal)
+          }
+        } else {
+          // Negative event
+          if (marketState === 'war') {
+            percentage = -(Math.floor(Math.random() * 41) + 1) // -1% to -40% (enorme verliezen tijdens oorlog)
+          } else if (marketState === 'peace') {
+            percentage = -(Math.floor(Math.random() * 11) + 1) // -1% to -10% (kleine verliezen tijdens vrede)
+          } else {
+            percentage = -(Math.floor(Math.random() * 30) + 1) // -1% to -30% (normal)
+          }
+        }
+        
+        const stateLabel = marketState === 'normal' ? 'MOMENTUM' : `STATE:${marketState.toUpperCase()}`
+        console.log(`🌍 ${stateLabel}: ${randomEvent.symbol} (${(positiveChance * 100).toFixed(0)}% pos) → ${percentage > 0 ? '+' : ''}${percentage}%`)
+      } else if (randomEvent.type === 'war') {
+        // ⚔️ TRIGGER WAR STATE - percentage is always 0, skip the do-while loop
+        percentage = 0
+        // Do NOT set roomMarketState here; this event is queued and will set state when applied
+        console.log('⚔️ WAR EVENT GENERATED (queued) - will activate when applied')
+      } else if (randomEvent.type === 'peace') {
+        // 🕊️ TRIGGER PEACE STATE - percentage is always 0
+        percentage = 0
+        console.log('🕊️ PEACE EVENT GENERATED (queued) - will activate when applied')
+      }
+    }
+    
+    // Helper function to generate news headline for an event
+    function generateNewsHeadline(event) {
+      const newsHeadlines = {
+        'DSHP': {
+          positive: [
+            'DigiSheep breekt door weerstandsniveau, investeerders optimistisch',
+            'DigiSheep nieuwe oogst succesvol, vraag stijgt',
+            'Recordoogst DigiSheep, prijzen stijgen',
+            'DigiSheep exportdeal gesloten, koers omhoog',
+            'Weersomstandigheden ideaal voor DigiSheep productie',
+            'DigiSheep kwaliteit verbeterd, vraag explodeert',
+            'Nieuwe landbouwtechnologie verhoogt DigiSheep opbrengst',
+            'DigiSheep voorraden krap, prijzen stijgen'
+          ],
+          negative: [
+            'DigiSheep verliest momentum, traders nemen winst',
+            'Strengere wetgeving raakt DigiSheep sector',
+            'Slechte cijfers DigiSheep, beleggers verkopen massaal',
+            'Tekort aan grondstoffen remt DigiSheep productie',
+            'Droogte treft DigiSheep oogst, koers daalt',
+            'Veepest uitbraak bedreigt DigiSheep sector',
+            'DigiSheep overproductie leidt tot prijsval',
+            'Slechte weersomstandigheden schaden DigiSheep oogst'
+          ]
+        },
+        'ORX': {
+          positive: [
+            'Orex partnership aangekondigd, koers schiet omhoog',
+            'Orex nieuwe mijnvondst, goudprijs stijgt',
+            'Nieuwe goudader ontdekt in Orex mijn',
+            'Orex productie stijgt, winstcijfers overtreffen verwachtingen',
+            'Mijnbouwtechnologie doorbraak verhoogt Orex efficiëntie',
+            'Orex sluit grote leveringscontract, vraag stijgt',
+            'Goudprijs stijgt, Orex profiteert',
+            'Orex uitbreiding mijnbouwactiviteiten aangekondigd'
+          ],
+          negative: [
+            'Orex CEO treedt af, onzekerheid op de markt',
+            'Crisis in mijnbouwsector treft Orex hard',
+            'Beleggers verkopen Orex massaal na slechte cijfers',
+            'Conflict bedreigt Orex toeleveringsketen',
+            'Mijnstaking legt Orex productie stil',
+            'Mijnongeluk verstoort Orex operaties',
+            'Overstroming in Orex mijn, productie daalt',
+            'Orex productiekosten stijgen, winstmarges dalen'
+          ]
+        },
+        'LNTR': {
+          positive: [
+            'Lentra nieuwe update succesvol, adoptie stijgt',
+            'Lentra ruimtemissie geslaagd, vertrouwen groeit',
+            'Lentra raketlancering succesvol, koers stijgt',
+            'Lentra sluit groot contract voor satellietlanceringen',
+            'Doorbraak in Lentra raketbrandstof technologie',
+            'Lentra behaalt mijlpaal in ruimtevaart',
+            'Lentra satelliet netwerk uitgebreid, vraag stijgt',
+            'Lentra ruimtestation project goedgekeurd'
+          ],
+          negative: [
+            'Lentra launch gefaald, investeerders verkopen massaal',
+            'Strengere wetgeving voor ruimtevaart raakt Lentra',
+            'Technische problemen Lentra, koers zakt in',
+            'Crisis in ruimtesector, Lentra verliest waarde',
+            'Lentra raket explodeert bij lancering',
+            'Tekort aan raketbrandstof vertraagt Lentra missies',
+            'Lentra satelliet crasht, koers daalt',
+            'Lentra ruimtemissies uitgesteld door technische problemen'
+          ]
+        },
+        'SIL': {
+          positive: [
+            'Silica lanceert revolutionaire AI-chip, beleggers enthousiast',
+            'Silica sluit mega-deal met techgigant voor chiplevering',
+            'Doorbraak in kwantumprocessor, Silica koers explodeert',
+            'Silica AI-model verslaat concurrentie, vraag naar chips stijgt',
+            'Silica chipproductie verhoogd, winstcijfers stijgen',
+            'Nieuwe chipfabriek Silica geopend, capaciteit verdubbeld',
+            'Silica technologie doorbraak in halfgeleiders',
+            'Silica marktaandeel groeit, concurrentie verliest terrein'
+          ],
+          negative: [
+            'Chiptekort raakt Silica productielijn, koers zakt in',
+            'Nieuwe restricties op AI-chips van Silica',
+            'Silica verliest groot contract aan concurrent',
+            'Overhitting datacenter legt Silica fabriek stil, paniek op markt',
+            'Silica chipfabriek brand, productie verstoord',
+            'Silicium tekort remt Silica productie',
+            'Silica AI-verbod in meerdere regio\'s, koers daalt',
+            'Silica technologie achterhaald door concurrent'
+          ]
+        },
+        'REX': {
+          positive: [
+            'Rex whale activity gedetecteerd, volume stijgt explosief',
+            'Rex nieuwe reserves ontdekt, koers schiet omhoog',
+            'Nieuwe energiebron ontdekt, Rex profiteert',
+            'Rex productie stijgt, winstcijfers overtreffen verwachtingen',
+            'Akkoord verhoogt Rex prijzen, koers stijgt',
+            'Rex sluit grote leveringscontract',
+            'Energievraag stijgt, Rex profiteert',
+            'Rex uitbreiding productiecapaciteit aangekondigd'
+          ],
+          negative: [
+            'Rex regulatie dreigt, beleggers voorzichtig',
+            'Strengere wetgeving fossiele brandstoffen raakt Rex',
+            'Conflict verstoort Rex toevoer, paniek op markt',
+            'Beleggers verkopen Rex massaal na slechte cijfers',
+            'Tekort aan brandstof remt Rex productie',
+            'Rex pipeline lek, productie verstoord',
+            'Energieprijs crash treft Rex hard',
+            'Rex productie stilgelegd door technische problemen'
+          ]
+        },
+        'GLX': {
+          positive: [
+            'Glooma listing op grote exchange, vraag stijgt',
+            'Glooma doorbraak in mutatie-onderzoek, investeerders enthousiast',
+            'Glooma wetenschappelijke ontdekking, koers stijgt',
+            'Glooma onderzoeksproject succesvol afgerond',
+            'Glooma sluit samenwerkingsverband met universiteiten',
+            'Glooma innovatie wint prestigieuze prijs',
+            'Glooma financiering verdubbeld, groei versnelt',
+            'Glooma patent goedgekeurd, koers explodeert'
+          ],
+          negative: [
+            'Glooma security lek ontdekt, paniek op de markt',
+            'Crisis in mutation sector treft Glooma',
+            'Strengere wetgeving bedreigt Glooma projecten',
+            'Tekort aan financiering remt Glooma groei',
+            'Glooma onderzoek mislukt, investeerders teleurgesteld',
+            'Glooma lab brand vernietigt onderzoeksdata',
+            'Glooma wetgeving blokkeert belangrijke projecten',
+            'Glooma concurrent steelt marktaandeel'
+          ]
+        }
+      }
+      
+      if (event.type === 'event') {
+        // Market-wide events don't need headlines
+        return null
+      }
+      
+      const symbol = event.symbol
+      const isPositive = event.percentage > 0
+      const headlines = newsHeadlines[symbol]?.[isPositive ? 'positive' : 'negative']
+      return headlines ? headlines[Math.floor(Math.random() * headlines.length)] : null
+    }
+
+    // ⚔️ Helper function to check if macro event should trigger
+    const shouldTriggerMacroEvent = (roomCode) => {
+      // Initialize tracker if not exists
+      if (!roomMacroEventTracker[roomCode]) {
+        roomMacroEventTracker[roomCode] = {
+          lastMacroEvent: null,
+          eventsSinceLastMacro: 0,
+          macroEventCooldown: 30 // Minimum 30 events between macro events
+        }
+      }
+      
+      const tracker = roomMacroEventTracker[roomCode]
+      tracker.eventsSinceLastMacro++
+      
+      // Check if enough events have passed since last macro event
+      if (tracker.eventsSinceLastMacro < tracker.macroEventCooldown) {
+        return null // Too soon for another macro event
+      }
+      
+      // 10% chance to trigger macro event after cooldown
+      if (Math.random() > 0.10) {
+        return null
+      }
+      
+      // Determine which macro event to trigger
+      // If last was WAR, trigger PEACE. Otherwise, trigger WAR
+      const macroEvent = tracker.lastMacroEvent === 'WAR' ? 'PEACE' : 'WAR'
+      
+      // Update tracker
+      tracker.lastMacroEvent = macroEvent
+      tracker.eventsSinceLastMacro = 0
+      
+      return macroEvent
+    }
+    
+    // ⚔️ Helper function to trigger macro event and set market state
+    const triggerMacroEvent = (roomCode, macroEvent) => {
+      if (macroEvent === 'WAR') {
+        // WAR: 8-12 negative events follow
+        const duration = Math.floor(Math.random() * 5) + 8 // 8-12 events
+        roomMarketState[roomCode] = {
+          state: 'war',
+          eventsRemaining: duration,
+          triggeredBy: 'WAR'
+        }
+        console.log(`⚔️ WAR TRIGGERED! Crisis mode for ${duration} events`)
+        return {
+          type: 'macro',
+          event: 'WAR',
+          message: 'Conflict uitgebroken!',
+          icon: '⚔️',
+          duration: duration
+        }
+      } else if (macroEvent === 'PEACE') {
+        // PEACE: 6-8 positive events follow
+        const duration = Math.floor(Math.random() * 3) + 6 // 6-8 events
+        roomMarketState[roomCode] = {
+          state: 'peace',
+          eventsRemaining: duration,
+          triggeredBy: 'PEACE'
+        }
+        console.log(`🕊️ PEACE TRIGGERED! Recovery mode for ${duration} events`)
+        return {
+          type: 'macro',
+          event: 'PEACE',
+          message: 'Vredesakkoord gesloten!',
+          icon: '🕊️',
+          duration: duration
+        }
+      }
+      return null
     }
 
     // Helper function to generate next 10 events for a room
-    const generateUpcomingEvents = (roomCode) => {
+    function generateUpcomingEvents(roomCode) {
       const events = []
-      // Genereer eerste 9 events met momentum awareness
+      
+      // Genereer 9 events - war/peace logica zit in generateRandomEvent()
+      let lastWarIndex = -1
       for (let i = 0; i < 9; i++) {
-        events.push(generateRandomEvent(roomCode)) // Pass roomCode for momentum
+        let event
+        let attempts = 0
+        do {
+          event = generateRandomEvent(roomCode) // War/peace trigger logica zit hierin
+          attempts++
+          // Handhaaf minimaal 8 events tussen WAR en PEACE in de upcoming queue
+          if (event && event.type === 'peace' && lastWarIndex >= 0 && (i - lastWarIndex) < 8) {
+            continue // te vroeg voor vrede, probeer een ander event
+          }
+          break
+        } while (attempts < 5)
+        
+        // Add news headline for individual crypto events
+        if (event.type === 'boost' && event.symbol) {
+          event.headline = generateNewsHeadline(event)
+        } else if (event.type === 'war') {
+          event.headline = 'Oorlog uitgebroken'
+          lastWarIndex = i
+          console.log(`⚔️ WAR EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9)`)
+        } else if (event.type === 'peace') {
+          event.headline = 'Vredesakkoord getekend'
+          console.log(`🕊️ PEACE EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9)`)
+        }
+        
+        events.push(event)
       }
+      
       // 10e event is altijd Market Forecast
       events.push({ 
         type: 'forecast', 
@@ -1837,13 +2282,13 @@ app.prepare().then(() => {
         message: 'Market Forecast beschikbaar'
       })
       roomUpcomingEvents[roomCode] = events
-      console.log(`📋 Generated 9 momentum-aware events + 1 forecast event for room ${roomCode}`)
+      console.log(`📋 Generated 9 events + 1 forecast event for room ${roomCode}`)
       return events
     }
 
     // Helper function to calculate forecast based on upcoming events
     const calculateForecast = (upcomingEvents) => {
-      const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+      const cryptoSymbols = ['DSHP', 'ORX', 'LNTR', 'SIL', 'REX', 'GLX']
       const cryptoTotals = {}
       
       // Initialize with 0 for each crypto (simpele optelling)
@@ -1897,71 +2342,151 @@ app.prepare().then(() => {
       // Get upcoming events (exclude forecast events)
       const upcomingEvents = roomUpcomingEvents[roomCode].filter(evt => evt.type !== 'forecast')
       
-      // Pick events from upcoming events for dynamic insider info
-      const availableEvents = upcomingEvents.slice(0, 9) // Look at next 9 events
+      // Aggregate all events by symbol - sum percentages for each crypto/market
+      const symbolAggregates = {}
+      const cryptoSymbols = ['DSHP', 'ORX', 'LNTR', 'SIL', 'REX', 'GLX']
       
-      // Check if there's a market-wide event (Bull Run / Bear Market)
-      const marketEvent = availableEvents.find(evt => evt.type === 'event' && !evt.symbol)
+      // Initialize all cryptos with 0
+      cryptoSymbols.forEach(sym => {
+        symbolAggregates[sym] = { symbol: sym, totalPercentage: 0, isMarketEvent: false }
+      })
+      
+      // Initialize MARKET with 0
+      symbolAggregates['MARKET'] = { symbol: 'MARKET', totalPercentage: 0, isMarketEvent: true }
+      
+      // Track which symbols actually appear in top 10 events AND their headlines
+      const symbolsInTop10 = new Set()
+      const symbolHeadlines = {} // Store the first headline for each symbol
+      
+      // Sum up all percentages per symbol from next 10 events
+      upcomingEvents.slice(0, 10).forEach(evt => {
+        if (evt.type === 'event' && !evt.symbol) {
+          // Market-wide event affects MARKET aggregate
+          symbolAggregates['MARKET'].totalPercentage += evt.percentage
+          symbolsInTop10.add('MARKET')
+        } else if (evt.type === 'war') {
+          // War event
+          symbolsInTop10.add('WAR')
+        } else if (evt.type === 'peace') {
+          // Peace event
+          symbolsInTop10.add('PEACE')
+        } else if (evt.symbol && symbolAggregates[evt.symbol]) {
+          // Crypto-specific event
+          symbolAggregates[evt.symbol].totalPercentage += evt.percentage
+          symbolsInTop10.add(evt.symbol)
+          
+          // Store the first headline for this symbol (most impactful/first to occur)
+          if (!symbolHeadlines[evt.symbol] && evt.headline) {
+            symbolHeadlines[evt.symbol] = evt.headline
+          }
+        }
+      })
+      
+      console.log('📋 Symbols in top 10 events:', Array.from(symbolsInTop10).join(', '))
+      
+      // Convert to array, filter to only symbols in top 10, and sort by total percentage
+      const aggregateArray = Object.values(symbolAggregates).filter(agg => symbolsInTop10.has(agg.symbol))
+      const sorted = aggregateArray.sort((a, b) => b.totalPercentage - a.totalPercentage)
+      
+      console.log('📊 Insider Info Aggregates (next 10 events):')
+      sorted.forEach(agg => {
+        console.log(`   ${agg.symbol}: ${agg.totalPercentage > 0 ? '+' : ''}${agg.totalPercentage.toFixed(1)}%`)
+      })
+      
+      // Check if MARKET event is significant (>±15%)
+      const marketAggregate = symbolAggregates['MARKET']
+      const isMarketSignificant = Math.abs(marketAggregate.totalPercentage) > 15
       
       let insiderItems = []
       
-      if (marketEvent) {
-        // If there's a market event, show ONLY that one (not 2 items)
-        insiderItems = [{
-          symbol: 'MARKET',
-          percentage: marketEvent.percentage,
-          direction: marketEvent.percentage > 0 ? 'up' : 'down',
-          isMarketEvent: true
-        }]
-        console.log('🌍 Market-wide event detected - showing single market forecast')
-      } else {
-        // No market event - pick 2 DIFFERENT crypto events
-        const cryptoEvents = availableEvents.filter(evt => evt.symbol)
-        const shuffled = [...cryptoEvents].sort(() => Math.random() - 0.5)
+      if (isMarketSignificant) {
+        // Market event is significant - show 3 items: top crypto gainer + top crypto loser + market
+        console.log(`🚨 SIGNIFICANT MARKET EVENT: ${marketAggregate.totalPercentage > 0 ? 'BULL RUN' : 'MARKET CRASH'} (${marketAggregate.totalPercentage > 0 ? '+' : ''}${marketAggregate.totalPercentage.toFixed(1)}%)`)
         
-        // Pick 2 events with DIFFERENT symbols
-        const selectedEvents = []
-        const usedSymbols = new Set()
+        // Get best and worst crypto (excluding MARKET)
+        const cryptoOnly = sorted.filter(agg => agg.symbol !== 'MARKET')
+        const topCryptoGainer = cryptoOnly[0]
+        const topCryptoLoser = cryptoOnly[cryptoOnly.length - 1]
         
-        for (const evt of shuffled) {
-          if (!usedSymbols.has(evt.symbol)) {
-            selectedEvents.push(evt)
-            usedSymbols.add(evt.symbol)
-            if (selectedEvents.length >= 2) break
+        insiderItems = [
+          {
+            symbol: topCryptoGainer.symbol,
+            percentage: topCryptoGainer.totalPercentage,
+            direction: topCryptoGainer.totalPercentage > 0 ? 'up' : 'down',
+            isMarketEvent: false,
+            headline: symbolHeadlines[topCryptoGainer.symbol] || null
+          },
+          {
+            symbol: topCryptoLoser.symbol,
+            percentage: topCryptoLoser.totalPercentage,
+            direction: topCryptoLoser.totalPercentage > 0 ? 'up' : 'down',
+            isMarketEvent: false,
+            headline: symbolHeadlines[topCryptoLoser.symbol] || null
+          },
+          {
+            symbol: 'MARKET',
+            percentage: marketAggregate.totalPercentage,
+            direction: marketAggregate.totalPercentage > 0 ? 'up' : 'down',
+            isMarketEvent: true,
+            headline: null
           }
+        ]
+      } else {
+        // No significant market event - show 2 items: top gainer vs top loser
+        const topGainer = sorted[0]
+        let topLoser = sorted[sorted.length - 1]
+        
+        // Ensure top gainer and loser are different symbols
+        if (topGainer.symbol === topLoser.symbol) {
+          topLoser = sorted[sorted.length - 2] || sorted[sorted.length - 1]
         }
         
-        if (selectedEvents.length < 1) {
-          console.log('❌ No crypto events available for insider info')
-          return
-        }
-        
-        insiderItems = selectedEvents.map(evt => ({
-          symbol: evt.symbol,
-          percentage: evt.percentage,
-          direction: evt.percentage > 0 ? 'up' : 'down',
-          isMarketEvent: false
-        }))
-        
-        // If only 1 crypto event found, that's fine - show just 1
+        insiderItems = [
+          {
+            symbol: topGainer.symbol,
+            percentage: topGainer.totalPercentage,
+            direction: topGainer.totalPercentage > 0 ? 'up' : 'down',
+            isMarketEvent: topGainer.isMarketEvent,
+            headline: symbolHeadlines[topGainer.symbol] || null
+          },
+          {
+            symbol: topLoser.symbol,
+            percentage: topLoser.totalPercentage,
+            direction: topLoser.totalPercentage > 0 ? 'up' : 'down',
+            isMarketEvent: topLoser.isMarketEvent,
+            headline: symbolHeadlines[topLoser.symbol] || null
+          }
+        ]
       }
       
       console.log(`🕵️ Sending insider forecast to ${playerName}:`)
-      console.log(`   📰 Event 1: ${insiderItems[0].symbol} ${insiderItems[0].percentage > 0 ? '+' : ''}${insiderItems[0].percentage}% (${insiderItems[0].direction}) market=${insiderItems[0].isMarketEvent}`)
-      if (insiderItems[1]) {
-        console.log(`   📰 Event 2: ${insiderItems[1].symbol} ${insiderItems[1].percentage > 0 ? '+' : ''}${insiderItems[1].percentage}% (${insiderItems[1].direction}) market=${insiderItems[1].isMarketEvent}`)
-      }
+      insiderItems.forEach((item, idx) => {
+        console.log(`   📰 Event ${idx + 1}: ${item.symbol} ${item.percentage > 0 ? '+' : ''}${item.percentage}% (${item.direction}) market=${item.isMarketEvent}`)
+      })
       
       // Send ONLY to this player (not broadcast)
-      // For market events, send same item twice (client expects 2 items but will only render 1)
       socket.emit('player:insiderInfo', {
-        topGainer: { symbol: insiderItems[0].symbol, percentage: insiderItems[0].percentage },
-        topLoser: insiderItems[1] 
-          ? { symbol: insiderItems[1].symbol, percentage: insiderItems[1].percentage }
-          : { symbol: insiderItems[0].symbol, percentage: insiderItems[0].percentage }
+        items: insiderItems.map(item => ({
+          symbol: item.symbol,
+          percentage: item.percentage,
+          direction: item.direction,
+          isMarketEvent: item.isMarketEvent,
+          headline: item.headline
+        }))
       })
       
       console.log(`✅ Insider info sent privately to ${playerName}`)
+      
+      // Broadcast to OTHER players that this player used insider info
+      const playerData = rooms[roomCode].players[socket.id]
+      if (playerData) {
+        socket.to(roomCode).emit('player:insiderUsed', {
+          playerName: playerName,
+          playerAvatar: playerData.avatar || '👤'
+        })
+        console.log(`📢 Broadcast insider usage notification to other players`)
+      }
+      
       console.log(`🕵️ === INSIDER INFO COMPLETE ===\n`)
     })
 
@@ -2009,14 +2534,17 @@ app.prepare().then(() => {
         console.log(`\n🔮 ==================== FORECAST TRIGGERED ====================`)
         console.log(`🔮 Scan #${roomScanCount[roomCode]} - Generating Market Forecast`)
         
-        // NIEUWE LOGICA: Genereer NIEUWE 9 events en voorspel die
-        // Forecast voorspelt de VOLGENDE 9 events (niet de huidige)
-        const newEvents = []
-        for (let i = 0; i < 9; i++) {
-          newEvents.push(generateRandomEvent())
+        // Gebruik BESTAANDE queue events voor forecast voorspelling
+        // Zo worden aankomende events NIET vervangen bij forecast
+        const queueWithoutForecast = (roomUpcomingEvents[roomCode] || []).filter(e => e.type !== 'forecast')
+        const eventsForForecast = [...queueWithoutForecast].slice(0, 9)
+        // Vul aan tot 9 events indien queue te kort is
+        while (eventsForForecast.length < 9) {
+          eventsForForecast.push(generateRandomEvent(roomCode))
         }
+        const newEvents = eventsForForecast
         
-        console.log(`🔮 Generated 9 NEW events for forecast prediction`)
+        console.log(`🔮 Using ${queueWithoutForecast.length} existing queue events for forecast prediction`)
         
         // Calculate forecast based on NEW events
         const forecast = calculateForecast(newEvents)
@@ -2057,14 +2585,12 @@ app.prepare().then(() => {
         // Reset scan count after forecast
         roomScanCount[roomCode] = 0
         
-        // Replace queue with new events + forecast at end
-        roomUpcomingEvents[roomCode] = [...newEvents, { 
-          type: 'forecast', 
-          symbol: null, 
-          percentage: 0,
-          message: 'Market Forecast beschikbaar'
-        }]
-        console.log(`📋 Queue replaced with 9 new events + forecast at position 10`)
+        // Bewaar de bestaande queue - voeg alleen forecast marker toe aan het einde
+        // De aankomende events blijven ONGEWIJZIGD na forecast
+        const refreshedQueue = [...queueWithoutForecast]
+        refreshedQueue.push({ type: 'forecast', symbol: null, percentage: 0, message: 'Market Forecast beschikbaar' })
+        roomUpcomingEvents[roomCode] = refreshedQueue
+        console.log(`📋 Queue bewaard na forecast - ${refreshedQueue.length} events (incl. nieuwe forecast)`)
       } else {
         // Use next event from upcoming events queue
         const nextEvent = roomUpcomingEvents[roomCode].shift()
@@ -2085,14 +2611,28 @@ app.prepare().then(() => {
         if (isForecastLast) {
           // Forecast staat op laatste positie - voeg nieuwe events toe vóór forecast
           while (roomUpcomingEvents[roomCode].length < 10) {
-            const newEvent = generateRandomEvent()
+            const newEvent = generateRandomEvent(roomCode)
+            if (newEvent.type === 'boost' && newEvent.symbol) {
+              newEvent.headline = generateNewsHeadline(newEvent)
+            } else if (newEvent.type === 'war') {
+              newEvent.headline = 'Oorlog uitgebroken'
+            } else if (newEvent.type === 'peace') {
+              newEvent.headline = 'Vredesakkoord getekend'
+            }
             // Voeg toe op voorlaatste positie (voor forecast)
             roomUpcomingEvents[roomCode].splice(roomUpcomingEvents[roomCode].length - 1, 0, newEvent)
           }
         } else {
           // Forecast is weg of niet op laatste positie - voeg forecast toe
           while (roomUpcomingEvents[roomCode].length < 9) {
-            const newEvent = generateRandomEvent()
+            const newEvent = generateRandomEvent(roomCode)
+            if (newEvent.type === 'boost' && newEvent.symbol) {
+              newEvent.headline = generateNewsHeadline(newEvent)
+            } else if (newEvent.type === 'war') {
+              newEvent.headline = 'Oorlog uitgebroken'
+            } else if (newEvent.type === 'peace') {
+              newEvent.headline = 'Vredesakkoord getekend'
+            }
             roomUpcomingEvents[roomCode].push(newEvent)
           }
           // Voeg forecast toe als 10de event
@@ -2112,34 +2652,34 @@ app.prepare().then(() => {
         let effectMessage
         let targetSymbol = randomEvent.symbol
         
-        if (randomEvent.type === 'event') {
-          effectMessage = randomEvent.percentage > 0 ? `🐂 Bull Run! Alle munten +${randomEvent.percentage}%` : '🐻 Bear Market! Alle munten -10%'
+        if (randomEvent.type === 'war') {
+          effectMessage = 'Oorlog uitgebroken'
+          targetSymbol = null
+        } else if (randomEvent.type === 'peace') {
+          effectMessage = 'Vredesakkoord getekend'
+          targetSymbol = null
+        } else if (randomEvent.type === 'event') {
+          const absPct = Math.abs(randomEvent.percentage)
+          effectMessage = randomEvent.percentage > 0 ? `Bull Run (+${randomEvent.percentage}%)` : `Bear Market (-${absPct}%)`
         } else if (randomEvent.type === 'whale') {
           // Whale alert: kies random crypto
-          const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+          const cryptoSymbols = ['DSHP', 'ORX', 'LNTR', 'SIL', 'REX', 'GLX']
           targetSymbol = cryptoSymbols[Math.floor(Math.random() * cryptoSymbols.length)]
           const cryptoNames = {
-            'DSHEEP': 'DigiSheep',
-            'NGT': 'Nugget',
+            'DSHP': 'DigiSheep',
+            'ORX': 'Orex',
             'LNTR': 'Lentra',
-            'OMLT': 'Omlet',
+            'SIL': 'Silica',
             'REX': 'Rex',
-            'ORLO': 'Orlo'
+            'GLX': 'Glooma'
           }
           const name = cryptoNames[targetSymbol]
           effectMessage = `Whale Alert! ${name} +50%`
         } else {
-          const cryptoNames = {
-            'DSHEEP': 'DigiSheep',
-            'NGT': 'Nugget',
-            'LNTR': 'Lentra',
-            'OMLT': 'Omlet',
-            'REX': 'Rex',
-            'ORLO': 'Orlo'
-          }
-          const name = cryptoNames[randomEvent.symbol] || randomEvent.symbol
-          const direction = percentage > 0 ? 'stijgt' : 'daalt'
-          effectMessage = `${name} ${direction} ${percentage > 0 ? '+' : ''}${percentage}%`
+          // Use pre-generated headline from queue if available (prevents mismatch with upcoming events list)
+          // If no headline exists, fall back to simple format
+          effectMessage = randomEvent.headline || 
+                         `${randomEvent.symbol} ${percentage > 0 ? 'stijgt' : 'daalt'} ${percentage > 0 ? '+' : ''}${percentage}%`
         }
         
         scanAction = {
@@ -2150,7 +2690,8 @@ app.prepare().then(() => {
           effect: effectMessage,
           avatar: playerAvatar,
           cryptoSymbol: targetSymbol,
-          percentageValue: percentage
+          percentageValue: percentage,
+          headline: randomEvent.headline // Pass headline from queue to client (for consistency)
         }
         
         console.log(`🎲 Using pre-generated event: ${scanAction.effect}`)
@@ -2158,6 +2699,35 @@ app.prepare().then(() => {
         console.log(`📋 Remaining events in queue: ${roomUpcomingEvents[roomCode].length}`)
       }
       
+      // Apply WAR/PEACE state immediately when the event is applied (priority over bull/bear)
+      if (!shouldGenerateForecast && randomEvent.type === 'war') {
+        const duration = Math.floor(Math.random() * 5) + 10 // 10-14 events
+        roomMarketState[roomCode] = {
+          state: 'war',
+          eventsRemaining: duration,
+          triggeredBy: 'War'
+        }
+        io.to(roomCode).emit('market:stateUpdate', {
+          change24h: roomMarketChange24h[roomCode] || {},
+          marketState: roomMarketState[roomCode]?.state || 'normal',
+          stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
+        })
+        console.log(`⚔️ WAR APPLIED! War mode for ${duration} events (85% negative bias)`)
+      } else if (!shouldGenerateForecast && randomEvent.type === 'peace') {
+        const duration = Math.floor(Math.random() * 5) + 6 // 6-10 events
+        roomMarketState[roomCode] = {
+          state: 'peace',
+          eventsRemaining: duration,
+          triggeredBy: 'Peace'
+        }
+        io.to(roomCode).emit('market:stateUpdate', {
+          change24h: roomMarketChange24h[roomCode] || {},
+          marketState: roomMarketState[roomCode]?.state || 'normal',
+          stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
+        })
+        console.log(`🕊️ PEACE APPLIED! Peace mode for ${duration} events (75% positive bias)`)
+      }
+
       // Apply price changes (skip for forecast)
       if (!shouldGenerateForecast && randomEvent.type === 'event') {
         // Market-wide events
@@ -2184,25 +2754,27 @@ app.prepare().then(() => {
           })
           console.log(`🐂 Bull Run applied: All cryptos +${bullPct}%`)
         } else if (scanAction.effect.includes('Bear Market')) {
+          const bearPct = randomEvent.percentage // variable -5% to -25%
+          const bearMultiplier = 1 + bearPct / 100
           Object.keys(globalCryptoPrices).forEach(symbol => {
-            globalCryptoPrices[symbol] = Math.round(globalCryptoPrices[symbol] * 0.9 * 100) / 100
+            globalCryptoPrices[symbol] = Math.round(globalCryptoPrices[symbol] * bearMultiplier * 100) / 100
             // Track price history for candlestick chart
             if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][symbol]) {
-              roomPriceHistory[roomCode][symbol].push({ percentage: -10, timestamp: Date.now() })
+              roomPriceHistory[roomCode][symbol].push({ percentage: bearPct, timestamp: Date.now() })
               if (roomPriceHistory[roomCode][symbol].length > 10) {
                 roomPriceHistory[roomCode][symbol].shift()
               }
-              console.log(`📊 AUTO EVENT: ${symbol} price history updated (-10%) - now ${roomPriceHistory[roomCode][symbol].length} events`)
+              console.log(`📊 AUTO EVENT: ${symbol} price history updated (${bearPct}%) - now ${roomPriceHistory[roomCode][symbol].length} events`)
             }
             // 📈 Update momentum tracking for market-wide event
             if (!roomMomentum[roomCode]) roomMomentum[roomCode] = {}
             if (!roomMomentum[roomCode][symbol]) roomMomentum[roomCode][symbol] = []
-            roomMomentum[roomCode][symbol].push(-10)
+            roomMomentum[roomCode][symbol].push(bearPct)
             if (roomMomentum[roomCode][symbol].length > 5) {
               roomMomentum[roomCode][symbol].shift() // Keep last 5 moves
             }
           })
-          console.log(`🐻 Bear Market applied: All cryptos -10%`)
+          console.log(`🐻 Bear Market applied: All cryptos ${bearPct}%`)
         }
       } else if (!shouldGenerateForecast && scanAction.cryptoSymbol && scanAction.percentageValue !== undefined) {
         // Single crypto event (skip for forecast)
@@ -2227,19 +2799,45 @@ app.prepare().then(() => {
         }
         console.log(`💰 ${symbol}: ${oldPrice.toFixed(2)} → ${globalCryptoPrices[symbol].toFixed(2)}`)
         
-        // 🔗 CORRELATION SYSTEM: NGT leader coin effect
-        // When NGT (Nugget) makes a big move (>15%), other coins follow partially
+        // 🌍 MARKET STATE COUNTDOWN: Decrease eventsRemaining after each event
+        if (roomMarketState[roomCode] && roomMarketState[roomCode].eventsRemaining > 0) {
+          roomMarketState[roomCode].eventsRemaining--
+          const remaining = roomMarketState[roomCode].eventsRemaining
+          const currentState = roomMarketState[roomCode].state
+          console.log(`🌍 STATE: ${currentState.toUpperCase()} - ${remaining} events remaining`)
+          
+          // Auto-transition when countdown reaches 0
+          if (remaining === 0) {
+            if (currentState === 'war') {
+              // War ends → Peace begins (automatic transition)
+              const peaceDuration = Math.floor(Math.random() * 3) + 6 // 6-8 events
+              roomMarketState[roomCode] = {
+                state: 'peace',
+                eventsRemaining: peaceDuration,
+                triggeredBy: 'Auto transition from war'
+              }
+              console.log(`🕊️ PEACE TRIGGERED! Recovery from war for ${peaceDuration} events`)
+            } else if (currentState === 'peace') {
+              // Peace ends → Back to normal
+              delete roomMarketState[roomCode]
+              console.log(`✅ PEACE ENDED! Back to normal state`)
+            }
+          }
+        }
+        
+        // 🔗 CORRELATION SYSTEM: ORX leader coin effect
+        // When ORX (Orex) makes a big move (>15%), other coins follow partially
         // This mimics Bitcoin's influence on altcoins in real crypto markets
-        const LEADER_COIN = 'NGT'
+        const LEADER_COIN = 'ORX'
         const CORRELATION_THRESHOLD = 15 // Only trigger on moves >15%
         const CORRELATION_STRENGTH = 0.5 // Altcoins follow 50% of leader movement
         
         if (symbol === LEADER_COIN && Math.abs(scanAction.percentageValue) >= CORRELATION_THRESHOLD) {
           const correlationPercentage = scanAction.percentageValue * CORRELATION_STRENGTH
-          const altcoins = ['DSHEEP', 'LNTR', 'OMLT', 'REX', 'ORLO']
+          const altcoins = ['DSHP', 'LNTR', 'SIL', 'REX', 'GLX']
           
-          console.log(`\n🔗 === NGT LEADER EFFECT TRIGGERED ===`)
-          console.log(`🔗 NGT movement: ${scanAction.percentageValue > 0 ? '+' : ''}${scanAction.percentageValue}%`)
+          console.log(`\n🔗 === ORX LEADER EFFECT TRIGGERED ===`)
+          console.log(`🔗 ORX movement: ${scanAction.percentageValue > 0 ? '+' : ''}${scanAction.percentageValue}%`)
           console.log(`🔗 Altcoins will follow: ${correlationPercentage > 0 ? '+' : ''}${correlationPercentage.toFixed(1)}%`)
           
           altcoins.forEach(altcoin => {
@@ -2269,7 +2867,7 @@ app.prepare().then(() => {
             console.log(`🔗 ${altcoin}: ⚘${altOldPrice.toFixed(2)} → ⚘${globalCryptoPrices[altcoin].toFixed(2)} (${correlationPercentage > 0 ? '+' : ''}${correlationPercentage.toFixed(1)}%)`)
           })
           
-          console.log(`🔗 === NGT LEADER EFFECT COMPLETE ===\n`)
+          console.log(`🔗 === ORX LEADER EFFECT COMPLETE ===\n`)
         }
       }
       
@@ -2282,12 +2880,21 @@ app.prepare().then(() => {
       // Broadcast to ALL players in room (including trigger)
       io.to(roomCode).emit('scanData:update', {
         autoScanActions: roomScanData[roomCode].autoScanActions,
-        playerScanActions: roomScanData[roomCode].playerScanActions
+        playerScanActions: roomScanData[roomCode].playerScanActions,
+        upcomingEvents: roomUpcomingEvents[roomCode] || [],
+        scanCount: roomScanCount[roomCode] || 0
       })
       
       // Broadcast price update with price history
       io.to(roomCode).emit('crypto:priceUpdate', globalCryptoPrices)
       io.to(roomCode).emit('crypto:priceHistory', roomPriceHistory[roomCode] || {})
+      
+      // Broadcast market state update na scan (voor sidebar war/peace indicator)
+      io.to(roomCode).emit('market:stateUpdate', {
+        change24h: roomMarketChange24h[roomCode] || {},
+        marketState: roomMarketState[roomCode]?.state || 'normal',
+        stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
+      })
       
       console.log(`✅ Event broadcast to all players in room ${roomCode}`)
       console.log(`📊 Price history broadcast:`, Object.keys(roomPriceHistory[roomCode] || {}).map(sym => `${sym}:${roomPriceHistory[roomCode][sym].length}`).join(', '))
@@ -2332,6 +2939,14 @@ app.prepare().then(() => {
             globalCryptoPrices[symbol] = Math.max(0.01, Math.round(newPrice * 100) / 100) // Minimum 1 cent, round to 2 decimals
             
             // Price history tracking happens in scan:event handler to avoid duplicates
+            try {
+              if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][symbol]) {
+                roomPriceHistory[roomCode][symbol].push({ percentage: percentageChange, timestamp: Date.now() })
+                if (roomPriceHistory[roomCode][symbol].length > 10) {
+                  roomPriceHistory[roomCode][symbol].shift()
+                }
+              }
+            } catch {}
             console.log(`� PLAYER SCAN: ${symbol} price updated (history tracked in scan:event handler)`)
             
             console.log(`💰 MANUELE SCAN PRICE UPDATE: ${symbol} ${oldPrice.toFixed(2)} → ${globalCryptoPrices[symbol].toFixed(2)} (${percentageChange > 0 ? '+' : ''}${percentageChange}%)`)
@@ -2349,6 +2964,14 @@ app.prepare().then(() => {
               const oldPrice = globalCryptoPrices[symbol]
               globalCryptoPrices[symbol] = Math.max(0.01, Math.round(oldPrice * 1.05 * 100) / 100)
               // Price history tracking happens in scan:event handler to avoid duplicates
+              try {
+                if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][symbol]) {
+                  roomPriceHistory[roomCode][symbol].push({ percentage: 5, timestamp: Date.now() })
+                  if (roomPriceHistory[roomCode][symbol].length > 10) {
+                    roomPriceHistory[roomCode][symbol].shift()
+                  }
+                }
+              } catch {}
               console.log(`  ${symbol}: ⚘${oldPrice.toFixed(2)} → ⚘${globalCryptoPrices[symbol].toFixed(2)}`)
             })
           } else if (scanAction.effect.includes('Bear Market')) {
@@ -2357,6 +2980,14 @@ app.prepare().then(() => {
               const oldPrice = globalCryptoPrices[symbol]
               globalCryptoPrices[symbol] = Math.max(0.01, Math.round(oldPrice * 0.9 * 100) / 100)
               // Price history tracking happens in scan:event handler to avoid duplicates
+              try {
+                if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][symbol]) {
+                  roomPriceHistory[roomCode][symbol].push({ percentage: -10, timestamp: Date.now() })
+                  if (roomPriceHistory[roomCode][symbol].length > 10) {
+                    roomPriceHistory[roomCode][symbol].shift()
+                  }
+                }
+              } catch {}
               console.log(`  ${symbol}: ⚘${oldPrice.toFixed(2)} → ⚘${globalCryptoPrices[symbol].toFixed(2)}`)
             })
           } else if (scanAction.effect.includes('Whale Alert')) {
@@ -2373,6 +3004,14 @@ app.prepare().then(() => {
             const oldPrice = globalCryptoPrices[whaleAlertSymbol]
             globalCryptoPrices[whaleAlertSymbol] = Math.max(0.01, Math.round(oldPrice * 1.5 * 100) / 100)
             // Price history tracking happens in scan:event handler to avoid duplicates
+            try {
+              if (roomPriceHistory[roomCode] && roomPriceHistory[roomCode][whaleAlertSymbol]) {
+                roomPriceHistory[roomCode][whaleAlertSymbol].push({ percentage: 50, timestamp: Date.now() })
+                if (roomPriceHistory[roomCode][whaleAlertSymbol].length > 10) {
+                  roomPriceHistory[roomCode][whaleAlertSymbol].shift()
+                }
+              }
+            } catch {}
             console.log(`  ${whaleAlertSymbol}: ⚘${oldPrice.toFixed(2)} → ⚘${globalCryptoPrices[whaleAlertSymbol].toFixed(2)} (+50%)`)
           }
         }
@@ -2480,12 +3119,16 @@ app.prepare().then(() => {
           // Fallback: broadcast to room (should not happen)
           io.to(roomCode).emit('scanData:update', {
             autoScanActions: roomScanData[roomCode].autoScanActions,
-            playerScanActions: roomScanData[roomCode].playerScanActions
+            playerScanActions: roomScanData[roomCode].playerScanActions,
+            upcomingEvents: roomUpcomingEvents[roomCode] || [],
+            scanCount: roomScanCount[roomCode] || 0
           })
         }
         // Broadcast authoritative market change map
         io.to(roomCode).emit('market:stateUpdate', {
-          change24h: roomMarketChange24h[roomCode] || {}
+          change24h: roomMarketChange24h[roomCode] || {},
+          marketState: roomMarketState[roomCode]?.state || 'normal',
+          stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
         })
         
         // Force recalculation for all players to update their portfolios
@@ -2637,12 +3280,12 @@ app.prepare().then(() => {
         const amountMatch = action.effect?.match(/(\d+)x/)
         const amount = amountMatch ? parseInt(amountMatch[1]) : 1
         
-        const symbolMatch = action.effect?.match(/\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/) || 
-                           action.effect?.match(/(DigiSheep|Nugget|Lentra|Omlet|Rex|Orlo)/)
+        const symbolMatch = action.effect?.match(/\b(DSHP|ORX|LNTR|SIL|REX|GLX)\b/) || 
+                           action.effect?.match(/(DigiSheep|Orex|Lentra|Silica|Rex|Glooma)/)
         
         const nameToSymbol = {
-          'DigiSheep': 'DSHEEP', 'Nugget': 'NGT', 'Lentra': 'LNTR',
-          'Omlet': 'OMLT', 'Rex': 'REX', 'Orlo': 'ORLO'
+          'DigiSheep': 'DSHP', 'Orex': 'ORX', 'Lentra': 'LNTR',
+          'Silica': 'SIL', 'Rex': 'REX', 'Glooma': 'GLX'
         }
         
         const cryptoSymbol = symbolMatch ? (nameToSymbol[symbolMatch[0]] || symbolMatch[0]) : null
@@ -2675,12 +3318,12 @@ app.prepare().then(() => {
         const amountMatch = action.effect?.match(/(\d+)x/)
         const amount = amountMatch ? parseInt(amountMatch[1]) : 1
         
-        const symbolMatch = action.effect?.match(/\b(DSHEEP|NGT|LNTR|OMLT|REX|ORLO)\b/) || 
-                           action.effect?.match(/(DigiSheep|Nugget|Lentra|Omlet|Rex|Orlo)/)
+        const symbolMatch = action.effect?.match(/\b(DSHP|ORX|LNTR|SIL|REX|GLX)\b/) || 
+                           action.effect?.match(/(DigiSheep|Orex|Lentra|Silica|Rex|Glooma)/)
         
         const nameToSymbol = {
-          'DigiSheep': 'DSHEEP', 'Nugget': 'NGT', 'Lentra': 'LNTR',
-          'Omlet': 'OMLT', 'Rex': 'REX', 'Orlo': 'ORLO'
+          'DigiSheep': 'DSHP', 'Orex': 'ORX', 'Lentra': 'LNTR',
+          'Silica': 'SIL', 'Rex': 'REX', 'Glooma': 'GLX'
         }
         
         const cryptoSymbol = symbolMatch ? (nameToSymbol[symbolMatch[0]] || symbolMatch[0]) : null
@@ -2800,7 +3443,9 @@ app.prepare().then(() => {
       io.to(roomCode).emit('crypto:priceHistory', roomPriceHistory[roomCode] || {})
       io.to(roomCode).emit('scanData:update', {
         autoScanActions: roomScanData[roomCode].autoScanActions,
-        playerScanActions: roomScanData[roomCode].playerScanActions
+        playerScanActions: roomScanData[roomCode].playerScanActions,
+        upcomingEvents: roomUpcomingEvents[roomCode] || [],
+        scanCount: roomScanCount[roomCode] || 0
       })
       io.to(roomCode).emit('market:stateUpdate', {
         change24h: roomMarketChange24h[roomCode] || {}

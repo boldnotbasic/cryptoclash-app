@@ -26,11 +26,11 @@ export default function WhaleChoice({ cryptos, onSelectCrypto }: WhaleChoiceProp
   const getCryptoImagePath = (symbol: string) => {
     const imageMap: { [key: string]: string } = {
       'DSHEEP': '/dsheep.png',
-      'NGT': '/Nugget.png',
+      'ORX': '/orex.png',
       'LNTR': '/lentra.png',
-      'OMLT': '/omlt.png',
+      'SIL': '/silica.png',
       'REX': '/rex.png',
-      'ORLO': '/orlo.png'
+      'GLX': '/glooma.png'
     }
     return imageMap[symbol] || null
   }

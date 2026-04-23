@@ -16,7 +16,7 @@ interface ScanResultProps {
 }
 
 export interface ScanEffect {
-  type: 'boost' | 'crash' | 'event' | 'forecast'
+  type: 'boost' | 'crash' | 'event' | 'forecast' | 'war' | 'peace'
   cryptoSymbol?: string
   percentage?: number
   message: string
@@ -25,6 +25,7 @@ export interface ScanEffect {
   topGainer?: { symbol: string; percentage: number }
   topLoser?: { symbol: string; percentage: number }
   isUndo?: boolean  // Indicates this is an undo/correction action
+  headline?: string  // Header text for popup (e.g., "Beurs update" for automatic Bot events)
 }
 
 interface ScanScenarioTemplate {
@@ -37,34 +38,34 @@ interface ScanScenarioTemplate {
   color: string
 }
 
-const whaleSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+const whaleSymbols = ['DSHP', 'ORX', 'LNTR', 'SIL', 'REX', 'GLX']
 
 // Crypto symbol to full name mapping
 const cryptoNames: Record<string, string> = {
-  'DSHEEP': 'DigiSheep',
-  'NGT': 'Nugget',
+  'DSHP': 'DigiSheep',
+  'ORX': 'Orex',
   'LNTR': 'Lentra',
-  'OMLT': 'Omlet',
+  'SIL': 'Silica',
   'REX': 'Rex',
-  'ORLO': 'Orlo'
+  'GLX': 'Glooma'
 }
 
 const scanScenarios: ScanScenarioTemplate[] = [
   {
     type: 'boost',
-    cryptoSymbol: 'DSHEEP',
+    cryptoSymbol: 'DSHP',
     minPercentage: -30,
     maxPercentage: 30,
-    baseMessage: 'DigiSheep stijgt {PERCENTAGE}!',
+    baseMessage: 'DigiSheep breekt door weerstandsniveau, investeerders optimistisch',
     icon: '🐑',
     color: 'neon-purple'
   },
   {
     type: 'boost',
-    cryptoSymbol: 'NGT',
+    cryptoSymbol: 'ORX',
     minPercentage: -30,
     maxPercentage: 30,
-    baseMessage: 'Nugget rally {PERCENTAGE}!',
+    baseMessage: 'Orex partnership aangekondigd, koers schiet omhoog',
     icon: '🐔',
     color: 'neon-gold'
   },
@@ -73,16 +74,16 @@ const scanScenarios: ScanScenarioTemplate[] = [
     cryptoSymbol: 'LNTR',
     minPercentage: -30,
     maxPercentage: 30,
-    baseMessage: 'Lentra crash {PERCENTAGE}!',
+    baseMessage: 'Lentra launch gefaald, investeerders verkopen massaal',
     icon: '🌟',
     color: 'neon-blue'
   },
   {
     type: 'boost',
-    cryptoSymbol: 'OMLT',
+    cryptoSymbol: 'SIL',
     minPercentage: 10,
     maxPercentage: 25,
-    baseMessage: 'Omlet beweegt {PERCENTAGE}!',
+    baseMessage: 'Silica lanceert revolutionaire AI-chip, beleggers enthousiast',
     icon: '🥚',
     color: 'neon-turquoise'
   },
@@ -91,16 +92,16 @@ const scanScenarios: ScanScenarioTemplate[] = [
     cryptoSymbol: 'REX',
     minPercentage: -30,
     maxPercentage: 30,
-    baseMessage: 'Rex move {PERCENTAGE}!',
+    baseMessage: 'Rex whale activity gedetecteerd, volume stijgt explosief',
     icon: '💫',
     color: 'neon-purple'
   },
   {
     type: 'crash',
-    cryptoSymbol: 'ORLO',
+    cryptoSymbol: 'GLX',
     minPercentage: -30,
     maxPercentage: 30,
-    baseMessage: 'Orlo dip {PERCENTAGE}',
+    baseMessage: 'Glooma security lek ontdekt, paniek op de markt',
     icon: '🎵',
     color: 'neon-gold'
   },
@@ -128,6 +129,23 @@ const scanScenarios: ScanScenarioTemplate[] = [
     baseMessage: 'Market Forecast',
     icon: '🔮',
     color: 'neon-purple'
+  },
+  // War and Peace events
+  {
+    type: 'event',
+    minPercentage: 0,
+    maxPercentage: 0,
+    baseMessage: 'Oorlog uitgebroken! Markt wordt zeer negatief',
+    icon: '/oorlog.png',
+    color: 'orange-500'
+  },
+  {
+    type: 'event',
+    minPercentage: 0,
+    maxPercentage: 0,
+    baseMessage: 'Vredesakkoord getekend! Markt herstelt zich',
+    icon: '/vrede.png',
+    color: 'blue-500'
   }
 ]
 
@@ -147,12 +165,12 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
   // Simulate next 10 events to calculate top gainer and loser
   const simulateFutureEvents = (numEvents: number = 10): { topGainer: { symbol: string; percentage: number }; topLoser: { symbol: string; percentage: number } } => {
     const cryptoChanges: Record<string, number> = {
-      DSHEEP: 0,
-      NGT: 0,
+      DSHP: 0,
+      ORX: 0,
       LNTR: 0,
-      OMLT: 0,
+      SIL: 0,
       REX: 0,
-      ORLO: 0
+      GLX: 0
     }
 
     // Simulate 10 future events
@@ -181,8 +199,8 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
     }
 
     // Find top gainer and loser
-    let topGainer = { symbol: 'DSHEEP', percentage: cryptoChanges.DSHEEP }
-    let topLoser = { symbol: 'DSHEEP', percentage: cryptoChanges.DSHEEP }
+    let topGainer = { symbol: 'DSHP', percentage: cryptoChanges.DSHP }
+    let topLoser = { symbol: 'DSHP', percentage: cryptoChanges.DSHP }
 
     Object.entries(cryptoChanges).forEach(([symbol, change]) => {
       if (change > topGainer.percentage) {
@@ -223,20 +241,8 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
           .trim()
       }
     } else {
-      // Voor coin-scenario's: geen percentage in de titel en werkwoord normaliseren naar stijgt/daalt
-      if (percentage !== undefined) {
-        const isPositive = percentage > 0
-        // vervang verschillende werkwoorden naar stijgt/daalt
-        message = message.replace(/\b(stijgt|daalt|beweegt|rally|crash|move|dip)\b/gi, isPositive ? 'stijgt' : 'daalt')
-      }
-      // verwijder placeholder en opschonen van extra spaties/teken
-      if (message.includes('{PERCENTAGE}')) {
-        message = message
-          .replace('{PERCENTAGE}', '')
-          .replace(/\s+(!|\?|\.)/g, '$1')
-          .replace(/\s{2,}/g, ' ')
-          .trim()
-      }
+      // Voor coin-scenario's: gebruik de news headline as-is (geen percentage in de message)
+      // Message is already the news headline from baseMessage
     }
 
     let cryptoSymbol = template.cryptoSymbol
@@ -323,6 +329,11 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
       }, 500)
     }, 100)
     
+    // CRITICAL: Reset initializedRef on unmount so popup works on next mount
+    return () => {
+      console.log('🧹 EventPopup unmounting - resetting initializedRef')
+      initializedRef.current = false
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Only run once on mount
 
@@ -440,15 +451,26 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
 
   if (!currentScenario) return null
 
+  // Normalize legacy data coming from server/client: ORLO -> GLX, Orlo -> Glooma
+  const normalizedSymbol = (currentScenario.cryptoSymbol === 'ORLO' ? 'GLX' : currentScenario.cryptoSymbol)
+  const normalizedHeadline = typeof (currentScenario as any).headline === 'string'
+    ? (currentScenario as any).headline.replace(/\bOrlo\b/g, 'Glooma').replace(/\bORLO\b/g, 'GLX')
+    : (currentScenario as any).headline
+  const normalizedMessage = typeof currentScenario.message === 'string'
+    ? currentScenario.message.replace(/\bOrlo\b/g, 'Glooma').replace(/\bORLO\b/g, 'GLX')
+    : currentScenario.message
+
   const getCryptoImagePath = (symbol?: string) => {
     if (!symbol) return null
     switch (symbol) {
+      case 'DSHP': return '/dsheep.png'
       case 'DSHEEP': return '/dsheep.png'
+      case 'ORX': return '/orex.png'
       case 'LNTR': return '/lentra.png'
-      case 'OMLT': return '/omlt.png'
-      case 'ORLO': return '/orlo.png'
+      case 'SIL': return '/silica.png'
       case 'REX': return '/rex.png'
-      case 'NGT': return '/Nugget.png'
+      case 'GLX': return '/glooma.png'
+      case 'ORX': return '/orex.png'
       default: return null
     }
   }
@@ -458,7 +480,18 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
   //  - /Bull-run.png
   //  - /Beurscrash.png
   //  - /Whala-alert.png
+  // Bulletproof war/peace detection: check BOTH type AND message content
+  const isWarEvent = currentScenario.type === 'war' || 
+    currentScenario.message?.includes('Oorlog uitgebroken') || 
+    (currentScenario as any).headline?.includes('Oorlog uitgebroken')
+  const isPeaceEvent = currentScenario.type === 'peace' || 
+    currentScenario.message?.includes('Vredesakkoord getekend') || 
+    (currentScenario as any).headline?.includes('Vredesakkoord getekend')
+
   const getEventImagePath = () => {
+    if (isWarEvent) return '/oorlog.png'
+    if (isPeaceEvent) return '/vrede.png'
+    if (currentScenario.type === 'forecast') return '/forecast.png'
     if (currentScenario.type !== 'event') return null
     const msg = currentScenario.message || ''
     if (msg.includes('Bull Run')) return '/Bull-run.png'
@@ -468,6 +501,10 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
   }
 
   const getBackgroundColor = () => {
+    // War/Peace override: always use correct colors
+    if (isWarEvent) return 'from-red-600/20 to-red-800/20'
+    if (isPeaceEvent) return 'from-green-600/20 to-green-800/20'
+    
     // Use percentage to determine color: green for positive, red for negative
     if (currentScenario.percentage !== undefined && currentScenario.percentage !== null) {
       if (currentScenario.percentage > 0) {
@@ -484,6 +521,7 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
       case 'neon-turquoise': return 'from-cyan-600/20 to-cyan-800/20'
       case 'neon-gold': return 'from-yellow-600/20 to-yellow-800/20'
       case 'red-500': return 'from-red-600/20 to-red-800/20'
+      case 'green-500': return 'from-green-600/20 to-green-800/20'
       default: return 'from-purple-600/20 to-blue-600/20'
     }
   }
@@ -500,6 +538,10 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
   }
 
   const getBorderColor = () => {
+    // War/Peace override: always use correct colors
+    if (isWarEvent) return 'border-red-500 shadow-red-500'
+    if (isPeaceEvent) return 'border-green-500 shadow-green-500'
+    
     // Use percentage to determine color: green for positive, red for negative
     if (currentScenario.percentage !== undefined && currentScenario.percentage !== null) {
       if (currentScenario.percentage > 0) {
@@ -516,6 +558,7 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
       case 'neon-turquoise': return 'border-neon-turquoise shadow-neon-turquoise'
       case 'neon-gold': return 'border-neon-gold shadow-neon-gold'
       case 'red-500': return 'border-red-500 shadow-red-500'
+      case 'green-500': return 'border-green-500 shadow-green-500'
       default: return 'border-neon-purple shadow-neon-purple'
     }
   }
@@ -540,7 +583,7 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={`crypto-card ${getBorderColor()} bg-gradient-to-br ${getBackgroundColor()} max-w-md w-full text-center p-8 relative`}>
+        <div className={`crypto-card ${getBorderColor()} bg-gradient-to-br ${getBackgroundColor()} w-96 text-center p-8 relative`}>
 
           {/* CORRECTIE Header - alleen tonen bij undo acties */}
           {currentScenario.isUndo && (
@@ -553,17 +596,21 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
               </div>
             </div>
           )}
+          
+          {/* BEURS UPDATE Header - toon bij automatische Bot events */}
+          {!currentScenario.isUndo && (currentScenario as any).headline === 'Beurs update' && (
+            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-purple-500/90 px-6 py-2 rounded-full border-2 border-purple-400 shadow-lg">
+              <div className="flex items-center gap-2">
+                <span className="text-white font-bold text-sm tracking-wider">MARKT UPDATE</span>
+              </div>
+            </div>
+          )}
 
           {/* Crypto Icon */}
           <div className="mb-6">
             <div className="text-8xl mb-4 flex items-center justify-center">
               {(() => {
-                // Special handling for forecast: show crystal ball icon
-                if (currentScenario.type === 'forecast') {
-                  return <span>{currentScenario.icon}</span>
-                }
-
-                // Eerst: custom event image (Bull Run / Market Crash / Whale Alert)
+                // Eerst: custom event image (Bull Run / Market Crash / Whale Alert / War / Peace / Forecast)
                 const eventImage = getEventImagePath()
                 if (eventImage) {
                   return (
@@ -580,12 +627,12 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
                 }
 
                 // Anders: normale crypto image op basis van symbool
-                const imagePath = getCryptoImagePath(currentScenario.cryptoSymbol)
+                const imagePath = getCryptoImagePath(normalizedSymbol)
                 if (imagePath) {
                   return (
                     <Image
                       src={imagePath}
-                      alt={currentScenario.cryptoSymbol || 'Crypto'}
+                      alt={normalizedSymbol || 'Crypto'}
                       width={180}
                       height={180}
                       className="object-contain"
@@ -599,25 +646,49 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
                 return <span>{currentScenario.icon}</span>
               })()}
             </div>
-            {currentScenario.cryptoSymbol && currentScenario.type !== 'forecast' && (
-              <div className="text-lg text-gray-400 mb-2">{currentScenario.cryptoSymbol}</div>
+            {normalizedSymbol && currentScenario.type !== 'forecast' && (
+              <div className="text-lg text-gray-400 mb-2">{normalizedSymbol}</div>
             )}
           </div>
 
-          {/* Effect Message - Show for Forecast and Market-wide events */}
+          {/* News Description - Show for non-forecast crypto events */}
+          {currentScenario.type !== 'forecast' && currentScenario.type !== 'event' && !isWarEvent && !isPeaceEvent && (
+            <div className="mb-6 px-2">
+              <p className="text-sm text-white font-semibold leading-relaxed break-words">
+                {(normalizedHeadline as any) === 'Beurs update' ? (
+                  <span className="text-gray-400"></span>
+                ) : normalizedHeadline && normalizedHeadline !== 'Beurs update' ? (
+                  <>&ldquo;{normalizedHeadline}&rdquo;</>
+                ) : (
+                  <>&ldquo;{normalizedMessage}&rdquo;</>
+                )}
+              </p>
+            </div>
+          )}
+
+          {/* Effect Message - Show for Forecast, Market-wide events, War and Peace */}
           <div className="mb-6">
-            {/* Show message for forecast AND market-wide events (Bull Run, Bear Market, Whale Alert) */}
-            {(currentScenario.type === 'forecast' || currentScenario.type === 'event') && (
+            {/* Show message for forecast, market-wide events, war and peace */}
+            {(currentScenario.type === 'forecast' || currentScenario.type === 'event' || isWarEvent || isPeaceEvent) && (
               <div className="flex items-center justify-center">
-                <h3 className={`text-3xl font-bold ${
-                  currentScenario.message.includes('Bear Market') || currentScenario.message.includes('Market Crash')
-                    ? 'text-white'
-                    : getTextColor()
+                <h3 className={`text-3xl font-bold uppercase ${
+                  isWarEvent
+                    ? 'text-red-400'
+                    : isPeaceEvent
+                      ? 'text-green-400'
+                      : currentScenario.message.includes('Bear Market') || 
+                        currentScenario.message.includes('Market Crash')
+                          ? 'text-white'
+                          : currentScenario.message.includes('Bull Run')
+                            ? 'text-white'
+                            : getTextColor()
                 }`}>
-                  {currentScenario.message.includes('Bull Run') ? 'Bull Run!' : 
-                   currentScenario.message.includes('Bear Market') ? 'Bear Market!' :
-                   currentScenario.message.includes('Market Crash') ? 'Bear Market!' : 
-                   currentScenario.message}
+                  {isWarEvent ? 'OORLOG UITGEBROKEN' :
+                   isPeaceEvent ? 'VREDESAKKOORD GETEKEND' :
+                   normalizedMessage.includes('Bull Run') ? 'Bull Run' : 
+                   normalizedMessage.includes('Bear Market') ? 'Bear Market' :
+                   normalizedMessage.includes('Market Crash') ? 'Bear Market' :
+                   normalizedMessage}
                 </h3>
               </div>
             )}
@@ -695,8 +766,8 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
               </div>
             )}
 
-            {/* Regular percentage display for non-forecast events - EXCLUDE whale alerts */}
-            {currentScenario.type !== 'forecast' && currentScenario.percentage && !currentScenario.message.includes('Whale Alert') && (
+            {/* Regular percentage display for non-forecast events - EXCLUDE whale alerts, war, and peace */}
+            {currentScenario.type !== 'forecast' && !isWarEvent && !isPeaceEvent && !!currentScenario.percentage && !currentScenario.message.includes('Whale Alert') && (
               <div className="flex flex-col items-center justify-center mt-2">
                 <div className="flex items-center space-x-3">
                   {currentScenario.percentage > 0 ? (

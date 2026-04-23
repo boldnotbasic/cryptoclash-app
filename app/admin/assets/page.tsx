@@ -112,7 +112,7 @@ export default function AssetsAdminPage() {
   }
 
   const cryptoAssets = assets.filter(a => 
-    ['dsheep.png', 'goudhaantje.png', 'lentra.png', 'omlt.png', 'rex.png', 'orlo.png'].includes(a.name.toLowerCase())
+    ['dsheep.png', 'goudhaantje.png', 'lentra.png', 'silica.png', 'orex.png', 'rex.png', 'glooma.png'].includes(a.name.toLowerCase())
   )
   const eventAssets = assets.filter(a => 
     ['bull-run.png', 'beurscrash.png', 'whala-alert.png'].includes(a.name.toLowerCase())

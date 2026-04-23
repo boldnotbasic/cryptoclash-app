@@ -45,11 +45,11 @@ const playerCleanupTimers = new Map()
 // 🚨 CRITICAL: Global crypto prices - SINGLE SOURCE OF TRUTH
 const globalCryptoPrices = {
   DSHEEP: 42.30,
-  NGT: 1250.75, 
+  ORX: 1250.75, 
   LNTR: 89.20,
-  OMLT: 156.40,
+  SIL: 156.40,
   REX: 0.85,
-  ORLO: 2340.80
+  GLX: 2340.80
 }
 
 // 🚨 CRITICAL: Centralized scan data per room - SERVER SOURCE OF TRUTH
@@ -113,12 +113,12 @@ function startActivityInterval(roomCode, socketIo) {
   }
   
   console.log(`🚀 Creating activity interval for room ${roomCode}`)
-  const cryptoSymbols = ['DSHEEP', 'NGT', 'LNTR', 'OMLT', 'REX', 'ORLO']
+  const cryptoSymbols = ['DSHEEP', 'ORX', 'LNTR', 'SIL', 'REX', 'GLX']
   const sanitizeEffect = (effect) => {
     try {
       if (typeof effect !== 'string') return effect
       return effect
-        .replace(/\bRIZZ\b/g, 'NGT')
+        .replace(/\bRIZZ\b/g, 'ORX')
         .replace(/\bWHALE\b/g, 'REX')
     } catch {
       return effect
@@ -232,11 +232,11 @@ io.on('connection', (socket) => {
         cashBalance: settings?.startingCash || 1000,
         portfolio: {
           DSHEEP: 1.0,
-          NUGGET: 0.5,
+          ORX: 0.5,
           LNTR: 2.0,
-          OMLT: 1.5,
+          SIL: 1.5,
           REX: 100.0,
-          ORLO: 0.25
+          GLX: 0.25
         }
       }
       
@@ -274,11 +274,11 @@ io.on('connection', (socket) => {
       cashBalance: room.settings.startingCash || 1000,
       portfolio: {
         DSHEEP: 1.0,
-        NUGGET: 0.5,
+        ORX: 0.5,
         LNTR: 2.0,
-        OMLT: 1.5,
+        SIL: 1.5,
         REX: 100.0,
-        ORLO: 0.25
+        GLX: 0.25
       }
     }
     

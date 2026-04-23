@@ -7,8 +7,10 @@
     "dev": "node server.js",
     "dev:old": "next dev",
     "dev:network": "next dev --hostname 0.0.0.0",
+    "dev:3001": "PORT=3001 node server.js",
     "build": "next build",
     "start": "NODE_ENV=production node server.js",
+    "start:3001": "PORT=3001 NODE_ENV=production node server.js",
     "lint": "next lint"
   },
   "dependencies": {
@@ -35,6 +37,7 @@
     "typescript": "^5.0.0"
   },
   "devDependencies": {
+    "baseline-browser-mapping": "^2.10.21",
     "eslint": "^8.0.0",
     "eslint-config-next": "^14.0.0"
   }

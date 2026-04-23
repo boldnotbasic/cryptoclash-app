@@ -134,7 +134,7 @@ export default function LoginScreen({ onLogin, onBack, room }: LoginScreenProps)
   }, [])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-dark-bg via-purple-900/20 to-blue-900/20">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-dark-bg via-purple-900/20 to-blue-900/20">
       <div className="max-w-md w-full mx-4">
         {/* Logo en Titel */}
         <div className="text-center mb-8">

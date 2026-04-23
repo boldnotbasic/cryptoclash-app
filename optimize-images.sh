@@ -14,7 +14,7 @@ LARGE_IMAGES=(
   "Whala-alert.png"
   "Beurscrash.png"
   "Nugget.png"
-  "orlo.png"
+  "glooma.png"
   "rex.png"
   "dsheep.png"
   "lentra.png"
