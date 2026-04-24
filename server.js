@@ -1910,11 +1910,10 @@ app.prepare().then(() => {
         { type: 'boost', symbol: 'GLX', min: -30, max: 30 },
         { type: 'boost', symbol: 'GLX', min: -30, max: 30 },
         { type: 'boost', symbol: 'GLX', min: -30, max: 30 },
-        // Market-wide events are now handled via WAR/PEACE only
-        // Bull Run and Bear Market removed - they should not be market states
-        // WAR/PEACE events zijn NIET in de pool - ze worden via speciale logica getriggerd
-        // Whale Alert events - TIJDELIJK UITGESCHAKELD
-        // { type: 'whale', symbol: null, min: 50, max: 50 }, // Random crypto +50%
+        // Market-wide events (zeldzaam maar impactvol)
+        { type: 'event', symbol: null, min: 10, max: 30 },   // Bull Run: alles stijgt
+        { type: 'event', symbol: null, min: -30, max: -10 },  // Market Crash: alles daalt
+        // WAR/PEACE events zijn NIET in de pool - ze worden via generateUpcomingEvents getriggerd
       ]
       
       let randomEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)]
@@ -1936,19 +1935,8 @@ app.prepare().then(() => {
         }
       }
       
-      if (roomCode) {
-        global.roomWarTracker[roomCode].eventsSinceStart++
-        
-        // Debug logging voor war trigger check
-        if (global.roomWarTracker[roomCode].eventsSinceStart % 5 === 0) {
-          console.log(`🎲 War Check - Events: ${global.roomWarTracker[roomCode].eventsSinceStart}, State: ${currentState}, War happened: ${global.roomWarTracker[roomCode].warHappened}`)
-        }
-        
-        // Track war state counter (voor peace trigger in generateUpcomingEvents)
-        if (currentState === 'war') {
-          global.roomWarTracker[roomCode].eventsSinceWarStarted = (global.roomWarTracker[roomCode].eventsSinceWarStarted || 0) + 1
-        }
-      }
+      // eventsSinceStart wordt NIET hier verhoogd - alleen bij toegepaste events (player:triggerEvent)
+      // Dit voorkomt dat de counter te snel oploopt door fill-up generaties
       // WAR/PEACE triggers zijn verplaatst naar generateUpcomingEvents() zodat er max 1 per batch kan zijn
       
       let percentage
@@ -1962,7 +1950,7 @@ app.prepare().then(() => {
         
         // Determine positive/negative bias based on market state
         if (marketState === 'war') {
-          positiveChance = 0.15 // 15% positive, 85% negative during war
+          positiveChance = 0.10 // 10% positive, 90% negative during war
           shouldBePositive = Math.random() < positiveChance
         } else if (marketState === 'peace') {
           positiveChance = 0.75 // 75% positive, 25% negative during peace
@@ -2002,6 +1990,17 @@ app.prepare().then(() => {
         
         const stateLabel = marketState === 'normal' ? 'MOMENTUM' : `STATE:${marketState.toUpperCase()}`
         console.log(`🌍 ${stateLabel}: ${randomEvent.symbol} (${(positiveChance * 100).toFixed(0)}% pos) → ${percentage > 0 ? '+' : ''}${percentage}%`)
+      } else if (randomEvent.type === 'event') {
+        // Market-wide events: Bull Run (+10 tot +30%) of Market Crash (-10 tot -30%)
+        if (randomEvent.min > 0) {
+          // Bull Run
+          percentage = Math.floor(Math.random() * (randomEvent.max - randomEvent.min + 1)) + randomEvent.min
+          console.log(`🐂 BULL RUN EVENT: +${percentage}% for all cryptos`)
+        } else {
+          // Market Crash
+          percentage = -(Math.floor(Math.random() * (Math.abs(randomEvent.min) - Math.abs(randomEvent.max) + 1)) + Math.abs(randomEvent.max))
+          console.log(`🐻 MARKET CRASH EVENT: ${percentage}% for all cryptos`)
+        }
       } else if (randomEvent.type === 'war') {
         // ⚔️ TRIGGER WAR STATE - percentage is always 0, skip the do-while loop
         percentage = 0
@@ -2337,6 +2336,7 @@ app.prepare().then(() => {
       const events = []
       
       // Initialize war tracker if needed
+      if (!global.roomWarTracker) global.roomWarTracker = {}
       if (roomCode && !global.roomWarTracker[roomCode]) {
         global.roomWarTracker[roomCode] = {
           eventsSinceStart: 0,
@@ -2349,6 +2349,8 @@ app.prepare().then(() => {
       
       const tracker = roomCode ? global.roomWarTracker[roomCode] : null
       const currentState = roomCode && roomMarketState[roomCode] ? roomMarketState[roomCode].state : 'normal'
+      // Bewaar originele state zodat we die na batch-generatie kunnen herstellen
+      const originalMarketState = roomCode && roomMarketState[roomCode] ? { ...roomMarketState[roomCode] } : null
       
       // ⚔️ DECIDE WAR/PEACE PLACEMENT FOR THIS BATCH (max 1 per batch of 9)
       let warSlot = -1   // Index waar war event komt (-1 = geen)
@@ -2388,6 +2390,9 @@ app.prepare().then(() => {
         peaceSlot = -1
       }
       
+      // Track of we in war-modus zitten voor deze batch (zodat events NA war-slot ook war-bias krijgen)
+      let batchWarActive = (currentState === 'war')
+      
       // Genereer 9 events
       for (let i = 0; i < 9; i++) {
         let event
@@ -2396,23 +2401,33 @@ app.prepare().then(() => {
           // ⚔️ Plaats war event op deze positie
           event = { type: 'war', symbol: null, min: 0, max: 0, percentage: 0 }
           event.headline = 'Oorlog uitgebroken'
+          batchWarActive = true // Alle volgende events in deze batch krijgen war-bias
           if (tracker) {
             tracker.lastWarEvent = tracker.eventsSinceStart
             tracker.eventsSinceWarStarted = 0
             tracker.peaceHappenedSinceWar = false
             tracker.warHappened = true
           }
-          console.log(`⚔️ WAR EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9) - After ${tracker?.eventsSinceStart} events`)
+          // Tijdelijk war state zetten zodat generateRandomEvent war-bias toepast
+          if (roomCode) {
+            roomMarketState[roomCode] = { state: 'war', eventsRemaining: 99, triggeredBy: 'batch-preview' }
+          }
+          console.log(`⚔️ WAR EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9) - After ${tracker?.eventsSinceStart} applied events`)
         } else if (i === peaceSlot) {
           // 🕊️ Plaats peace event op deze positie
           event = { type: 'peace', symbol: null, min: 0, max: 0, percentage: 0 }
           event.headline = 'Vredesakkoord getekend'
+          batchWarActive = false
           if (tracker) {
             tracker.peaceHappenedSinceWar = true
           }
+          // Zet peace state voor volgende events in batch
+          if (roomCode) {
+            roomMarketState[roomCode] = { state: 'peace', eventsRemaining: 99, triggeredBy: 'batch-preview' }
+          }
           console.log(`🕊️ PEACE EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9)`)
         } else {
-          // Normaal event
+          // Normaal event (met war/peace bias als batchWarActive)
           event = generateRandomEvent(roomCode)
         }
         
@@ -2422,6 +2437,16 @@ app.prepare().then(() => {
             event.headline = generateNewsHeadline(event, roomCode)
           }
           events.push(event)
+        }
+      }
+      
+      // Herstel originele market state na batch-generatie
+      // De ECHTE state wordt gezet wanneer het event wordt TOEGEPAST in player:triggerEvent
+      if (roomCode) {
+        if (originalMarketState) {
+          roomMarketState[roomCode] = originalMarketState
+        } else {
+          delete roomMarketState[roomCode]
         }
       }
       
@@ -2855,6 +2880,17 @@ app.prepare().then(() => {
         console.log(`🎲 Using pre-generated event: ${scanAction.effect}`)
         console.log(`📊 Symbol: ${scanAction.cryptoSymbol}, Percentage: ${scanAction.percentageValue}`)
         console.log(`📋 Remaining events in queue: ${roomUpcomingEvents[roomCode].length}`)
+        
+        // ⚔️ Track TOEGEPASTE events voor war/peace timing (niet gegenereerde!)
+        if (!global.roomWarTracker) global.roomWarTracker = {}
+        if (!global.roomWarTracker[roomCode]) {
+          global.roomWarTracker[roomCode] = { eventsSinceStart: 0, lastWarEvent: null, warHappened: false, eventsSinceWarStarted: 0, peaceHappenedSinceWar: false }
+        }
+        global.roomWarTracker[roomCode].eventsSinceStart++
+        if (roomMarketState[roomCode]?.state === 'war') {
+          global.roomWarTracker[roomCode].eventsSinceWarStarted = (global.roomWarTracker[roomCode].eventsSinceWarStarted || 0) + 1
+        }
+        console.log(`⚔️ Applied events count: ${global.roomWarTracker[roomCode].eventsSinceStart}, War events since war: ${global.roomWarTracker[roomCode].eventsSinceWarStarted || 0}`)
       }
       
       // Apply WAR/PEACE state immediately when the event is applied (priority over bull/bear)
@@ -2883,6 +2919,9 @@ app.prepare().then(() => {
             }
           })
           console.log(`📰 War headlines regenerated for ${regeneratedCount}/${roomUpcomingEvents[roomCode].length} queued events`)
+          // Verwijder extra WAR events uit de queue tot aan eerstvolgende PEACE/FORECAST
+          roomUpcomingEvents[roomCode] = roomUpcomingEvents[roomCode].filter(e => e.type !== 'war')
+          console.log('🧹 Removed any queued extra WAR events after war applied')
         }
       } else if (!shouldGenerateForecast && randomEvent.type === 'peace') {
         const duration = Math.floor(Math.random() * 5) + 6 // 6-10 events
@@ -2897,6 +2936,9 @@ app.prepare().then(() => {
           stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
         })
         console.log(`🕊️ PEACE APPLIED! Peace mode for ${duration} events (75% positive bias)`)
+        if (global.roomWarTracker && global.roomWarTracker[roomCode]) {
+          global.roomWarTracker[roomCode].peaceHappenedSinceWar = true
+        }
       }
 
       // Apply price changes (skip for forecast)

@@ -2423,7 +2423,7 @@ export default function Home() {
           console.log('🕊️ PEACE EVENT DETECTED - eventType set to peace')
         } else if (isForecast) {
           eventType = 'forecast'
-        } else if (newestEvent.effect.includes('Bull Run!') || newestEvent.effect.includes('Bear Market!') || newestEvent.effect.includes('Market Crash!') || newestEvent.effect.includes('Whale Alert')) {
+        } else if (newestEvent.effect.includes('Bull Run') || newestEvent.effect.includes('Bear Market') || newestEvent.effect.includes('Market Crash') || newestEvent.effect.includes('Whale Alert')) {
           // Market-wide events (with exclamation mark to be specific)
           eventType = 'event'
         } else if (newestEvent.percentageValue !== undefined && newestEvent.percentageValue !== null) {
