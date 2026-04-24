@@ -168,7 +168,13 @@ export default function ActionsMenu({ playerName, playerAvatar, onNavigate, onAp
           {actionButtons.map((button) => {
             const Icon = button.icon
             const isInsiderButton = button.id === 'insider'
-            const disabled = !actionsEnabled || !!actionsDisabled || (isInsiderButton && insiderUsed)
+            const isEventButton = button.id === 'kans'
+            // Event and Insider are ALWAYS clickable (not turn-restricted)
+            // Only buy/sell/swap/win are disabled when it's not your turn
+            const isAlwaysEnabled = isEventButton || isInsiderButton
+            const disabled = isAlwaysEnabled 
+              ? (isInsiderButton && insiderUsed) // Insider only disabled if already used
+              : (!actionsEnabled || !!actionsDisabled)
             return (
               <button
                 key={button.id}

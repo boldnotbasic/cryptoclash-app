@@ -293,12 +293,12 @@ export default function MainMenu({ playerName, playerAvatar, cryptos, onNavigate
 
         {/* Menu Buttons */}
         <div className="grid grid-cols-2 gap-4 mb-8">
-          {/* Acties - Icon boven tekst */}
+          {/* Acties - ALWAYS navigable (Event/Insider are not turn-restricted) */}
           <button
-            onClick={actionsDisabled ? undefined : () => onNavigate('actions-menu')}
+            onClick={() => onNavigate('actions-menu')}
             className={getTileClasses(
               true,
-              `crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 text-center p-0 group h-[200px] flex flex-col shadow-lg shadow-purple-500/30 ${actionsDisabled ? 'opacity-40 pointer-events-none' : 'hover:shadow-purple-500/50 hover:border-purple-500/90'}`
+              `crypto-card bg-gradient-to-br from-gray-900/95 via-purple-500/5 to-gray-900/95 border-2 border-purple-500/70 ring-1 ring-purple-500/40 text-center p-0 group h-[200px] flex flex-col shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:border-purple-500/90`
             )}
           >
             <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-2">

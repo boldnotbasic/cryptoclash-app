@@ -2293,12 +2293,13 @@ export default function Home() {
             ev.action.includes('Win') ||
             (ev as any).isWinAction === true
           )) return false
-          // ONLY block Bot automatic market events on player screens
+          // ONLY block Bot automatic market events on player screens (not Market Dashboard)
           if (!currentIsHost && ev.player === 'Bot') return false
-          // Only show pop-ups for actual game events (Test Scan, Kans, Event, Forecast)
+          // Show pop-ups for game events AND auto-market Bot events (on Market Dashboard)
           const action = ev.action || ''
-          const isEventAction = action.includes('Test Scan') || action.includes('Kans') || action.includes('Event') || action.includes('Forecast')
-          return isEventAction
+          const isPlayerEvent = action.includes('Test Scan') || action.includes('Kans') || action.includes('Event') || action.includes('Forecast')
+          const isBotMarketEvent = ev.player === 'Bot' && (action.includes('Market Move') || action.includes('Price Alert') || action.includes('Trading Signal') || action.includes('Volume Spike'))
+          return isPlayerEvent || (currentIsHost && isBotMarketEvent)
         })
 
       if (newestEvent && newestEvent.player && newestEvent.effect) {
