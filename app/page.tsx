@@ -2496,21 +2496,24 @@ export default function Home() {
         }, 150)
         
         // Play sound based on event type
-        console.log('🔊 Playing sound for event:', scanEffect.type, scanEffect.message, 'percentage:', scanEffect.percentage)
+        // War/peace/forecast sounds ALTIJD afspelen (markt events)
+        // Boost/crash sounds alleen voor Bot (niet bij speler-triggered events)
+        console.log('🔊 Playing sound for event:', scanEffect.type, scanEffect.message, 'player:', newestEvent.player)
         if (scanEffect.type === 'forecast') {
           playForecastSound()
         } else if (scanEffect.type === 'war') {
           playWarSound()
         } else if (scanEffect.type === 'peace') {
           playPeaceSound()
-        } else {
-          // Use percentage-based detection (100% accurate, no text parsing)
-          // Falls back to text parsing if no percentage available
+        } else if (!newestEvent.player || newestEvent.player === 'Bot') {
+          // Boost/crash sounds alleen voor Bot/markt events
           if (scanEffect.percentage !== undefined && scanEffect.percentage !== null) {
             playEventSoundByPercentage(scanEffect.percentage)
           } else {
             playEventSound(scanEffect.message)
           }
+        } else {
+          console.log('🔇 Skipping boost/crash sound: player-triggered event from', newestEvent.player)
         }
         
         // REMOVED: Auto-close timer - EventPopup component handles its own timing

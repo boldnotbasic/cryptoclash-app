@@ -1944,50 +1944,19 @@ app.prepare().then(() => {
           console.log(`🎲 War Check - Events: ${global.roomWarTracker[roomCode].eventsSinceStart}, State: ${currentState}, War happened: ${global.roomWarTracker[roomCode].warHappened}`)
         }
         
-        // War can only trigger if:
-        // 1. Market is normal (not already in war/peace/bull/bear)
-        // 2. At least 8 events have passed since game start
-        // 3. At least 20 events since last war (cooldown)
-        // 4. 10% random chance (~1 op 10 events in normal state)
-        const eventsSinceLastWar = global.roomWarTracker[roomCode].lastWarEvent 
-          ? global.roomWarTracker[roomCode].eventsSinceStart - global.roomWarTracker[roomCode].lastWarEvent 
-          : 999
-        
-        if (currentState !== 'war' && 
-            global.roomWarTracker[roomCode].eventsSinceStart >= 8 && 
-            eventsSinceLastWar >= 20 &&
-            Math.random() < 0.10) {
-          // TRIGGER WAR!
-          randomEvent = { type: 'war', symbol: null, min: 0, max: 0 }
-          global.roomWarTracker[roomCode].lastWarEvent = global.roomWarTracker[roomCode].eventsSinceStart
-          global.roomWarTracker[roomCode].eventsSinceWarStarted = 0 // Reset counter for minimum events before peace
-          global.roomWarTracker[roomCode].peaceHappenedSinceWar = false // Reset peace flag voor nieuwe oorlog
-          global.roomWarTracker[roomCode].warHappened = true // Markeer dat oorlog ooit heeft plaatsgevonden
-          console.log(`⚔️ WAR EVENT QUEUED! Will activate when applied - After ${global.roomWarTracker[roomCode].eventsSinceStart} events`)
+        // Track war state counter (voor peace trigger in generateUpcomingEvents)
+        if (currentState === 'war') {
+          global.roomWarTracker[roomCode].eventsSinceWarStarted = (global.roomWarTracker[roomCode].eventsSinceWarStarted || 0) + 1
         }
       }
-      
-      // 🕊️ PEACE TRIGGER LOGIC - can only happen during war
-      // Requires at least 10 events in war state before peace can trigger
-      if (roomCode && currentState === 'war') {
-        global.roomWarTracker[roomCode].eventsSinceWarStarted = (global.roomWarTracker[roomCode].eventsSinceWarStarted || 0) + 1
-      }
-      if (currentState === 'war' && 
-          global.roomWarTracker[roomCode]?.warHappened === true && // Vrede enkel na oorlog
-          (global.roomWarTracker[roomCode]?.eventsSinceWarStarted || 0) >= 10 && 
-          !global.roomWarTracker[roomCode]?.peaceHappenedSinceWar && // Enkel 1x vrede per oorlog
-          Math.random() < 0.40) {
-        randomEvent = { type: 'peace', symbol: null, min: 0, max: 0 }
-        global.roomWarTracker[roomCode].peaceHappenedSinceWar = true // Markeer vrede als gebeurd
-        console.log(`🕊️ PEACE EVENT QUEUED! Will activate when applied (peace blocked until next war)`)
-      }
+      // WAR/PEACE triggers zijn verplaatst naar generateUpcomingEvents() zodat er max 1 per batch kan zijn
       
       let percentage
       
       // 🌍 MARKET STATE SYSTEM: Apply state-based bias for realistic event cascades
       // Bear market = 70% negative, Bull market = 70% positive, Recovery = 60% positive
       // WAR = 85% negative, PEACE = 75% positive
-      if (roomCode && randomEvent.type === 'boost' && randomEvent.symbol) {
+      if (roomCode && randomEvent.symbol && (randomEvent.type === 'boost' || randomEvent.type === 'crash')) {
         let shouldBePositive
         let positiveChance
         
@@ -2258,9 +2227,26 @@ app.prepare().then(() => {
       let headlines
       
       if (marketState === 'war' && newsHeadlines[symbol]?.war) {
-        // Use war headlines during war (they have mixed positive/negative sentiment)
-        headlines = newsHeadlines[symbol].war
-        console.log(`📰 WAR HEADLINE for ${symbol}: Using war-specific headlines (state: ${marketState})`)
+        // Use war headlines during war, but match sentiment to percentage
+        const warHeadlines = newsHeadlines[symbol].war
+        // Lightweight sentiment filter based on keyword presence
+        const positiveWords = ['stijgt', 'omhoog', 'tekort', 'prijzen', 'schieten omhoog', 'vraag', 'explod']
+        const negativeWords = ['daalt', 'verliest', 'gebombardeerd', 'aangevallen', 'geblokkeerd', 'stilgelegd', 'vernietigd', 'gebroken', 'vast', 'gevaar', 'dreiging']
+        const containsAny = (text, words) => words.some(w => text.toLowerCase().includes(w))
+
+        let filtered = warHeadlines.filter(h =>
+          isPositive ? (containsAny(h, positiveWords) && !containsAny(h, negativeWords))
+                     : (containsAny(h, negativeWords) && !containsAny(h, positiveWords))
+        )
+
+        // If filtering yields nothing (data lacking clear markers), fall back to normal positive/negative pool
+        if (filtered.length === 0) {
+          console.log(`📰 WAR HEADLINE fallback for ${symbol}: no clear ${isPositive ? 'positive' : 'negative'} war headline, using normal set`)
+          filtered = newsHeadlines[symbol]?.[isPositive ? 'positive' : 'negative'] || warHeadlines
+        }
+
+        headlines = filtered
+        console.log(`📰 WAR HEADLINE for ${symbol}: Using ${isPositive ? 'positive' : 'negative'} war-specific headlines (state: ${marketState})`)
       } else {
         // Use normal positive/negative headlines
         headlines = newsHeadlines[symbol]?.[isPositive ? 'positive' : 'negative']
@@ -2350,34 +2336,85 @@ app.prepare().then(() => {
       console.log(`🔧 generateUpcomingEvents called for room ${roomCode}`)
       const events = []
       
-      // Genereer 9 events - war/peace logica zit in generateRandomEvent()
-      let lastWarIndex = -1
+      // Initialize war tracker if needed
+      if (roomCode && !global.roomWarTracker[roomCode]) {
+        global.roomWarTracker[roomCode] = {
+          eventsSinceStart: 0,
+          lastWarEvent: null,
+          warHappened: false,
+          eventsSinceWarStarted: 0,
+          peaceHappenedSinceWar: false
+        }
+      }
+      
+      const tracker = roomCode ? global.roomWarTracker[roomCode] : null
+      const currentState = roomCode && roomMarketState[roomCode] ? roomMarketState[roomCode].state : 'normal'
+      
+      // ⚔️ DECIDE WAR/PEACE PLACEMENT FOR THIS BATCH (max 1 per batch of 9)
+      let warSlot = -1   // Index waar war event komt (-1 = geen)
+      let peaceSlot = -1 // Index waar peace event komt (-1 = geen)
+      
+      if (tracker) {
+        const eventsSinceLastWar = tracker.lastWarEvent 
+          ? tracker.eventsSinceStart - tracker.lastWarEvent 
+          : 999
+        
+        // WAR: alleen als niet in war, minstens 20 events sinds laatste war, minstens 15 events sinds start, 15% kans per batch
+        if (currentState !== 'war' && currentState !== 'peace' &&
+            tracker.eventsSinceStart >= 15 && 
+            eventsSinceLastWar >= 25 &&
+            Math.random() < 0.15) {
+          // Plaats war op een random positie in de batch (niet eerste of laatste)
+          warSlot = Math.floor(Math.random() * 7) + 1 // positie 1-7
+          console.log(`⚔️ WAR scheduled at position ${warSlot + 1}/9 in upcoming batch`)
+        }
+        
+        // PEACE: alleen als in war, oorlog ooit geweest, minstens 10 events in war, 1x per oorlog
+        if (currentState === 'war' && 
+            tracker.warHappened === true &&
+            (tracker.eventsSinceWarStarted || 0) >= 10 && 
+            !tracker.peaceHappenedSinceWar &&
+            Math.random() < 0.30) {
+          // Plaats peace op positie 6-8 (laat in de batch)
+          peaceSlot = Math.floor(Math.random() * 3) + 6 // positie 6-8
+          warSlot = -1 // Nooit war en peace in dezelfde batch
+          console.log(`🕊️ PEACE scheduled at position ${peaceSlot + 1}/9 in upcoming batch`)
+        }
+      }
+      
+      // Genereer 9 events
       for (let i = 0; i < 9; i++) {
         let event
-        let attempts = 0
-        do {
-          event = generateRandomEvent(roomCode) // War/peace trigger logica zit hierin
-          attempts++
-          // Handhaaf minimaal 8 events tussen WAR en PEACE in de upcoming queue
-          if (event && event.type === 'peace' && lastWarIndex >= 0 && (i - lastWarIndex) < 8) {
-            continue // te vroeg voor vrede, probeer een ander event
+        
+        if (i === warSlot) {
+          // ⚔️ Plaats war event op deze positie
+          event = { type: 'war', symbol: null, min: 0, max: 0, percentage: 0 }
+          event.headline = 'Oorlog uitgebroken'
+          if (tracker) {
+            tracker.lastWarEvent = tracker.eventsSinceStart
+            tracker.eventsSinceWarStarted = 0
+            tracker.peaceHappenedSinceWar = false
+            tracker.warHappened = true
           }
-          break
-        } while (attempts < 5)
+          console.log(`⚔️ WAR EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9) - After ${tracker?.eventsSinceStart} events`)
+        } else if (i === peaceSlot) {
+          // 🕊️ Plaats peace event op deze positie
+          event = { type: 'peace', symbol: null, min: 0, max: 0, percentage: 0 }
+          event.headline = 'Vredesakkoord getekend'
+          if (tracker) {
+            tracker.peaceHappenedSinceWar = true
+          }
+          console.log(`🕊️ PEACE EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9)`)
+        } else {
+          // Normaal event
+          event = generateRandomEvent(roomCode)
+        }
         
         // Add news headline for individual crypto events
         if (event) {
-          if (event.type === 'boost' && event.symbol) {
+          if ((event.type === 'boost' || event.type === 'crash') && event.symbol) {
             event.headline = generateNewsHeadline(event, roomCode)
-          } else if (event.type === 'war') {
-            event.headline = 'Oorlog uitgebroken'
-            lastWarIndex = i
-            console.log(`⚔️ WAR EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9)`)
-          } else if (event.type === 'peace') {
-            event.headline = 'Vredesakkoord getekend'
-            console.log(`🕊️ PEACE EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9)`)
           }
-          
           events.push(event)
         }
       }
@@ -2730,12 +2767,10 @@ app.prepare().then(() => {
           while (roomUpcomingEvents[roomCode].length < 10) {
             const newEvent = generateRandomEvent(roomCode)
             if (!newEvent) break
+            // Skip war/peace in fill-up (wordt alleen via generateUpcomingEvents geplaatst)
+            if (newEvent.type === 'war' || newEvent.type === 'peace') continue
             if ((newEvent.type === 'boost' || newEvent.type === 'crash') && newEvent.symbol) {
               newEvent.headline = generateNewsHeadline(newEvent, roomCode)
-            } else if (newEvent.type === 'war') {
-              newEvent.headline = 'Oorlog uitgebroken'
-            } else if (newEvent.type === 'peace') {
-              newEvent.headline = 'Vredesakkoord getekend'
             }
             // Voeg toe op voorlaatste positie (voor forecast)
             roomUpcomingEvents[roomCode].splice(roomUpcomingEvents[roomCode].length - 1, 0, newEvent)
@@ -2745,12 +2780,10 @@ app.prepare().then(() => {
           while (roomUpcomingEvents[roomCode].length < 9) {
             const newEvent = generateRandomEvent(roomCode)
             if (!newEvent) break
+            // Skip war/peace in fill-up (wordt alleen via generateUpcomingEvents geplaatst)
+            if (newEvent.type === 'war' || newEvent.type === 'peace') continue
             if ((newEvent.type === 'boost' || newEvent.type === 'crash') && newEvent.symbol) {
               newEvent.headline = generateNewsHeadline(newEvent, roomCode)
-            } else if (newEvent.type === 'war') {
-              newEvent.headline = 'Oorlog uitgebroken'
-            } else if (newEvent.type === 'peace') {
-              newEvent.headline = 'Vredesakkoord getekend'
             }
             roomUpcomingEvents[roomCode].push(newEvent)
           }
