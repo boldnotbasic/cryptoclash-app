@@ -2770,6 +2770,48 @@ export default function Home() {
     navigateToScreen('waiting-room')
   }
 
+  const handleQuickStart = () => {
+    console.log('⚡ Quick Start: Generating unique room code...')
+    
+    // Generate unique 6-character room code
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    let uniqueCode = ''
+    for (let i = 0; i < 6; i++) {
+      uniqueCode += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    
+    console.log('⚡ Quick Start: Generated room code:', uniqueCode)
+    console.log('👑 Setting up as host with default settings')
+    
+    // Set as host
+    setIsHost(true)
+    setPlayerName('Host')
+    setPlayerAvatar('👑')
+    
+    // Create room with default settings
+    const defaultSettings = {
+      volatility: 'medium',
+      gameDuration: 1,
+      startingCash: 1000
+    }
+    
+    if (socket) {
+      console.log('📤 Creating room with unique code:', uniqueCode)
+      socket.emit('host:createRoom', {
+        roomCode: uniqueCode,
+        hostName: 'Host',
+        hostAvatar: '👑',
+        settings: defaultSettings
+      })
+    }
+    
+    // Set room ID and navigate
+    setRoomId(uniqueCode)
+    setCashBalance(defaultSettings.startingCash)
+    setSelectedVolatility(defaultSettings.volatility as 'low'|'medium'|'high')
+    navigateToScreen('waiting-room')
+  }
+
   const handleBypassToGame = () => {
     console.log('🚀 Bypassing room join, going directly to game')
     console.log('👤 Player:', playerName, playerAvatar)
@@ -3312,6 +3354,7 @@ export default function Home() {
               <StartScreen 
                 onSelectRole={handleStartScreenRoleSelection}
                 onBypass={handleBypass}
+                onQuickStart={handleQuickStart}
                 onSignOut={signOut}
                 userName={user?.email?.split('@')[0] || ''}
                 lobbyCode={lobbyCode || ''}

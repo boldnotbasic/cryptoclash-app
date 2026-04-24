@@ -7,12 +7,22 @@ interface StartScreenProps {
   onSelectRole: (role: 'host' | 'player') => void
   onBypass?: () => void
   onSignOut?: () => void
+  onQuickStart?: () => void
   userName?: string
   lobbyCode?: string
 }
 
-export default function StartScreen({ onSelectRole, onBypass, onSignOut, userName, lobbyCode }: StartScreenProps) {
+export default function StartScreen({ onSelectRole, onBypass, onSignOut, onQuickStart, userName, lobbyCode }: StartScreenProps) {
   const { language, setLanguage, t } = useLanguage()
+
+  const generateUniqueRoomCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    let code = ''
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return code
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-dark-bg via-purple-900/10 to-blue-900/10 flex items-center justify-center p-4">
@@ -93,9 +103,28 @@ export default function StartScreen({ onSelectRole, onBypass, onSignOut, userNam
           </button>
         </div>
 
+        {/* Quick Start Button - Always visible */}
+        <div className="mt-6">
+          <button
+            onClick={() => {
+              if (onQuickStart) {
+                onQuickStart()
+              } else {
+                // Fallback: generate unique code and navigate to host setup
+                const uniqueCode = generateUniqueRoomCode()
+                console.log('🚀 Quick Start: Generated unique room code:', uniqueCode)
+                onSelectRole('host')
+              }
+            }}
+            className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded-xl transition-all duration-300 shadow-lg shadow-green-500/30 hover:shadow-green-500/50 hover:scale-105"
+          >
+            <span suppressHydrationWarning>⚡ Nieuwe Room (Unieke Code)</span>
+          </button>
+        </div>
+
         {/* Bypass Button */}
         {onBypass && (
-          <div className="mt-6">
+          <div className="mt-4">
             <button
               onClick={onBypass}
               className="w-full py-4 border-2 border-orange-500 hover:border-orange-600 text-orange-500 hover:text-orange-600 font-bold rounded-xl transition-all duration-300"
