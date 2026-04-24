@@ -21,6 +21,7 @@ export interface ScanEffect {
   topGainer?: { symbol: string; percentage: number }
   topLoser?: { symbol: string; percentage: number }
   headline?: string  // Header text for popup (e.g., "Beurs update" for automatic Bot events)
+  player?: string  // Player name (or 'Bot' for automatic events)
 }
 
 interface ScanScenarioTemplate {

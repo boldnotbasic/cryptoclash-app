@@ -2449,7 +2449,9 @@ export default function Home() {
           topGainer: (isForecast && isMyForecast) ? (newestEvent as any).forecastData?.topGainer : undefined,
           topLoser: (isForecast && isMyForecast) ? (newestEvent as any).forecastData?.topLoser : undefined,
           // Pass headline from server (for "Beurs update" header on automatic Bot events)
-          headline: (newestEvent as any).headline
+          headline: (newestEvent as any).headline,
+          // Pass player name to distinguish Bot events from player events
+          player: newestEvent.player || 'Bot'
         }
         
         console.log('✅ Created ScanEffect:', scanEffect)

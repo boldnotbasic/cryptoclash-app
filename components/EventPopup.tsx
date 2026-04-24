@@ -26,6 +26,7 @@ export interface ScanEffect {
   topLoser?: { symbol: string; percentage: number }
   isUndo?: boolean  // Indicates this is an undo/correction action
   headline?: string  // Header text for popup (e.g., "Beurs update" for automatic Bot events)
+  player?: string  // Player name (or 'Bot' for automatic events)
 }
 
 interface ScanScenarioTemplate {
@@ -602,6 +603,15 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
             <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-purple-500/90 px-6 py-2 rounded-full border-2 border-purple-400 shadow-lg">
               <div className="flex items-center gap-2">
                 <span className="text-white font-bold text-sm tracking-wider">MARKT UPDATE</span>
+              </div>
+            </div>
+          )}
+
+          {/* SPELER EVENT Header - toon bij manuele speler events */}
+          {!currentScenario.isUndo && currentScenario.player !== 'Bot' && (currentScenario as any).headline !== 'Beurs update' && (
+            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-blue-500/90 px-6 py-2 rounded-full border-2 border-blue-400 shadow-lg">
+              <div className="flex items-center gap-2">
+                <span className="text-white font-bold text-sm tracking-wider">SPELER EVENT</span>
               </div>
             </div>
           )}
