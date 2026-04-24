@@ -2417,8 +2417,10 @@ export default function Home() {
         
         if (newestEvent.effect?.includes('Oorlog uitgebroken') || newestEvent.effect?.includes('Oorlog')) {
           eventType = 'war'
+          console.log('⚔️ WAR EVENT DETECTED - eventType set to war')
         } else if (newestEvent.effect?.includes('Vredesakkoord') || newestEvent.effect?.includes('Vrede uitgebroken') || newestEvent.effect?.includes('Vrede')) {
           eventType = 'peace'
+          console.log('🕊️ PEACE EVENT DETECTED - eventType set to peace')
         } else if (isForecast) {
           eventType = 'forecast'
         } else if (newestEvent.effect.includes('Bull Run!') || newestEvent.effect.includes('Bear Market!') || newestEvent.effect.includes('Market Crash!') || newestEvent.effect.includes('Whale Alert')) {

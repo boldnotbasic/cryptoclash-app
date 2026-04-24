@@ -5,8 +5,8 @@ const SOUND_URLS = {
   positive: '/sounds/positive.mp3',
   negative: '/sounds/negative.mp3',
   forecast: '/sounds/forecast.mp3',
-  war: '/sounds/oorlog.mp3',
-  peace: '/sounds/vrede.mp3',
+  war: '/sounds/war.mp3',
+  peace: '/sounds/peace.mp3',
   background: '/sounds/background_music.mp3'
 }
 
@@ -98,11 +98,13 @@ export const playForecastSound = () => {
 
 // Play war sound (war event triggered)
 export const playWarSound = () => {
+  console.log('🔊 playWarSound called, URL:', SOUND_URLS.war)
   playSoundEffect(SOUND_URLS.war, 0.8)
 }
 
 // Play peace sound (peace event triggered)
 export const playPeaceSound = () => {
+  console.log('🔊 playPeaceSound called, URL:', SOUND_URLS.peace)
   playSoundEffect(SOUND_URLS.peace, 0.8)
 }
 
