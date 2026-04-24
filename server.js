@@ -2382,6 +2382,12 @@ app.prepare().then(() => {
         }
       }
       
+      // HARD GUARANTEE: peace kan NOOIT als warHappened nog false is
+      if (peaceSlot >= 0 && (!tracker || !tracker.warHappened)) {
+        console.log(`⛔ PEACE BLOCKED: warHappened is false, geen vrede mogelijk`)
+        peaceSlot = -1
+      }
+      
       // Genereer 9 events
       for (let i = 0; i < 9; i++) {
         let event
@@ -2974,14 +2980,10 @@ app.prepare().then(() => {
           // Auto-transition when countdown reaches 0
           if (remaining === 0) {
             if (currentState === 'war') {
-              // War ends → Peace begins (automatic transition)
-              const peaceDuration = Math.floor(Math.random() * 3) + 6 // 6-8 events
-              roomMarketState[roomCode] = {
-                state: 'peace',
-                eventsRemaining: peaceDuration,
-                triggeredBy: 'Auto transition from war'
-              }
-              console.log(`🕊️ PEACE TRIGGERED! Recovery from war for ${peaceDuration} events`)
+              // War ends → Terug naar normal (NIET automatisch naar peace)
+              // Peace kan ALLEEN via een peace event in de queue komen
+              delete roomMarketState[roomCode]
+              console.log(`⚔️ WAR ENDED! Back to normal state (peace must come via queue event)`)
             } else if (currentState === 'peace') {
               // Peace ends → Back to normal
               delete roomMarketState[roomCode]
