@@ -149,6 +149,14 @@ export default function Home() {
   // Track shown events to prevent duplicates
   const shownEventIdsRef = useRef<Set<string>>(new Set())
   
+  // Refs to avoid stale closures in socket event handlers
+  const isHostRef = useRef(isHost)
+  const playerNameRef = useRef(playerName)
+  
+  // Keep refs in sync with state
+  useEffect(() => { isHostRef.current = isHost }, [isHost])
+  useEffect(() => { playerNameRef.current = playerName }, [playerName])
+  
   // Get socket connection for game events (room state only; we don't rely on socket.id for turn logic)
   const { socket, room } = useSocket()
 
@@ -2119,10 +2127,17 @@ export default function Home() {
     }
 
     // Handle server-side scan data updates
-    const handleScanDataUpdate = ({ autoScanActions, playerScanActions }: any) => {
+    const handleScanDataUpdate = (data: any) => {
+      try {
+      // Defensive: ensure data is valid
+      const autoScanActions = data?.autoScanActions || []
+      const playerScanActions = data?.playerScanActions || []
+      
       console.log('\n📊 === SERVER SCAN DATA UPDATE ===')
       console.log(`🤖 Auto scans received: ${autoScanActions.length}`)
       console.log(`👤 Player scans received: ${playerScanActions.length}`)
+      console.log(`👑 isHost (ref): ${isHostRef.current}`)
+      console.log(`👤 playerName (ref): ${playerNameRef.current}`)
       
       // DEBUG: Log all player scans to see if forecast data is present
       playerScanActions.forEach((scan: any, index: number) => {
@@ -2258,7 +2273,9 @@ export default function Home() {
 
       // Show event ONLY if it's NEW (not already shown)
       // For Market Dashboard (host): consider both player AND auto scans; for Player screens: only player scans
-      const allScansForPopup = isHost 
+      // CRITICAL: Use ref to get CURRENT isHost value (avoids stale closure)
+      const currentIsHost = isHostRef.current
+      const allScansForPopup = currentIsHost 
         ? [...normPlayer, ...normAuto]
         : [...normPlayer]
 
@@ -2277,7 +2294,7 @@ export default function Home() {
             (ev as any).isWinAction === true
           )) return false
           // ONLY block Bot automatic market events on player screens
-          if (!isHost && ev.player === 'Bot') return false
+          if (!currentIsHost && ev.player === 'Bot') return false
           // Only show pop-ups for actual game events (Test Scan, Kans, Event, Forecast)
           const action = ev.action || ''
           const isEventAction = action.includes('Test Scan') || action.includes('Kans') || action.includes('Event') || action.includes('Forecast')
@@ -2308,7 +2325,8 @@ export default function Home() {
         const normalizeName = (name?: string | null) => (name || '').trim().toLowerCase()
 
         const normalizedEventPlayer = normalizeName(newestEvent.player)
-        const normalizedCurrentPlayer = normalizeName(playerName)
+        // CRITICAL: Use ref to get CURRENT playerName (avoids stale closure)
+        const normalizedCurrentPlayer = normalizeName(playerNameRef.current)
 
         // Check if forecast data is present (server already filtered it)
         const hasForecastData = !!(newestEvent as any).forecastData?.topGainer && !!(newestEvent as any).forecastData?.topLoser
@@ -2488,6 +2506,9 @@ export default function Home() {
 
       console.log('✅ Scan data normalized and sorted from server')
       console.log('📊 === SERVER SCAN DATA UPDATE END ===\n')
+      } catch (err) {
+        console.error('❌ ERROR in handleScanDataUpdate:', err)
+      }
     }
 
     // Handle undo action - show CORRECTIE popup
@@ -2534,6 +2555,27 @@ export default function Home() {
       }, 150)
     }
 
+    // Handle expired/deleted room - clear stale session and redirect
+    const handleRoomExpired = ({ roomCode: expiredRoom, message }: any) => {
+      console.error(`🚨 ROOM EXPIRED: ${expiredRoom} - ${message}`)
+      console.log('🧹 Clearing stale session data...')
+      
+      // Clear localStorage session data
+      try {
+        localStorage.removeItem('cryptoclash-last-join')
+        localStorage.removeItem('cryptoclash-last-join-attempt')
+        localStorage.removeItem('cryptoclash-session')
+      } catch (e) { /* ignore */ }
+      
+      // Reset state
+      setRoomId('')
+      setGameState(null)
+      
+      // Navigate to start screen
+      alert(`Room ${expiredRoom} bestaat niet meer.\nDe server is herstart. Maak een nieuwe room aan.`)
+      navigateToScreen('start-screen')
+    }
+
     // 📊 Core event listeners (clean architecture)
     socket.on('test:messageReceived', handleTestMessageReceived)
     socket.on('player:joinNotification', handlePlayerJoinNotification)
@@ -2541,6 +2583,7 @@ export default function Home() {
     socket.on('dashboard:refreshRequested', handleDashboardRefresh)
     socket.on('scanData:update', handleScanDataUpdate)
     socket.on('action:undone', handleActionUndone)
+    socket.on('room:expired', handleRoomExpired)
 
     return () => {
       socket.off('test:messageReceived', handleTestMessageReceived)
@@ -2549,6 +2592,7 @@ export default function Home() {
       socket.off('dashboard:refreshRequested', handleDashboardRefresh)
       socket.off('scanData:update', handleScanDataUpdate)
       socket.off('action:undone', handleActionUndone)
+      socket.off('room:expired', handleRoomExpired)
     }
   }, [socket])
 

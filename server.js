@@ -2496,6 +2496,7 @@ app.prepare().then(() => {
 
     // Player triggers event - server generates and broadcasts to ALL players
     socket.on('player:triggerEvent', ({ roomCode, playerName, playerAvatar }) => {
+      try {
       console.log(`\n🎲 === PLAYER TRIGGERED EVENT ===`)
       console.log(`🏠 Room: ${roomCode}`)
       console.log(`👤 Player: ${playerName}`)
@@ -2505,6 +2506,8 @@ app.prepare().then(() => {
       if (!rooms[roomCode]) {
         console.log(`❌ Room ${roomCode} not found`)
         console.log(`❌ Available rooms:`, Object.keys(rooms))
+        // Notify client that their room is gone
+        socket.emit('room:expired', { roomCode, message: 'Room bestaat niet meer. Maak een nieuwe room aan.' })
         return
       }
       
@@ -2910,6 +2913,20 @@ app.prepare().then(() => {
       console.log(`✅ Event broadcast to all players in room ${roomCode}`)
       console.log(`📊 Price history broadcast:`, Object.keys(roomPriceHistory[roomCode] || {}).map(sym => `${sym}:${roomPriceHistory[roomCode][sym].length}`).join(', '))
       console.log(`📡 === PLAYER TRIGGERED EVENT COMPLETE ===\n`)
+      } catch (err) {
+        console.error(`❌ ERROR in player:triggerEvent handler:`, err)
+        // Still try to broadcast whatever we have so client isn't left hanging
+        try {
+          if (roomScanData[roomCode]) {
+            io.to(roomCode).emit('scanData:update', {
+              autoScanActions: roomScanData[roomCode].autoScanActions || [],
+              playerScanActions: roomScanData[roomCode].playerScanActions || [],
+              upcomingEvents: roomUpcomingEvents[roomCode] || [],
+              scanCount: roomScanCount[roomCode] || 0
+            })
+          }
+        } catch (e2) { console.error('❌ Failed fallback broadcast:', e2) }
+      }
     })
 
     // Player scan action - broadcast to all players in room (including Market Screen)
@@ -3546,14 +3563,13 @@ app.prepare().then(() => {
 
     // 🎯 UNIFIED PLAYER DATA UPDATE - Single Source of Truth
     socket.on('player:updateData', ({ roomCode, playerData }) => {
-      console.log(`\n🎯 === UNIFIED PLAYER UPDATE ===`)
-      console.log(`🏠 Room: ${roomCode}`)
-      console.log(`👤 Player: ${playerData.name}`)
-      console.log(`🔌 Socket: ${socket.id}`)
-      console.log(`💯 Total Value: ⚘${playerData.totalValue}`)
-      
       if (!rooms[roomCode] || !rooms[roomCode].players[socket.id]) {
-        console.log(`❌ Room ${roomCode} or player not found`)
+        // Only log once per socket to avoid spam
+        if (!socket._roomExpiredNotified) {
+          console.log(`❌ Room ${roomCode} or player not found - notifying client`)
+          socket.emit('room:expired', { roomCode, message: 'Room bestaat niet meer.' })
+          socket._roomExpiredNotified = true
+        }
         return
       }
 

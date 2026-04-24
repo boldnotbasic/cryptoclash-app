@@ -22,11 +22,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="nl">
+    <html lang="nl" suppressHydrationWarning>
       <head>
         <meta name="theme-color" content="#8B5CF6" />
       </head>
-      <body className="min-h-screen bg-dark-bg">
+      <body className="min-h-screen bg-dark-bg" suppressHydrationWarning>
         <CurrencyProvider>
           <IconProvider>
             <LanguageProvider>
