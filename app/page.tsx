@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import Image from 'next/image'
 import StartScreen from '@/components/StartScreen'
 import LoginScreen from '@/components/LoginScreen'
-import { playPositiveSound, playNegativeSound, playEventSound, playEventSoundByPercentage, playForecastSound } from '@/utils/soundEffects'
+import { playPositiveSound, playNegativeSound, playEventSound, playEventSoundByPercentage, playForecastSound, playWarSound, playPeaceSound } from '@/utils/soundEffects'
 import { useAuth } from '@/hooks/useAuth'
 import AuthModal from '@/components/AuthModal'
 import SubscriptionModal from '@/components/SubscriptionModal'
@@ -2413,9 +2413,13 @@ export default function Home() {
         
         // Determine type based on effect message
         // CRITICAL: Check in correct order - most specific first!
-        let eventType: 'boost' | 'crash' | 'event' | 'forecast' = 'boost'
+        let eventType: 'boost' | 'crash' | 'event' | 'forecast' | 'war' | 'peace' = 'boost'
         
-        if (isForecast) {
+        if (newestEvent.effect?.includes('Oorlog uitgebroken') || newestEvent.effect?.includes('Oorlog')) {
+          eventType = 'war'
+        } else if (newestEvent.effect?.includes('Vredesakkoord') || newestEvent.effect?.includes('Vrede uitgebroken') || newestEvent.effect?.includes('Vrede')) {
+          eventType = 'peace'
+        } else if (isForecast) {
           eventType = 'forecast'
         } else if (newestEvent.effect.includes('Bull Run!') || newestEvent.effect.includes('Bear Market!') || newestEvent.effect.includes('Market Crash!') || newestEvent.effect.includes('Whale Alert')) {
           // Market-wide events (with exclamation mark to be specific)
@@ -2493,6 +2497,10 @@ export default function Home() {
         console.log('🔊 Playing sound for event:', scanEffect.type, scanEffect.message, 'percentage:', scanEffect.percentage)
         if (scanEffect.type === 'forecast') {
           playForecastSound()
+        } else if (scanEffect.type === 'war') {
+          playWarSound()
+        } else if (scanEffect.type === 'peace') {
+          playPeaceSound()
         } else {
           // Use percentage-based detection (100% accurate, no text parsing)
           // Falls back to text parsing if no percentage available

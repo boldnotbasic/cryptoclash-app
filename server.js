@@ -746,9 +746,13 @@ app.prepare().then(() => {
       // 🎯 CRITICAL: Generate upcoming events IMMEDIATELY when room is created
       // so the "Komende 10 Pop-up Events" widget is populated from the start
       try {
+        console.log(`🎯 Checking upcoming events for room ${roomCode}: exists=${!!roomUpcomingEvents[roomCode]}, length=${(roomUpcomingEvents[roomCode] || []).length}`)
         if (!roomUpcomingEvents[roomCode] || roomUpcomingEvents[roomCode].length === 0) {
+          console.log(`🎯 Generating upcoming events for room ${roomCode}...`)
           generateUpcomingEvents(roomCode)
           console.log(`📋 Generated initial upcoming events for room ${roomCode}`)
+        } else {
+          console.log(`✅ Upcoming events already exist for room ${roomCode} (${roomUpcomingEvents[roomCode].length} events)`)
         }
         if (typeof roomScanCount[roomCode] !== 'number') {
           roomScanCount[roomCode] = 0
@@ -759,13 +763,15 @@ app.prepare().then(() => {
         }
         // Broadcast initial scan data + upcoming events to all clients
         setImmediate(() => {
+          const eventsToSend = roomUpcomingEvents[roomCode] || []
+          console.log(`📡 Broadcasting scanData:update to room ${roomCode} with ${eventsToSend.length} upcoming events`)
           io.to(roomCode).emit('scanData:update', {
             autoScanActions: roomScanData[roomCode].autoScanActions,
             playerScanActions: roomScanData[roomCode].playerScanActions,
-            upcomingEvents: roomUpcomingEvents[roomCode] || [],
+            upcomingEvents: eventsToSend,
             scanCount: roomScanCount[roomCode] || 0
           })
-          console.log(`📡 Broadcasted initial upcomingEvents (${(roomUpcomingEvents[roomCode] || []).length}) to room ${roomCode}`)
+          console.log(`📡 Broadcasted initial upcomingEvents (${eventsToSend.length}) to room ${roomCode}`)
         })
       } catch (e) {
         console.warn('⚠️ Failed to generate/broadcast initial upcoming events:', e)
@@ -1315,9 +1321,13 @@ app.prepare().then(() => {
         // 🎯 CRITICAL: Generate upcoming events IMMEDIATELY at game start
         // so the "Komende 10 Pop-up Events" widget is populated from the start
         try {
+          console.log(`🎯 [GAME START] Checking upcoming events for room ${roomCode}: exists=${!!roomUpcomingEvents[roomCode]}, length=${(roomUpcomingEvents[roomCode] || []).length}`)
           if (!roomUpcomingEvents[roomCode] || roomUpcomingEvents[roomCode].length === 0) {
+            console.log(`🎯 [GAME START] Generating upcoming events for room ${roomCode}...`)
             generateUpcomingEvents(roomCode)
             console.log(`📋 Generated initial upcoming events for room ${roomCode}`)
+          } else {
+            console.log(`✅ [GAME START] Upcoming events already exist for room ${roomCode} (${roomUpcomingEvents[roomCode].length} events)`)
           }
           if (typeof roomScanCount[roomCode] !== 'number') {
             roomScanCount[roomCode] = 0
@@ -1327,15 +1337,19 @@ app.prepare().then(() => {
             roomScanData[roomCode] = { autoScanActions: [], playerScanActions: [] }
           }
           // Broadcast initial scan data + upcoming events to all clients
+          const eventsToSend = roomUpcomingEvents[roomCode] || []
+          console.log(`📡 [GAME START] Broadcasting scanData:update to room ${roomCode} with ${eventsToSend.length} upcoming events`)
           io.to(roomCode).emit('scanData:update', {
             autoScanActions: roomScanData[roomCode].autoScanActions,
             playerScanActions: roomScanData[roomCode].playerScanActions,
-            upcomingEvents: roomUpcomingEvents[roomCode] || [],
+            upcomingEvents: eventsToSend,
             scanCount: roomScanCount[roomCode] || 0
           })
-          console.log(`📡 Broadcasted initial upcomingEvents (${(roomUpcomingEvents[roomCode] || []).length}) to room ${roomCode}`)
+          console.log(`📡 [GAME START] Broadcasted initial upcomingEvents (${eventsToSend.length}) to room ${roomCode}`)
+          console.log(`📡 [GAME START] Events sent:`, eventsToSend.map(e => `${e.type}:${e.symbol || 'N/A'}`))
         } catch (e) {
-          console.warn('⚠️ Failed to generate/broadcast initial upcoming events:', e)
+          console.error('❌ [GAME START] Failed to generate/broadcast initial upcoming events:', e)
+          console.error('Stack:', e.stack)
         }
         
         // Don't start timer for first player - they get unlimited time
@@ -1917,7 +1931,8 @@ app.prepare().then(() => {
           eventsSinceStart: 0,
           lastWarEvent: null,
           warHappened: false,
-          eventsSinceWarStarted: 0
+          eventsSinceWarStarted: 0,
+          peaceHappenedSinceWar: false // Peace kan slechts 1x per oorlog
         }
       }
       
@@ -1946,6 +1961,8 @@ app.prepare().then(() => {
           randomEvent = { type: 'war', symbol: null, min: 0, max: 0 }
           global.roomWarTracker[roomCode].lastWarEvent = global.roomWarTracker[roomCode].eventsSinceStart
           global.roomWarTracker[roomCode].eventsSinceWarStarted = 0 // Reset counter for minimum events before peace
+          global.roomWarTracker[roomCode].peaceHappenedSinceWar = false // Reset peace flag voor nieuwe oorlog
+          global.roomWarTracker[roomCode].warHappened = true // Markeer dat oorlog ooit heeft plaatsgevonden
           console.log(`⚔️ WAR EVENT QUEUED! Will activate when applied - After ${global.roomWarTracker[roomCode].eventsSinceStart} events`)
         }
       }
@@ -1955,9 +1972,14 @@ app.prepare().then(() => {
       if (roomCode && currentState === 'war') {
         global.roomWarTracker[roomCode].eventsSinceWarStarted = (global.roomWarTracker[roomCode].eventsSinceWarStarted || 0) + 1
       }
-      if (currentState === 'war' && (global.roomWarTracker[roomCode]?.eventsSinceWarStarted || 0) >= 10 && Math.random() < 0.40) {
+      if (currentState === 'war' && 
+          global.roomWarTracker[roomCode]?.warHappened === true && // Vrede enkel na oorlog
+          (global.roomWarTracker[roomCode]?.eventsSinceWarStarted || 0) >= 10 && 
+          !global.roomWarTracker[roomCode]?.peaceHappenedSinceWar && // Enkel 1x vrede per oorlog
+          Math.random() < 0.40) {
         randomEvent = { type: 'peace', symbol: null, min: 0, max: 0 }
-        console.log(`🕊️ PEACE EVENT QUEUED! Will activate when applied`)
+        global.roomWarTracker[roomCode].peaceHappenedSinceWar = true // Markeer vrede als gebeurd
+        console.log(`🕊️ PEACE EVENT QUEUED! Will activate when applied (peace blocked until next war)`)
       }
       
       let percentage
@@ -2021,10 +2043,13 @@ app.prepare().then(() => {
         percentage = 0
         console.log('🕊️ PEACE EVENT GENERATED (queued) - will activate when applied')
       }
+      
+      randomEvent.percentage = percentage !== undefined ? percentage : 0
+      return randomEvent
     }
     
     // Helper function to generate news headline for an event
-    function generateNewsHeadline(event) {
+    function generateNewsHeadline(event, roomCode = null) {
       const newsHeadlines = {
         'DSHP': {
           positive: [
@@ -2046,6 +2071,16 @@ app.prepare().then(() => {
             'Veepest uitbraak bedreigt DigiSheep sector',
             'DigiSheep overproductie leidt tot prijsval',
             'Slechte weersomstandigheden schaden DigiSheep oogst'
+          ],
+          war: [
+            'Oorlog verstoort DigiSheep toeleveringsketen, schepen vastgehouden',
+            'DigiSheep filiaal aangevallen, productie stilgelegd',
+            'Oorlogseconomie: DigiSheep prijzen schieten omhoog',
+            'DigiSheep exporten geblokkeerd door oorlog',
+            'Vrachtschepen DigiSheep vast in oorlogszone',
+            'DigiSheep velden in oorlogsgebied, oogst in gevaar',
+            'Oorlog zorgt voor tekort aan DigiSheep, speculanten kopen',
+            'DigiSheep bevoorradingslijnen gebroken door oorlog'
           ]
         },
         'ORX': {
@@ -2068,6 +2103,16 @@ app.prepare().then(() => {
             'Mijnongeluk verstoort Orex operaties',
             'Overstroming in Orex mijn, productie daalt',
             'Orex productiekosten stijgen, winstmarges dalen'
+          ],
+          war: [
+            'Orex mijn in oorlogszone, goudwinning stilgelegd',
+            'Orex filiaal gebombardeerd, productie plat',
+            'Oorlog zorgt voor goudrush, Orex prijzen exploderen',
+            'Orex transportroutes geblokkeerd door oorlog',
+            'Orex mijnwerkers gemobiliseerd voor oorlog',
+            'Orex faciliteiten in oorlogsgebied, evacuatie nodig',
+            'Oorlogseconomie: goud schiet omhoog, Orex profiteert',
+            'Orex beveiliging versterkt na oorlogsdreiging'
           ]
         },
         'LNTR': {
@@ -2090,6 +2135,16 @@ app.prepare().then(() => {
             'Tekort aan raketbrandstof vertraagt Lentra missies',
             'Lentra satelliet crasht, koers daalt',
             'Lentra ruimtemissies uitgesteld door technische problemen'
+          ],
+          war: [
+            'Lentra raketlancering geblokkeerd door oorlog',
+            'Lentra satelliet vernietigd door oorlogshandelingen',
+            'Lentra faciliteiten gebombardeerd, productie stil',
+            'Lentra technologie ingezet voor oorlogsdoeleinden',
+            'Oorlog zorgt voor Lentra defensiecontracten, prijzen stijgen',
+            'Lentra ruimtemissie uitgesteld door oorlog',
+            'Lentra raketten gebruikt in oorlog, aandelen stijgen',
+            'Lentra satellietnetwerk beschadigd door oorlog'
           ]
         },
         'SIL': {
@@ -2112,6 +2167,16 @@ app.prepare().then(() => {
             'Silicium tekort remt Silica productie',
             'Silica AI-verbod in meerdere regio\'s, koers daalt',
             'Silica technologie achterhaald door concurrent'
+          ],
+          war: [
+            'Silica chipfabriek gebombardeerd, productie stil',
+            'Oorlog zorgt voor chip tekort, Silica prijzen exploderen',
+            'Silica chips ingezet voor oorlogsdoeleinden',
+            'Silica faciliteiten in oorlogszone, evacuatie',
+            'Silica toeleveringsketen gebroken door oorlog',
+            'Oorlogseconomie: AI chips cruciaal, Silica stijgt',
+            'Silica datacenter beschadigd door oorlogshandelingen',
+            'Silica technologie gestolen door oorlogspartij'
           ]
         },
         'REX': {
@@ -2134,6 +2199,16 @@ app.prepare().then(() => {
             'Rex pipeline lek, productie verstoord',
             'Energieprijs crash treft Rex hard',
             'Rex productie stilgelegd door technische problemen'
+          ],
+          war: [
+            'Rex pipeline gebombardeerd, oliecrisis dreigt',
+            'Rex raffinaderij aangevallen, brand in oorlogszone',
+            'Oorlog zorgt voor oliecrash, Rex daalt',
+            'Rex olietankers vastgehouden in oorlogszone',
+            'Rex faciliteiten in oorlogsgebied, productie plat',
+            'Oorlogseconomie: brandstof tekort, Rex stijgt',
+            'Rex platform beschadigd door oorlogshandelingen',
+            'Rex transportroutes geblokkeerd door oorlog'
           ]
         },
         'GLX': {
@@ -2156,6 +2231,16 @@ app.prepare().then(() => {
             'Glooma lab brand vernietigt onderzoeksdata',
             'Glooma wetgeving blokkeert belangrijke projecten',
             'Glooma concurrent steelt marktaandeel'
+          ],
+          war: [
+            'Glooma lab gebombardeerd, onderzoeksdata vernietigd',
+            'Oorlog zorgt voor mutatie-onderzoek ban, Glooma daalt',
+            'Glooma faciliteiten aangevallen, productie stil',
+            'Glooma technologie ingezet voor oorlogsdoeleinden',
+            'Oorlogseconomie: biotech cruciaal, Glooma stijgt',
+            'Glooma onderzoekers gemobiliseerd voor oorlog',
+            'Glooma lab in oorlogszone, evacuatie nodig',
+            'Glooma beveiliging versterkt na oorlogsdreiging'
           ]
         }
       }
@@ -2167,7 +2252,19 @@ app.prepare().then(() => {
       
       const symbol = event.symbol
       const isPositive = event.percentage > 0
-      const headlines = newsHeadlines[symbol]?.[isPositive ? 'positive' : 'negative']
+      
+      // Check if in war state - use war headlines instead of normal ones
+      const marketState = roomCode && roomMarketState[roomCode] ? roomMarketState[roomCode].state : 'normal'
+      let headlines
+      
+      if (marketState === 'war' && newsHeadlines[symbol]?.war) {
+        // Use war headlines during war (they have mixed positive/negative sentiment)
+        headlines = newsHeadlines[symbol].war
+      } else {
+        // Use normal positive/negative headlines
+        headlines = newsHeadlines[symbol]?.[isPositive ? 'positive' : 'negative']
+      }
+      
       return headlines ? headlines[Math.floor(Math.random() * headlines.length)] : null
     }
 
@@ -2246,6 +2343,7 @@ app.prepare().then(() => {
 
     // Helper function to generate next 10 events for a room
     function generateUpcomingEvents(roomCode) {
+      console.log(`🔧 generateUpcomingEvents called for room ${roomCode}`)
       const events = []
       
       // Genereer 9 events - war/peace logica zit in generateRandomEvent()
@@ -2264,18 +2362,20 @@ app.prepare().then(() => {
         } while (attempts < 5)
         
         // Add news headline for individual crypto events
-        if (event.type === 'boost' && event.symbol) {
-          event.headline = generateNewsHeadline(event)
-        } else if (event.type === 'war') {
-          event.headline = 'Oorlog uitgebroken'
-          lastWarIndex = i
-          console.log(`⚔️ WAR EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9)`)
-        } else if (event.type === 'peace') {
-          event.headline = 'Vredesakkoord getekend'
-          console.log(`🕊️ PEACE EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9)`)
+        if (event) {
+          if (event.type === 'boost' && event.symbol) {
+            event.headline = generateNewsHeadline(event, roomCode)
+          } else if (event.type === 'war') {
+            event.headline = 'Oorlog uitgebroken'
+            lastWarIndex = i
+            console.log(`⚔️ WAR EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9)`)
+          } else if (event.type === 'peace') {
+            event.headline = 'Vredesakkoord getekend'
+            console.log(`🕊️ PEACE EVENT ADDED TO UPCOMING QUEUE (position ${i+1}/9)`)
+          }
+          
+          events.push(event)
         }
-        
-        events.push(event)
       }
       
       // 10e event is altijd Market Forecast
@@ -2286,7 +2386,7 @@ app.prepare().then(() => {
         message: 'Market Forecast beschikbaar'
       })
       roomUpcomingEvents[roomCode] = events
-      console.log(`📋 Generated 9 events + 1 forecast event for room ${roomCode}`)
+      console.log(`📋 Generated ${events.length} events for room ${roomCode}:`, events.map(e => `${e.type}:${e.symbol || 'N/A'}`))
       return events
     }
 
@@ -2551,7 +2651,9 @@ app.prepare().then(() => {
         const eventsForForecast = [...queueWithoutForecast].slice(0, 9)
         // Vul aan tot 9 events indien queue te kort is
         while (eventsForForecast.length < 9) {
-          eventsForForecast.push(generateRandomEvent(roomCode))
+          const fillEvent = generateRandomEvent(roomCode)
+          if (!fillEvent) break
+          eventsForForecast.push(fillEvent)
         }
         const newEvents = eventsForForecast
         
@@ -2623,8 +2725,9 @@ app.prepare().then(() => {
           // Forecast staat op laatste positie - voeg nieuwe events toe vóór forecast
           while (roomUpcomingEvents[roomCode].length < 10) {
             const newEvent = generateRandomEvent(roomCode)
-            if (newEvent.type === 'boost' && newEvent.symbol) {
-              newEvent.headline = generateNewsHeadline(newEvent)
+            if (!newEvent) break
+            if ((newEvent.type === 'boost' || newEvent.type === 'crash') && newEvent.symbol) {
+              newEvent.headline = generateNewsHeadline(newEvent, roomCode)
             } else if (newEvent.type === 'war') {
               newEvent.headline = 'Oorlog uitgebroken'
             } else if (newEvent.type === 'peace') {
@@ -2637,8 +2740,9 @@ app.prepare().then(() => {
           // Forecast is weg of niet op laatste positie - voeg forecast toe
           while (roomUpcomingEvents[roomCode].length < 9) {
             const newEvent = generateRandomEvent(roomCode)
-            if (newEvent.type === 'boost' && newEvent.symbol) {
-              newEvent.headline = generateNewsHeadline(newEvent)
+            if (!newEvent) break
+            if ((newEvent.type === 'boost' || newEvent.type === 'crash') && newEvent.symbol) {
+              newEvent.headline = generateNewsHeadline(newEvent, roomCode)
             } else if (newEvent.type === 'war') {
               newEvent.headline = 'Oorlog uitgebroken'
             } else if (newEvent.type === 'peace') {
@@ -2724,6 +2828,15 @@ app.prepare().then(() => {
           stateEventsRemaining: roomMarketState[roomCode]?.eventsRemaining || 0
         })
         console.log(`⚔️ WAR APPLIED! War mode for ${duration} events (85% negative bias)`)
+        // Regenereer war headlines voor alle bestaande queue-events zodat ze oorlogs-headlines krijgen
+        if (roomUpcomingEvents[roomCode]) {
+          roomUpcomingEvents[roomCode].forEach(event => {
+            if ((event.type === 'boost' || event.type === 'crash') && event.symbol) {
+              event.headline = generateNewsHeadline(event, roomCode)
+            }
+          })
+          console.log(`📰 War headlines regenerated for ${roomUpcomingEvents[roomCode].length} queued events`)
+        }
       } else if (!shouldGenerateForecast && randomEvent.type === 'peace') {
         const duration = Math.floor(Math.random() * 5) + 6 // 6-10 events
         roomMarketState[roomCode] = {

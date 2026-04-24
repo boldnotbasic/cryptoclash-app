@@ -5,6 +5,8 @@ const SOUND_URLS = {
   positive: '/sounds/positive.mp3',
   negative: '/sounds/negative.mp3',
   forecast: '/sounds/forecast.mp3',
+  war: '/sounds/oorlog.mp3',
+  peace: '/sounds/vrede.mp3',
   background: '/sounds/background_music.mp3'
 }
 
@@ -92,6 +94,16 @@ export const playNegativeSound = () => {
 // Play forecast sound (market forecast popup)
 export const playForecastSound = () => {
   playSoundEffect(SOUND_URLS.forecast, 0.8)
+}
+
+// Play war sound (war event triggered)
+export const playWarSound = () => {
+  playSoundEffect(SOUND_URLS.war, 0.8)
+}
+
+// Play peace sound (peace event triggered)
+export const playPeaceSound = () => {
+  playSoundEffect(SOUND_URLS.peace, 0.8)
 }
 
 // Play background music

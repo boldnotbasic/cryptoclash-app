@@ -22,6 +22,17 @@ interface SpinWheelProps {
   cryptos: CryptoCurrency[]
   onClose: () => void
   onWinCrypto: (symbol: string) => void
+  onWinCash?: () => void
+  onWinGoldHen?: () => void
+}
+
+type PrizeType = 'crypto' | 'cash' | 'goldhen'
+interface Prize {
+  type: PrizeType
+  label: string
+  symbol?: string
+  imagePath: string | null
+  icon?: string
 }
 
 const getCryptoImagePath = (symbol: string): string | null => {
@@ -37,106 +48,87 @@ const getCryptoImagePath = (symbol: string): string | null => {
   }
 }
 
-export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelProps) {
+export default function SpinWheel({ cryptos, onClose, onWinCrypto, onWinCash, onWinGoldHen }: SpinWheelProps) {
   const { t } = useLanguage()
   const [isSpinning, setIsSpinning] = useState(false)
   const [rotation, setRotation] = useState(0)
-  const [wonCrypto, setWonCrypto] = useState<CryptoCurrency | null>(null)
+  const [wonPrize, setWonPrize] = useState<Prize | null>(null)
 
+  // Build unified prizes array: 6 cryptos + cash + goudhaantje = 8 segments
   const topCryptos = cryptos.slice(0, 6)
-  const segmentAngle = 360 / topCryptos.length
+  const prizes: Prize[] = [
+    ...topCryptos.map(c => ({
+      type: 'crypto' as PrizeType,
+      label: c.name,
+      symbol: c.symbol,
+      imagePath: getCryptoImagePath(c.symbol),
+      icon: c.icon
+    })),
+    { type: 'cash' as PrizeType, label: '⚘500 Cash', imagePath: '/wincash.png' },
+    { type: 'goldhen' as PrizeType, label: '⚘1000 Goudhaantje', imagePath: '/goudhaantje.png' },
+  ]
+
+  const segmentAngle = 360 / prizes.length
 
   const handleSpin = () => {
     if (isSpinning) return
 
     setIsSpinning(true)
-    setWonCrypto(null)
+    setWonPrize(null)
 
-    // Pick a random winning segment
-    const randomSegment = Math.floor(Math.random() * topCryptos.length)
-    const winner = topCryptos[randomSegment]
-    
-    // Pointer is at TOP (0° in our SVG, which is -90° in standard math)
-    // Segments start at 0° (right side in standard math, top in our SVG because we offset by -90)
-    // To land in CENTER of segment: rotate wheel so segment center points UP
+    const randomSegment = Math.floor(Math.random() * prizes.length)
+    const winner = prizes[randomSegment]
+
     const fullRotations = 5 + Math.floor(Math.random() * 4)
-    
-    // Segment center angle in our coordinate system (starting from top, going clockwise)
     const segmentCenterAngle = randomSegment * segmentAngle + segmentAngle / 2
-    
-    // We need to rotate the wheel so this angle points to 0° (top/pointer)
-    // Negative because wheel rotates clockwise
     const targetRotation = -segmentCenterAngle
     const finalAngle = fullRotations * 360 + targetRotation
 
-    console.log('🎯 Spin Debug:')
-    console.log('  Random segment index:', randomSegment)
-    console.log('  Winner:', winner.symbol, winner.name)
-    console.log('  Segment angle:', segmentAngle)
-    console.log('  Segment center angle:', segmentCenterAngle)
-    console.log('  Target rotation:', targetRotation)
-    console.log('  Final angle:', finalAngle)
-
     setRotation(finalAngle)
 
-    // After spin completes, show winner
     setTimeout(() => {
-      setWonCrypto(winner)
+      setWonPrize(winner)
       setIsSpinning(false)
 
-      // Auto-apply after 2 seconds
       setTimeout(() => {
-        onWinCrypto(winner.symbol)
+        if (winner.type === 'crypto' && winner.symbol) {
+          onWinCrypto(winner.symbol)
+        } else if (winner.type === 'cash') {
+          onWinCash?.()
+        } else if (winner.type === 'goldhen') {
+          onWinGoldHen?.()
+        }
         onClose()
       }, 2000)
     }, 4000)
   }
 
-  // Solid purple colors for wheel segments - darker purple matching project theme
   const segmentColors = [
-    '#581c87', // dark purple
-    '#4c1d95', // darker purple
-    '#581c87', // dark purple
-    '#4c1d95', // darker purple
-    '#581c87', // dark purple
-    '#4c1d95', // darker purple
+    '#581c87', '#4c1d95', '#581c87', '#4c1d95',
+    '#581c87', '#4c1d95', '#1e3a5f', '#7c2d12',
   ]
 
-  // Calculate path for each segment
   const getSegmentPath = (index: number) => {
     const startAngle = index * segmentAngle
     const endAngle = startAngle + segmentAngle
-    
     const startRad = (startAngle - 90) * Math.PI / 180
     const endRad = (endAngle - 90) * Math.PI / 180
-    
     const x1 = 200 + 200 * Math.cos(startRad)
     const y1 = 200 + 200 * Math.sin(startRad)
     const x2 = 200 + 200 * Math.cos(endRad)
     const y2 = 200 + 200 * Math.sin(endRad)
-    
     const largeArc = segmentAngle > 180 ? 1 : 0
-    
     return `M 200 200 L ${x1} ${y1} A 200 200 0 ${largeArc} 1 ${x2} ${y2} Z`
   }
 
-  // Calculate position for crypto image in segment
   const getImagePosition = (index: number) => {
-    // Angle of segment center (starting from top, going clockwise)
     const angle = index * segmentAngle + segmentAngle / 2
-    // Convert to radians (subtract 90 to start from top instead of right)
     const rad = (angle - 90) * Math.PI / 180
-    const distance = 120 // Distance from center
-    
+    const distance = 120
     const x = 200 + distance * Math.cos(rad)
     const y = 200 + distance * Math.sin(rad)
-    
-    // Rotate image to point toward center
-    // angle gives us the direction FROM center TO image position
-    // We want image to face TOWARD center, so rotate by angle + 180
     const imageRotation = angle + 180
-    
-    return { x, y, angle, imageRotation }
+    return { x, y, imageRotation }
   }
 
   return (
@@ -164,7 +156,7 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
             <div className="w-0 h-0 border-l-[20px] border-l-transparent border-r-[20px] border-r-transparent border-t-[30px] border-t-neon-gold drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]" />
           </div>
 
-          {/* SVG Wheel - TRUE CIRCLE */}
+          {/* SVG Wheel */}
           <svg
             viewBox="0 0 400 400"
             className="w-full h-full transition-transform duration-[4000ms] ease-out drop-shadow-2xl"
@@ -173,62 +165,35 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
               transitionTimingFunction: isSpinning ? 'cubic-bezier(0.17, 0.67, 0.12, 0.99)' : 'ease-out'
             }}
           >
-            {/* Draw segments with solid purple colors */}
-            {topCryptos.map((crypto, index) => {
-              const path = getSegmentPath(index)
-              const color = segmentColors[index % segmentColors.length]
-              
-              return (
-                <path
-                  key={crypto.symbol}
-                  d={path}
-                  fill={color}
-                  stroke="#d4af37"
-                  strokeWidth="2"
-                  opacity="0.95"
-                />
-              )
-            })}
+            {prizes.map((prize, index) => (
+              <path
+                key={index}
+                d={getSegmentPath(index)}
+                fill={segmentColors[index % segmentColors.length]}
+                stroke="#d4af37"
+                strokeWidth="2"
+                opacity="0.95"
+              />
+            ))}
 
-            {/* Outer circle border */}
-            <circle
-              cx="200"
-              cy="200"
-              r="200"
-              fill="none"
-              stroke="#d4af37"
-              strokeWidth="4"
-              opacity="0.5"
-            />
+            <circle cx="200" cy="200" r="200" fill="none" stroke="#d4af37" strokeWidth="4" opacity="0.5" />
 
-            {/* Place crypto images - rotated to face toward center */}
-            {topCryptos.map((crypto, index) => {
+            {prizes.map((prize, index) => {
               const pos = getImagePosition(index)
-              const imagePath = getCryptoImagePath(crypto.symbol)
-              
               return (
-                <g 
-                  key={`img-${crypto.symbol}`}
-                  transform={`rotate(${pos.imageRotation} ${pos.x} ${pos.y})`}
-                >
-                  {imagePath ? (
+                <g key={`img-${index}`} transform={`rotate(${pos.imageRotation} ${pos.x} ${pos.y})`}>
+                  {prize.imagePath ? (
                     <image
-                      href={imagePath}
-                      x={pos.x - 30}
-                      y={pos.y - 30}
-                      width="60"
-                      height="60"
+                      href={prize.imagePath}
+                      x={pos.x - 28}
+                      y={pos.y - 28}
+                      width="56"
+                      height="56"
                       style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))' }}
                     />
                   ) : (
-                    <text
-                      x={pos.x}
-                      y={pos.y}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fontSize="40"
-                    >
-                      {crypto.icon}
+                    <text x={pos.x} y={pos.y} textAnchor="middle" dominantBaseline="middle" fontSize="36">
+                      {prize.icon}
                     </text>
                   )}
                 </g>
@@ -253,11 +218,11 @@ export default function SpinWheel({ cryptos, onClose, onWinCrypto }: SpinWheelPr
         </div>
 
         {/* Winner announcement */}
-        {wonCrypto && (
+        {wonPrize && (
           <div className="mt-6 p-6 bg-gradient-to-r from-neon-gold/20 to-neon-purple/20 border-2 border-neon-gold rounded-xl text-center animate-fadeIn">
             <h3 className="text-2xl font-bold text-neon-gold mb-2">🎉 {t('spinWheel.congratulations')}</h3>
             <p className="text-white text-lg">
-              {t('spinWheel.youWon')} <span className="font-bold text-neon-gold">{wonCrypto.name}</span>!
+              {t('spinWheel.youWon')} <span className="font-bold text-neon-gold">{wonPrize.label}</span>!
             </p>
             <p className="text-gray-300 text-sm mt-2">{t('spinWheel.autoAdding')}</p>
           </div>

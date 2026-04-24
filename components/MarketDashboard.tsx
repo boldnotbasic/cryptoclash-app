@@ -320,6 +320,7 @@ export default function MarketDashboard({
     if (!socket) return
 
     const handleScanDataUpdate = ({ upcomingEvents: events, scanCount: count }: any) => {
+      console.log('🔔 scanData:update received:', { eventsCount: events?.length, scanCount: count })
       if (events) {
         console.log(`📋 Received ${events.length} upcoming events from server`)
         
@@ -1757,7 +1758,7 @@ export default function MarketDashboard({
               </div>
             )
           })()}
-        </div>/*}
+        </div>*/}
 
         {/* Komende Events Widget */}
         <div className="crypto-card mt-4">
