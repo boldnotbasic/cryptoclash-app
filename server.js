@@ -2496,6 +2496,7 @@ app.prepare().then(() => {
 
     // Player triggers event - server generates and broadcasts to ALL players
     socket.on('player:triggerEvent', ({ roomCode, playerName, playerAvatar }) => {
+      console.log(`🔥🔥🔥 RECEIVED player:triggerEvent from client! Room: ${roomCode}, Player: ${playerName}`)
       try {
       console.log(`\n🎲 === PLAYER TRIGGERED EVENT ===`)
       console.log(`🏠 Room: ${roomCode}`)

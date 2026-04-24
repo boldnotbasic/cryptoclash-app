@@ -127,7 +127,7 @@ export const useSocket = (): UseSocketReturn => {
       transports: ['polling'],
       upgrade: false,
       timeout: 60000, // Increased timeout
-      forceNew: false,
+      forceNew: true,
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 20, // More attempts
@@ -140,7 +140,7 @@ export const useSocket = (): UseSocketReturn => {
       transports: ['polling', 'websocket'],
       rememberUpgrade: true,
       timeout: 45000, // Increased timeout
-      forceNew: false,
+      forceNew: true,
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: 15, // More attempts
