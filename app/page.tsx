@@ -3744,7 +3744,8 @@ export default function Home() {
                       playerAvatar: playerAvatar
                     })
                     console.log('✅ player:triggerEvent emitted to server')
-                    navigateToScreen('main-menu')
+                    // Small delay to ensure emit completes before navigation
+                    setTimeout(() => navigateToScreen('main-menu'), 100)
                   } else {
                     console.log('❌ Cannot emit event - socket or roomId missing')
                     console.log('❌ Socket exists:', !!socket)
