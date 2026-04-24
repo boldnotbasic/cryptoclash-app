@@ -2260,12 +2260,16 @@ app.prepare().then(() => {
       if (marketState === 'war' && newsHeadlines[symbol]?.war) {
         // Use war headlines during war (they have mixed positive/negative sentiment)
         headlines = newsHeadlines[symbol].war
+        console.log(`📰 WAR HEADLINE for ${symbol}: Using war-specific headlines (state: ${marketState})`)
       } else {
         // Use normal positive/negative headlines
         headlines = newsHeadlines[symbol]?.[isPositive ? 'positive' : 'negative']
+        console.log(`📰 NORMAL HEADLINE for ${symbol}: ${isPositive ? 'positive' : 'negative'} (state: ${marketState})`)
       }
       
-      return headlines ? headlines[Math.floor(Math.random() * headlines.length)] : null
+      const selectedHeadline = headlines ? headlines[Math.floor(Math.random() * headlines.length)] : null
+      console.log(`📰 Selected headline: "${selectedHeadline}"`)
+      return selectedHeadline
     }
 
     // ⚔️ Helper function to check if macro event should trigger
@@ -2830,12 +2834,16 @@ app.prepare().then(() => {
         console.log(`⚔️ WAR APPLIED! War mode for ${duration} events (85% negative bias)`)
         // Regenereer war headlines voor alle bestaande queue-events zodat ze oorlogs-headlines krijgen
         if (roomUpcomingEvents[roomCode]) {
+          let regeneratedCount = 0
           roomUpcomingEvents[roomCode].forEach(event => {
             if ((event.type === 'boost' || event.type === 'crash') && event.symbol) {
+              const oldHeadline = event.headline
               event.headline = generateNewsHeadline(event, roomCode)
+              console.log(`📰 Regenerated: ${event.symbol} "${oldHeadline}" → "${event.headline}"`)
+              regeneratedCount++
             }
           })
-          console.log(`📰 War headlines regenerated for ${roomUpcomingEvents[roomCode].length} queued events`)
+          console.log(`📰 War headlines regenerated for ${regeneratedCount}/${roomUpcomingEvents[roomCode].length} queued events`)
         }
       } else if (!shouldGenerateForecast && randomEvent.type === 'peace') {
         const duration = Math.floor(Math.random() * 5) + 6 // 6-10 events
