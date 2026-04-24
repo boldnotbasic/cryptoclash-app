@@ -795,13 +795,13 @@ export default function MarketDashboard({
               <div className="bg-dark-bg/30 rounded-lg p-2 text-center">
                 <p className="text-gray-400 text-xs">{t('marketDashboard.marketValue')}</p>
                 <p className="text-sm sm:text-lg font-bold text-neon-gold">
-                  {formatCurrency((totalMarketCap / 1000000), currency.symbol)}M
+                  <CurrencyAmount value={totalMarketCap / 1000000} iconSize={14} />M
                 </p>
               </div>
               <div className="bg-dark-bg/30 rounded-lg p-2 text-center">
                 <p className="text-gray-400 text-xs">{t('marketDashboard.volume')}</p>
                 <p className="text-sm sm:text-lg font-bold text-neon-blue">
-                  {formatCurrency((totalVolume / 1000000), currency.symbol)}M
+                  <CurrencyAmount value={totalVolume / 1000000} iconSize={14} />M
                 </p>
               </div>
               <div className="bg-dark-bg/30 rounded-lg p-2 text-center">
