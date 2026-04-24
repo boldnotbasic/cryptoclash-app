@@ -3735,9 +3735,14 @@ export default function Home() {
                   console.log('👤 Player Name:', playerName)
                   console.log('🔌 Socket connected:', !!socket)
                   console.log('🔌 Socket ID:', socket?.id)
+                  console.log('🔌 Socket.connected:', socket?.connected)
+                  console.log('🔌 Socket.io.uri:', (socket as any)?.io?.uri)
+                  console.log('🔌 Socket transport:', (socket as any)?.io?.engine?.transport?.name)
+                  console.log('📡 Window location:', window.location.href)
                   console.log('📡 Timestamp:', new Date().toISOString())
                   
                   if (socket && roomId) {
+                    console.log('📤 Emitting player:triggerEvent with payload:', { roomCode: roomId, playerName, playerAvatar })
                     socket.emit('player:triggerEvent', {
                       roomCode: roomId,
                       playerName: playerName,
