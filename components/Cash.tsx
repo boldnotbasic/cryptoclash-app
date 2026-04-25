@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { ArrowLeft, CreditCard, Euro, TrendingUp } from 'lucide-react'
 import Header from './Header'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -29,6 +30,12 @@ interface CashProps {
 export default function Cash({ onBack, playerName, playerAvatar, cashBalance, transactions = [] }: CashProps) {
   const { t } = useLanguage()
   const { currency } = useCurrency()
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+  
   // Calculate totals from transactions
   const totalSales = transactions.reduce((sum, t) => sum + t.total, 0)
   const todayTransactions = transactions.filter(t => {
@@ -90,7 +97,7 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
               {/* Card Number */}
               <div className="mb-4">
                 <p className="text-gray-300 text-lg font-mono tracking-wider">
-                  •••• •••• •••• {Math.floor(Math.random() * 9000) + 1000}
+                  •••• •••• •••• {mounted ? Math.floor(Math.random() * 9000) + 1000 : '••••'}
                 </p>
               </div>
 
