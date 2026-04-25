@@ -1892,27 +1892,27 @@ app.prepare().then(() => {
       const marketState = roomCode && roomMarketState[roomCode] ? roomMarketState[roomCode].state : 'normal'
       const eventTypes = [
         // Crypto specific events (NEVER 0%) - meest voorkomend
-        { type: 'boost', symbol: 'DSHP', min: -30, max: 30 },
-        { type: 'boost', symbol: 'DSHP', min: -30, max: 30 },
-        { type: 'boost', symbol: 'DSHP', min: -30, max: 30 },
-        { type: 'boost', symbol: 'ORX', min: -30, max: 30 },
-        { type: 'boost', symbol: 'ORX', min: -30, max: 30 },
-        { type: 'boost', symbol: 'ORX', min: -30, max: 30 },
-        { type: 'boost', symbol: 'LNTR', min: -30, max: 30 },
-        { type: 'boost', symbol: 'LNTR', min: -30, max: 30 },
-        { type: 'boost', symbol: 'LNTR', min: -30, max: 30 },
-        { type: 'boost', symbol: 'SIL', min: -30, max: 30 },
-        { type: 'boost', symbol: 'SIL', min: -30, max: 30 },
-        { type: 'boost', symbol: 'SIL', min: -30, max: 30 },
-        { type: 'boost', symbol: 'REX', min: -30, max: 30 },
-        { type: 'boost', symbol: 'REX', min: -30, max: 30 },
-        { type: 'boost', symbol: 'REX', min: -30, max: 30 },
-        { type: 'boost', symbol: 'GLX', min: -30, max: 30 },
-        { type: 'boost', symbol: 'GLX', min: -30, max: 30 },
-        { type: 'boost', symbol: 'GLX', min: -30, max: 30 },
+        { type: 'boost', symbol: 'DSHP', min: -20, max: 20 },
+        { type: 'boost', symbol: 'DSHP', min: -20, max: 20 },
+        { type: 'boost', symbol: 'DSHP', min: -20, max: 20 },
+        { type: 'boost', symbol: 'ORX', min: -20, max: 20 },
+        { type: 'boost', symbol: 'ORX', min: -20, max: 20 },
+        { type: 'boost', symbol: 'ORX', min: -20, max: 20 },
+        { type: 'boost', symbol: 'LNTR', min: -20, max: 20 },
+        { type: 'boost', symbol: 'LNTR', min: -20, max: 20 },
+        { type: 'boost', symbol: 'LNTR', min: -20, max: 20 },
+        { type: 'boost', symbol: 'SIL', min: -20, max: 20 },
+        { type: 'boost', symbol: 'SIL', min: -20, max: 20 },
+        { type: 'boost', symbol: 'SIL', min: -20, max: 20 },
+        { type: 'boost', symbol: 'REX', min: -20, max: 20 },
+        { type: 'boost', symbol: 'REX', min: -20, max: 20 },
+        { type: 'boost', symbol: 'REX', min: -20, max: 20 },
+        { type: 'boost', symbol: 'GLX', min: -20, max: 20 },
+        { type: 'boost', symbol: 'GLX', min: -20, max: 20 },
+        { type: 'boost', symbol: 'GLX', min: -20, max: 20 },
         // Market-wide events (zeldzaam maar impactvol)
-        { type: 'event', symbol: null, min: 10, max: 30 },   // Bull Run: alles stijgt
-        { type: 'event', symbol: null, min: -30, max: -10 },  // Market Crash: alles daalt
+        { type: 'event', symbol: null, min: 5, max: 20 },    // Bull Run: max +20%
+        { type: 'event', symbol: null, min: -20, max: -5 },   // Market Crash: max -20%
         // WAR/PEACE events zijn NIET in de pool - ze worden via generateUpcomingEvents getriggerd
       ]
       
@@ -1967,31 +1967,31 @@ app.prepare().then(() => {
           shouldBePositive = Math.random() < trendBias
         }
         
-        // Generate percentage biased towards the market state
+        // Generate percentage biased towards the market state (MAX ±20%)
         if (shouldBePositive) {
           // Positive event
           if (marketState === 'war') {
-            percentage = Math.floor(Math.random() * 11) + 1 // +1% to +10% (kleine winsten tijdens oorlog)
+            percentage = Math.floor(Math.random() * 5) + 1 // +1% to +5% (kleine winsten tijdens oorlog)
           } else if (marketState === 'peace') {
-            percentage = Math.floor(Math.random() * 41) + 1 // +1% to +40% (grote winsten tijdens vrede)
+            percentage = Math.floor(Math.random() * 16) + 5 // +5% to +20% (grote winsten tijdens vrede)
           } else {
-            percentage = Math.floor(Math.random() * 30) + 1 // +1% to +30% (normal)
+            percentage = Math.floor(Math.random() * 20) + 1 // +1% to +20% (normal)
           }
         } else {
           // Negative event
           if (marketState === 'war') {
-            percentage = -(Math.floor(Math.random() * 41) + 1) // -1% to -40% (enorme verliezen tijdens oorlog)
+            percentage = -(Math.floor(Math.random() * 16) + 5) // -5% to -20% (zware verliezen tijdens oorlog)
           } else if (marketState === 'peace') {
-            percentage = -(Math.floor(Math.random() * 11) + 1) // -1% to -10% (kleine verliezen tijdens vrede)
+            percentage = -(Math.floor(Math.random() * 5) + 1) // -1% to -5% (kleine verliezen tijdens vrede)
           } else {
-            percentage = -(Math.floor(Math.random() * 30) + 1) // -1% to -30% (normal)
+            percentage = -(Math.floor(Math.random() * 20) + 1) // -1% to -20% (normal)
           }
         }
         
         const stateLabel = marketState === 'normal' ? 'MOMENTUM' : `STATE:${marketState.toUpperCase()}`
         console.log(`🌍 ${stateLabel}: ${randomEvent.symbol} (${(positiveChance * 100).toFixed(0)}% pos) → ${percentage > 0 ? '+' : ''}${percentage}%`)
       } else if (randomEvent.type === 'event') {
-        // Market-wide events: Bull Run (+10 tot +30%) of Market Crash (-10 tot -30%)
+        // Market-wide events: Bull Run (+5% tot +20%) of Market Crash (-5% tot -20%)
         if (randomEvent.min > 0) {
           // Bull Run
           percentage = Math.floor(Math.random() * (randomEvent.max - randomEvent.min + 1)) + randomEvent.min
@@ -2361,24 +2361,24 @@ app.prepare().then(() => {
           ? tracker.eventsSinceStart - tracker.lastWarEvent 
           : 999
         
-        // WAR: alleen als niet in war, minstens 20 events sinds laatste war, minstens 15 events sinds start, 15% kans per batch
+        // WAR: alleen als niet in war/peace, minstens 8 events sinds start, minstens 15 events sinds laatste war, 30% kans per batch
         if (currentState !== 'war' && currentState !== 'peace' &&
-            tracker.eventsSinceStart >= 15 && 
-            eventsSinceLastWar >= 25 &&
-            Math.random() < 0.15) {
-          // Plaats war op een random positie in de batch (niet eerste of laatste)
-          warSlot = Math.floor(Math.random() * 7) + 1 // positie 1-7
-          console.log(`⚔️ WAR scheduled at position ${warSlot + 1}/9 in upcoming batch`)
+            tracker.eventsSinceStart >= 8 && 
+            eventsSinceLastWar >= 15 &&
+            Math.random() < 0.30) {
+          // Plaats war op een random positie in de batch (positie 1-4, vroeg in de batch)
+          warSlot = Math.floor(Math.random() * 4) + 1 // positie 1-4
+          console.log(`⚔️ WAR scheduled at position ${warSlot + 1}/9 in upcoming batch (after ${tracker.eventsSinceStart} applied events)`)
         }
         
-        // PEACE: alleen als in war, oorlog ooit geweest, minstens 10 events in war, 1x per oorlog
+        // PEACE: alleen als in war, oorlog ooit geweest, minstens 8 events in war, 1x per oorlog, 40% kans
         if (currentState === 'war' && 
             tracker.warHappened === true &&
-            (tracker.eventsSinceWarStarted || 0) >= 10 && 
+            (tracker.eventsSinceWarStarted || 0) >= 8 && 
             !tracker.peaceHappenedSinceWar &&
-            Math.random() < 0.30) {
-          // Plaats peace op positie 6-8 (laat in de batch)
-          peaceSlot = Math.floor(Math.random() * 3) + 6 // positie 6-8
+            Math.random() < 0.40) {
+          // Plaats peace op positie 5-8 (laat in de batch)
+          peaceSlot = Math.floor(Math.random() * 4) + 5 // positie 5-8
           warSlot = -1 // Nooit war en peace in dezelfde batch
           console.log(`🕊️ PEACE scheduled at position ${peaceSlot + 1}/9 in upcoming batch`)
         }
