@@ -152,6 +152,7 @@ const scanScenarios: ScanScenarioTemplate[] = [
 
 export default function EventPopup({ onClose, onApplyEffect, externalScenario, cryptos, nonForecastDurationMs, forecastDurationMs, transitionEase }: ScanResultProps) {
   const { t } = useLanguage()
+  const [mounted, setMounted] = useState(false) // Prevent hydration mismatch
   const [currentScenario, setCurrentScenario] = useState<ScanEffect | null>(null)
   const [isVisible, setIsVisible] = useState(false)
   const [progressStarted, setProgressStarted] = useState(false)
@@ -163,6 +164,11 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
   const hasClosedRef = useRef(false)
   const unmountedRef = useRef(false) // Guard against stale callbacks
   const scenarioIdRef = useRef(0) // Unique ID for each popup instance
+
+  // Set mounted after client-side mount to prevent hydration error
+  useEffect(() => {
+    setMounted(true)
+  }, [])
   
 
   // Simulate next 10 events to calculate top gainer and loser
@@ -465,7 +471,7 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
     }
   }, [currentScenario])
 
-  if (!currentScenario) return null
+  if (!currentScenario || !mounted) return null
 
   // Normalize legacy data coming from server/client: ORLO -> GLX, Orlo -> Glooma
   const normalizedSymbol = (currentScenario.cryptoSymbol === 'ORLO' ? 'GLX' : currentScenario.cryptoSymbol)
