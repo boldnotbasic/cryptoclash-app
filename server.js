@@ -2363,11 +2363,11 @@ app.prepare().then(() => {
         
         console.log(`⚔️ WAR CHECK: state=${currentState}, eventsSinceStart=${tracker.eventsSinceStart}, eventsSinceLastWar=${eventsSinceLastWar}, warHappened=${tracker.warHappened}`)
         
-        // WAR: niet in war/peace, minstens 2 events sinds start, minstens 5 sinds laatste war
-        // FORCE WAR: na 10 events zonder oorlog → 100% gegarandeerd
+        // WAR: niet in war/peace, minstens 2 events sinds start, minstens 3 sinds laatste war
+        // FORCE WAR: na 5 events zonder oorlog → 100% gegarandeerd
         const warEligible = currentState !== 'war' && currentState !== 'peace' &&
-            tracker.eventsSinceStart >= 2 && eventsSinceLastWar >= 5
-        const forceWar = warEligible && eventsSinceLastWar >= 10
+            tracker.eventsSinceStart >= 2 && eventsSinceLastWar >= 3
+        const forceWar = warEligible && eventsSinceLastWar >= 5
         
         if (forceWar) {
           warSlot = Math.floor(Math.random() * 3) + 1 // positie 1-3
