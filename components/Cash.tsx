@@ -31,9 +31,18 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
   const { t } = useLanguage()
   const { currency } = useCurrency()
   const [mounted, setMounted] = useState(false)
+  const [currentTime, setCurrentTime] = useState(Date.now())
   
   useEffect(() => {
     setMounted(true)
+    setCurrentTime(Date.now())
+    
+    // Update time every second for accurate time-ago display
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now())
+    }, 1000)
+    
+    return () => clearInterval(interval)
   }, [])
   
   // Calculate totals from transactions
@@ -140,7 +149,7 @@ export default function Cash({ onBack, playerName, playerAvatar, cashBalance, tr
           ) : (
             <div className="space-y-3">
               {transactions.slice(0, 10).map((transaction) => {
-                const timeAgo = Math.floor((Date.now() - transaction.timestamp) / 1000)
+                const timeAgo = mounted ? Math.floor((currentTime - transaction.timestamp) / 1000) : 0
                 const minutes = Math.floor(timeAgo / 60)
                 const hours = Math.floor(minutes / 60)
                 const days = Math.floor(hours / 24)
