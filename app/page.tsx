@@ -2478,22 +2478,18 @@ export default function Home() {
           autoCloseTimerRef.current = null
         }
         
-        // CRITICAL: Cancel any pending popup show timer, force close existing popup
+        // Cancel any pending popup show timer
         if (showPopupTimerRef.current) {
           clearTimeout(showPopupTimerRef.current)
           showPopupTimerRef.current = null
         }
-        setShowOtherPlayerEvent(false)
-        setOtherPlayerEventData(null)
-        setCurrentEventId('')
         
-        // Small delay to ensure clean unmount before showing new popup
-        showPopupTimerRef.current = setTimeout(() => {
-          showPopupTimerRef.current = null
-          setCurrentEventId(eventId)
-          setOtherPlayerEventData(scanEffect)
-          setShowOtherPlayerEvent(true)
-        }, 150)
+        // ATOMIC POPUP REPLACEMENT: Change key + data in one render cycle.
+        // React sees the new key → unmounts old EventPopup → mounts new one.
+        // No close-wait-open delay needed → no overlap possible.
+        setCurrentEventId(eventId)
+        setOtherPlayerEventData(scanEffect)
+        setShowOtherPlayerEvent(true)
         
         // Play sound based on event type (alle events, inclusief speler-triggered)
         console.log('🔊 Playing sound for event:', scanEffect.type, scanEffect.message, 'player:', newestEvent.player)

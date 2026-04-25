@@ -2359,28 +2359,33 @@ app.prepare().then(() => {
       if (tracker) {
         const eventsSinceLastWar = tracker.lastWarEvent 
           ? tracker.eventsSinceStart - tracker.lastWarEvent 
-          : 999
+          : tracker.eventsSinceStart // Als er nog nooit oorlog was, tel alle events
         
-        // WAR: alleen als niet in war/peace, minstens 8 events sinds start, minstens 15 events sinds laatste war, 30% kans per batch
-        if (currentState !== 'war' && currentState !== 'peace' &&
-            tracker.eventsSinceStart >= 8 && 
-            eventsSinceLastWar >= 15 &&
-            Math.random() < 0.30) {
-          // Plaats war op een random positie in de batch (positie 1-4, vroeg in de batch)
+        console.log(`⚔️ WAR CHECK: state=${currentState}, eventsSinceStart=${tracker.eventsSinceStart}, eventsSinceLastWar=${eventsSinceLastWar}, warHappened=${tracker.warHappened}`)
+        
+        // WAR: niet in war/peace, minstens 5 events sinds start, minstens 12 sinds laatste war
+        // FORCE WAR: na 20 events zonder oorlog → 100% gegarandeerd
+        const warEligible = currentState !== 'war' && currentState !== 'peace' &&
+            tracker.eventsSinceStart >= 5 && eventsSinceLastWar >= 12
+        const forceWar = warEligible && eventsSinceLastWar >= 20
+        
+        if (forceWar) {
+          warSlot = Math.floor(Math.random() * 3) + 1 // positie 1-3
+          console.log(`⚔️🔥 FORCE WAR at position ${warSlot + 1}/9 (${eventsSinceLastWar} events without war!)`)
+        } else if (warEligible && Math.random() < 0.40) {
           warSlot = Math.floor(Math.random() * 4) + 1 // positie 1-4
-          console.log(`⚔️ WAR scheduled at position ${warSlot + 1}/9 in upcoming batch (after ${tracker.eventsSinceStart} applied events)`)
+          console.log(`⚔️ WAR scheduled at position ${warSlot + 1}/9 (after ${eventsSinceLastWar} events since last war)`)
         }
         
-        // PEACE: alleen als in war, oorlog ooit geweest, minstens 8 events in war, 1x per oorlog, 40% kans
+        // PEACE: in war, minstens 6 events in war, 1x per oorlog, 50% kans
         if (currentState === 'war' && 
             tracker.warHappened === true &&
-            (tracker.eventsSinceWarStarted || 0) >= 8 && 
+            (tracker.eventsSinceWarStarted || 0) >= 6 && 
             !tracker.peaceHappenedSinceWar &&
-            Math.random() < 0.40) {
-          // Plaats peace op positie 5-8 (laat in de batch)
+            Math.random() < 0.50) {
           peaceSlot = Math.floor(Math.random() * 4) + 5 // positie 5-8
           warSlot = -1 // Nooit war en peace in dezelfde batch
-          console.log(`🕊️ PEACE scheduled at position ${peaceSlot + 1}/9 in upcoming batch`)
+          console.log(`🕊️ PEACE scheduled at position ${peaceSlot + 1}/9 (after ${tracker.eventsSinceWarStarted} war events)`)
         }
       }
       

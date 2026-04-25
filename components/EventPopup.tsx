@@ -159,7 +159,9 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
   const initializedRef = useRef(false)
   const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null)
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const fadeOutCloseTimerRef = useRef<NodeJS.Timeout | null>(null) // Track fadeout→close timer
   const hasClosedRef = useRef(false)
+  const unmountedRef = useRef(false) // Guard against stale callbacks
   const scenarioIdRef = useRef(0) // Unique ID for each popup instance
   
 
@@ -283,6 +285,7 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
     hasClosedRef.current = false
     
     // Clear any existing timers from previous popup
+    unmountedRef.current = false
     if (autoCloseTimerRef.current) {
       clearTimeout(autoCloseTimerRef.current)
       autoCloseTimerRef.current = null
@@ -290,6 +293,10 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current)
       countdownIntervalRef.current = null
+    }
+    if (fadeOutCloseTimerRef.current) {
+      clearTimeout(fadeOutCloseTimerRef.current)
+      fadeOutCloseTimerRef.current = null
     }
     
     console.log('EventPopup effect triggered')
@@ -334,6 +341,7 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
     return () => {
       console.log('🧹 EventPopup unmounting - resetting initializedRef')
       initializedRef.current = false
+      unmountedRef.current = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Only run once on mount
@@ -395,12 +403,13 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
               countdownIntervalRef.current = null
             }
             
-            if (!hasClosedRef.current && scenarioIdRef.current === currentScenarioId) {
+            if (!hasClosedRef.current && !unmountedRef.current && scenarioIdRef.current === currentScenarioId) {
               console.log(`🔥 Timer reached 0 - CLOSING forecast popup #${currentScenarioId}`)
               hasClosedRef.current = true
               setIsVisible(false)
               
-              setTimeout(() => {
+              fadeOutCloseTimerRef.current = setTimeout(() => {
+                if (unmountedRef.current) return // Guard: component already unmounted
                 console.log('🔥 APPLYING EFFECT and closing')
                 onApplyEffect(currentScenario)
                 onClose()
@@ -428,7 +437,8 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
         hasClosedRef.current = true
         setIsVisible(false)
         
-        setTimeout(() => {
+        fadeOutCloseTimerRef.current = setTimeout(() => {
+          if (unmountedRef.current) return // Guard: component already unmounted
           console.log('🔥 APPLYING EFFECT and closing')
           onApplyEffect(currentScenario)
           onClose()
@@ -436,9 +446,10 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
       }, 6900) // Wait for progress bar to be completely empty
     }
 
-    // Cleanup: only clear timers on unmount, not on re-render
+    // Cleanup: clear ALL timers on unmount to prevent stale callbacks
     return () => {
-      console.log('🧹 Component unmounting, clearing timers')
+      console.log('🧹 Component unmounting, clearing ALL timers')
+      unmountedRef.current = true
       if (autoCloseTimerRef.current) {
         clearTimeout(autoCloseTimerRef.current)
         autoCloseTimerRef.current = null
@@ -446,6 +457,10 @@ export default function EventPopup({ onClose, onApplyEffect, externalScenario, c
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current)
         countdownIntervalRef.current = null
+      }
+      if (fadeOutCloseTimerRef.current) {
+        clearTimeout(fadeOutCloseTimerRef.current)
+        fadeOutCloseTimerRef.current = null
       }
     }
   }, [currentScenario])
