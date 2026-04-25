@@ -220,11 +220,19 @@ interface NewsItemProps {
 
 function NewsItem({ symbol, direction, forcedHeadline }: NewsItemProps & { forcedHeadline?: string }) {
   // Use server headline if provided, otherwise fallback to random client headline
-  const [frozenHeadline] = useState(() => {
+  const [frozenHeadline, setFrozenHeadline] = useState(() => {
     if (forcedHeadline) return forcedHeadline
-    const headlines = NEWS_HEADLINES[symbol]?.[direction]
-    return headlines ? pickRandom(headlines) : symbol
+    return symbol // Default, will be replaced by useEffect
   })
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+    if (!forcedHeadline) {
+      const headlines = NEWS_HEADLINES[symbol]?.[direction]
+      setFrozenHeadline(headlines ? pickRandom(headlines) : symbol)
+    }
+  }, [symbol, direction, forcedHeadline])
   
   const isMarketEvent = symbol === 'MARKET'
   const displayName = isMarketEvent ? 'HELE MARKT' : (DISPLAY_NAME[symbol] ?? symbol)
